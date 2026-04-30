@@ -418,9 +418,9 @@ export class GeminiService {
         - TITRES: ${news.news?.slice(0, 5).map(n => n.summary).join(' | ') || 'Aucune actualité'}
 
         ${macro ? `CONTEXTE MACRO :
-        - BRENT: $${macro.brent.price} (${macro.brent.changePercent > 0 ? '+' : ''}${macro.brent.changePercent}%)
-        - OR: $${macro.gold.price} (${macro.gold.changePercent > 0 ? '+' : ''}${macro.gold.changePercent}%)
-        - USD/MAD: ${macro.usDmad.price} (${macro.usDmad.changePercent > 0 ? '+' : ''}${macro.usDmad.changePercent}%)` : ''}
+        - BRENT: $${macro.brent?.price ?? 'N/A'} (${(macro.brent?.changePercent ?? 0) > 0 ? '+' : ''}${macro.brent?.changePercent ?? 0}%)
+        - OR: $${macro.gold?.price ?? 'N/A'} (${(macro.gold?.changePercent ?? 0) > 0 ? '+' : ''}${macro.gold?.changePercent ?? 0}%)
+        - USD/MAD: ${macro.usDmad?.price ?? 'N/A'} (${(macro.usDmad?.changePercent ?? 0) > 0 ? '+' : ''}${macro.usDmad?.changePercent ?? 0}%)` : ''}
       `;
 
       const prompt = `${dataBlock}\n\n${SYNTHESIS_SYSTEM_PROMPT}`;
