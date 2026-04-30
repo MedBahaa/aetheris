@@ -160,13 +160,13 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
                         </span>
                       </td>
                       <td>
-                        <div className={`momentum-box ${s.pvNette >= 0 ? 'bull' : 'bear'}`}>
-                          <span className="m-abs mono">{s.pvNette >= 0 ? '+' : ''}{s.pvNette.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}</span>
+                        <div className={`momentum-box ${(s.pvNette ?? 0) >= 0 ? 'bull' : 'bear'}`}>
+                          <span className="m-abs mono">{(s.pvNette ?? 0) >= 0 ? '+' : ''}{(s.pvNette ?? 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })}</span>
                         </div>
                       </td>
                       <td>
-                        <span className={`mono font-bold ${s.pvNette >= 0 ? 'text-emerald' : 'text-rose'}`}>
-                          {s.pvNette >= 0 ? '+' : ''}{((s.pvNette / s.totalCost) * 100).toFixed(2)}%
+                        <span className={`mono font-bold ${(s.pvNette ?? 0) >= 0 ? 'text-emerald' : 'text-rose'}`}>
+                          {(s.pvNette ?? 0) >= 0 ? '+' : ''}{(( (s.pvNette ?? 0) / s.totalCost) * 100).toFixed(2)}%
                         </span>
                       </td>
                       <td>
@@ -194,9 +194,9 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
                           <div className="alert-form-row glass animate-slide-up">
                             <div className="alert-form-inner">
                               <span className="mono-tiny" style={{ color: '#ef4444' }}>🔴 STOP-LOSS</span>
-                              <input type="number" step="0.01" value={alertForm.sl_price} onChange={e => setAlertForm(f => ({ ...f, sl_price: e.target.value }))} placeholder={`< ${s.curPrice.toFixed(2)}`} className="alert-input bear" />
+                              <input type="number" step="0.01" value={alertForm.sl_price} onChange={e => setAlertForm(f => ({ ...f, sl_price: e.target.value }))} placeholder={`< ${(s.curPrice ?? 0).toFixed(2)}`} className="alert-input bear" />
                               <span className="mono-tiny" style={{ color: '#10b981' }}>🟢 TAKE-PROFIT</span>
-                              <input type="number" step="0.01" value={alertForm.tp_price} onChange={e => setAlertForm(f => ({ ...f, tp_price: e.target.value }))} placeholder={`> ${s.curPrice.toFixed(2)}`} className="alert-input bull" />
+                              <input type="number" step="0.01" value={alertForm.tp_price} onChange={e => setAlertForm(f => ({ ...f, tp_price: e.target.value }))} placeholder={`> ${(s.curPrice ?? 0).toFixed(2)}`} className="alert-input bull" />
                               <button onClick={() => handleSaveAlert(s.symbol)} className="alert-save-btn"><ShieldCheck size={12} /> SAUVEGARDER</button>
                               <button onClick={() => setAlertSymbol(null)} className="alert-cancel-btn"><X size={12} /></button>
                             </div>
