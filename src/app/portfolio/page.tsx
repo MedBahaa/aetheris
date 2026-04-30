@@ -119,7 +119,7 @@ export default function PortfolioPage() {
       
       const holdingsWithPrice = calculatedHoldings.map(h => {
         // Find match using SymbolMapper for normalization
-        const live = liveData.find((l: any) => {
+        const live = liveData.find((l: { symbol: string; price: any; sector?: string }) => {
           const normalizedLive = SymbolMapper.resolve(l.symbol);
           const normalizedHolding = SymbolMapper.resolve(h.symbol);
           return normalizedLive === normalizedHolding || l.symbol === h.symbol;
@@ -310,7 +310,7 @@ export default function PortfolioPage() {
     const valuation = h.totalQuantity * h.curPrice;
     const pvBrute = valuation - h.totalCost;
     const pvNette = pvBrute > 0 ? pvBrute * (1 - TAX_ON_PROFIT) : pvBrute;
-    const alert = alerts.find(a => a.symbol === h.symbol);
+    const alert = alerts.find((a: PriceAlert) => a.symbol === h.symbol);
     const slHit = alert?.sl_price && h.curPrice <= alert.sl_price;
     const tpHit = alert?.tp_price && h.curPrice >= alert.tp_price;
     
