@@ -38,7 +38,7 @@ export async function GET(request: Request) {
 
     for (const stock of result.stocks) {
       // Nettoyer le nom/symbole pour faire le lien
-      const company = companies?.find(c => 
+      const company = companies?.find((c: { id: string; symbol: string; name: string }) => 
         c.symbol.toLowerCase() === stock.symbol.toLowerCase() ||
         c.name.toLowerCase().includes(stock.symbol.toLowerCase()) ||
         stock.symbol.toLowerCase().includes(c.name.toLowerCase())
