@@ -110,7 +110,7 @@ export default function PortfolioPage() {
         fetch('/api/companies/sectors').catch(() => null)
       ]);
       
-      const [pricesData, sectorMap] = await Promise.all([
+      const [pricesData, sectorMap]: [any, Record<string, string>] = await Promise.all([
         pricesRes.json(),
         sectorsRes ? sectorsRes.json() : {}
       ]);
