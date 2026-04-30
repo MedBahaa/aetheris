@@ -29,6 +29,9 @@ interface NewsItem {
   url?: string;
   sentiment?: string;
   impact?: string;
+  sourceType?: string;
+  fullContent?: string;
+  contentSnippet?: string;
 }
 
 // Modèles avec fallback automatique
