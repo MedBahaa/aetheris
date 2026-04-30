@@ -245,10 +245,10 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
 
             {/* ── TOTAL ROW ── */}
             {holdings.length > 0 && (() => {
-              const totalVal = holdings.reduce((s, h) => s + h.totalQuantity * h.curPrice, 0);
+              const totalVal = holdings.reduce((s, h) => s + h.totalQuantity * (h.curPrice ?? 0), 0);
               const totalCost = holdings.reduce((s, h) => s + h.totalCost, 0);
               const totalPvNette = holdings.reduce((s, h) => {
-                const pv = h.totalQuantity * h.curPrice - h.totalCost;
+                const pv = h.totalQuantity * (h.curPrice ?? 0) - h.totalCost;
                 return s + (pv > 0 ? pv * (1 - 0.15) : pv);
               }, 0);
               const totalPerfPct = totalCost > 0 ? (totalPvNette / totalCost) * 100 : 0;
