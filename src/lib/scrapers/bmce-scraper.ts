@@ -194,7 +194,7 @@ export class BMCEBourseScraper {
           price: parseFloat(result.price),
           variation: result.variation,
           volume: parseInt(result.volume) || 0
-        }).then(({ error }) => {
+        }).then(({ error }: any) => {
           if (error) console.error('[Scraper] Insert market_history error:', error.message);
         });
       } else {
