@@ -1,0 +1,110 @@
+@media (max-width: 1024px) {
+  .institutional-table { display: block; }
+  .institutional-table thead { display: none; }
+  .institutional-table tbody { display: flex; flex-direction: column; gap: 1rem; padding: 1rem; }
+  
+  .inst-row { 
+    display: grid; 
+    grid-template-columns: 1fr 1fr; 
+    gap: 1rem; 
+    padding: 1.5rem; 
+    background: rgba(255, 255, 255, 0.02); 
+    border-radius: 1.25rem; 
+    border: 1px solid var(--border-glass); 
+  }
+  
+  .inst-row td { 
+    display: flex; 
+    flex-direction: column; 
+    padding: 0; 
+    border-bottom: none; 
+    gap: 0.5rem;
+  }
+
+  .inst-row td:first-child { grid-column: span 2; border-bottom: 1px solid var(--border-glass); padding-bottom: 1rem; margin-bottom: 0.5rem; }
+  .inst-row td:nth-child(2) { grid-column: span 2; background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 0.75rem; margin-bottom: 0.5rem; }
+
+  .inst-row td::before { 
+    content: attr(data-label); 
+    font-family: 'JetBrains Mono', monospace; 
+    font-size: 11px; 
+    font-weight: 950; 
+    color: #475569; 
+    text-transform: uppercase; 
+    letter-spacing: 0.15rem; 
+  }
+
+  .inst-row td:last-child { grid-column: span 2; margin-top: 1rem; }
+  .terminal-btn-sm { width: 100%; justify-content: center; height: 46px; font-size: 11px; }
+
+  .title-h1 { font-size: 2.75rem; }
+  .ticker-label { display: none; }
+  .market-badge { font-size: 8px; padding: 0.4rem 1.25rem; }
+}
+
+/* Contextual Dropdown Menu for Action Button */
+.action-dropdown-container {
+  position: relative;
+  display: inline-block;
+}
+
+.action-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.75rem;
+  padding: 0.5rem;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255,255,255,0.02) inset;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: dropdownSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: top right;
+}
+
+@keyframes dropdownSlideIn {
+  0% { opacity: 0; transform: scale(0.95) translateY(-5px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border: none;
+  border-radius: 0.5rem;
+  color: #94a3b8;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+  width: 100%;
+}
+
+.dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  transform: translateX(3px);
+}
+
+.dropdown-item.strategy:hover { color: #f8fafc; background: rgba(255, 255, 255, 0.1); }
+.dropdown-item.technical:hover { color: #38bdf8; background: rgba(56, 189, 248, 0.1); }
+.dropdown-item.fundamental:hover { color: #818cf8; background: rgba(129, 140, 248, 0.1); }
+.dropdown-item.sentiment:hover { color: #34d399; background: rgba(52, 211, 153, 0.1); }
+
+.dropdown-item svg {
+  opacity: 0.7;
+}
+
+.dropdown-item:hover svg {
+  opacity: 1;
+}
