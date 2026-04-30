@@ -67,9 +67,9 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
       case 'symbol': return dir * a.symbol.localeCompare(b.symbol);
       case 'totalQuantity': return dir * (a.totalQuantity - b.totalQuantity);
       case 'weightedAveragePrice': return dir * (a.weightedAveragePrice - b.weightedAveragePrice);
-      case 'curPrice': return dir * (a.curPrice - b.curPrice);
-      case 'valuation': return dir * ((a.totalQuantity * a.curPrice) - (b.totalQuantity * b.curPrice));
-      case 'poids': return dir * ((a.totalQuantity * a.curPrice) - (b.totalQuantity * b.curPrice));
+      case 'curPrice': return dir * ((a.curPrice ?? 0) - (b.curPrice ?? 0));
+      case 'valuation': return dir * ((a.totalQuantity * (a.curPrice ?? 0)) - (b.totalQuantity * (b.curPrice ?? 0)));
+      case 'poids': return dir * ((a.totalQuantity * (a.curPrice ?? 0)) - (b.totalQuantity * (b.curPrice ?? 0)));
       case 'pvNette': return dir * ((a.pvNette || 0) - (b.pvNette || 0));
       case 'perf': {
         const perfA = a.totalCost > 0 ? (a.pvNette || 0) / a.totalCost : 0;

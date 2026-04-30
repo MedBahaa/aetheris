@@ -330,7 +330,8 @@ export default function PortfolioPage() {
 
   const sectorBreakdown: Record<string, number> = {};
   holdingsStats.forEach(h => {
-    sectorBreakdown[h.sector] = (sectorBreakdown[h.sector] || 0) + h.valuation;
+    const sName = h.sector || 'Inconnu';
+    sectorBreakdown[sName] = (sectorBreakdown[sName] || 0) + (h.valuation ?? 0);
   });
   const sectors = Object.entries(sectorBreakdown)
     .map(([name, val], i) => ({ name, val, pct: totalMarketValue > 0 ? (val / totalMarketValue) * 100 : 0, color: COLORS[i % COLORS.length] }))
