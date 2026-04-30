@@ -75,7 +75,7 @@ export default function MarcheLive() {
     return data.stocks.map((s: LiveStockData) => ({
       ...s,
       _parsedPrice: typeof s.price === 'string' ? parseFloat(s.price.replace(',', '.').replace(/\s/g, '')) : s.price,
-      _parsedVariationValue: typeof s.variationValue === 'string' ? parseFloat(s.variationValue.toString().replace(',', '.').replace(/\s/g, '')) : s.variationValue,
+      _parsedVariationValue: s.variationValue,
     }));
   };
 
