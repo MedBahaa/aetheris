@@ -155,6 +155,7 @@ export class PortfolioService {
       .insert([{ ...div, user_id: user.id }])
       .select();
     if (error) throw error;
+    if (!data || data.length === 0) throw new Error("Erreur lors de l'enregistrement du dividende");
     return data[0];
   }
 
@@ -233,6 +234,7 @@ export class PortfolioService {
       .upsert({ ...alert, user_id: user.id, is_active: true }, { onConflict: 'user_id,symbol' })
       .select();
     if (error) throw error;
+    if (!data || data.length === 0) throw new Error("Erreur lors de l'enregistrement de l'alerte");
     return data[0];
   }
 
@@ -251,11 +253,17 @@ export class PortfolioService {
       .insert([{ ...tx, user_id: user.id }])
       .select();
     if (error) throw error;
+    if (!data || data.length === 0) throw new Error("Erreur lors de l'enregistrement de la transaction");
     return data[0];
   }
 
   static async deleteTransaction(client: SupabaseClient, id: string) {
     const { error } = await client.from('portfolio_transactions').delete().eq('id', id);
+    if (error) throw error;
+  }
+
+  static async deleteSymbolTransactions(client: SupabaseClient, symbol: string) {
+    const { error } = await client.from('portfolio_transactions').delete().eq('symbol', symbol);
     if (error) throw error;
   }
 
