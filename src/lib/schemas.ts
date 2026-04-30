@@ -32,6 +32,7 @@ export type LiquidityWarning = z.infer<typeof LiquidityWarningSchema>;
 
 export const NewsItemSchema = z.object({
   id: z.string(),
+  title: z.string().optional(),
   summary: z.string(),
   sentiment: SentimentSchema,
   impact: ImpactSchema,
@@ -40,6 +41,7 @@ export const NewsItemSchema = z.object({
   date: z.string().optional(),
   url: z.string().optional(),
   fullContent: z.string().optional(), // Contenu scrapé en profondeur
+  sourceType: z.string().optional(), // RSS, WEB, etc.
 });
 
 export const OrchestratorResultSchema = z.object({
