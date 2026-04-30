@@ -307,12 +307,12 @@ export default function PortfolioPage() {
   // ─────────────────────────────────────────────
   
   const holdingsStats = holdings.map(h => {
-    const valuation = h.totalQuantity * h.curPrice;
+    const valuation = h.totalQuantity * (h.curPrice ?? 0);
     const pvBrute = valuation - h.totalCost;
     const pvNette = pvBrute > 0 ? pvBrute * (1 - TAX_ON_PROFIT) : pvBrute;
     const alert = alerts.find((a: PriceAlert) => a.symbol === h.symbol);
-    const slHit = alert?.sl_price && h.curPrice <= alert.sl_price;
-    const tpHit = alert?.tp_price && h.curPrice >= alert.tp_price;
+    const slHit = (alert?.sl_price && (h.curPrice ?? 0) <= alert.sl_price) || false;
+    const tpHit = (alert?.tp_price && (h.curPrice ?? 0) >= alert.tp_price) || false;
     
     return { ...h, valuation, pvNette, slHit, tpHit, alert };
   });

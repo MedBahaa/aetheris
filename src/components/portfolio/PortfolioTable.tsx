@@ -135,8 +135,8 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
                 const isExpanded = expandedSymbol === s.symbol;
                 const isSettingAlert = alertSymbol === s.symbol;
                 const alert = alerts.find((a: PriceAlert) => a.symbol === s.symbol);
-                const isSlTriggered = alert?.sl_price && s.curPrice <= alert.sl_price;
-                const isTpTriggered = alert?.tp_price && s.curPrice >= alert.tp_price;
+                const isSlTriggered = alert?.sl_price && (s.curPrice ?? 0) <= alert.sl_price;
+                const isTpTriggered = alert?.tp_price && (s.curPrice ?? 0) >= alert.tp_price;
 
                 return (
                   <React.Fragment key={s.symbol}>
@@ -152,11 +152,11 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
                       </td>
                       <td className="mono">{s.totalQuantity}</td>
                       <td className="mono">{s.weightedAveragePrice.toFixed(2)}</td>
-                      <td className="mono font-bold">{s.curPrice.toFixed(2)}</td>
-                      <td className="mono">{(s.totalQuantity * s.curPrice).toLocaleString('fr-FR', { maximumFractionDigits: 0 })}</td>
+                      <td className="mono font-bold">{(s.curPrice ?? 0).toFixed(2)}</td>
+                      <td className="mono">{(s.totalQuantity * (s.curPrice ?? 0)).toLocaleString('fr-FR', { maximumFractionDigits: 0 })}</td>
                       <td className="mono">
                         <span className="poids-badge">
-                          {totalMarketValue > 0 ? ((s.totalQuantity * s.curPrice) / totalMarketValue * 100).toFixed(1) : '0.0'}%
+                          {totalMarketValue > 0 ? ((s.totalQuantity * (s.curPrice ?? 0)) / totalMarketValue * 100).toFixed(1) : '0.0'}%
                         </span>
                       </td>
                       <td>

@@ -211,9 +211,16 @@ export interface PortfolioHolding {
   totalSold?: number;        // nombre de titres vendus
   realizedPnL?: number;      // PV/MV réalisées sur les ventes
   currentPrice?: number;
+  curPrice?: number;         // Prix actuel du marché
   currentValue?: number;
+  valuation?: number;        // Valeur actuelle du marché
   gainLoss?: number;
   gainLossPercentage?: number;
+  pvNette?: number;          // Performance nette (après taxes)
+  slHit?: boolean;           // Stop-Loss atteint
+  tpHit?: boolean;           // Take-Profit atteint
+  alert?: PriceAlert | null; // Alerte associée
+  sector?: string;           // Secteur de l'entreprise
   transactions: PortfolioTransaction[];
 }
 
