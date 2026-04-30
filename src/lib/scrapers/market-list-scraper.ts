@@ -60,11 +60,11 @@ export class MarketListScraper {
     const normalizedQuery = normalize(query);
     
     // 1. Recherche par symbole exact (après normalisation)
-    const bySymbol = this.cache.stocks.find(s => normalize(s.symbol) === normalizedQuery);
+    const bySymbol = this.cache.stocks.find((s: LiveStockData) => normalize(s.symbol) === normalizedQuery);
     if (bySymbol) return bySymbol;
 
     // 2. Recherche par inclusion
-    const byInclusion = this.cache.stocks.find(s => {
+    const byInclusion = this.cache.stocks.find((s: LiveStockData) => {
       const normalizedStock = normalize(s.symbol);
       return normalizedStock.includes(normalizedQuery) || normalizedQuery.includes(normalizedStock);
     });
@@ -74,7 +74,7 @@ export class MarketListScraper {
     // 3. Recherche par mots-clés multiples (ex: "Residences Dar Saada" vs "Resid Dar Saada")
     const queryTokens = query.toLowerCase().split(' ').filter(t => t.length > 2);
     if (queryTokens.length > 1) {
-      const byTokens = this.cache.stocks.find(s => {
+      const byTokens = this.cache.stocks.find((s: LiveStockData) => {
         const stockLower = s.symbol.toLowerCase();
         // Si la majorité des mots (ou les plus importants) sont dans le nom
         const matchCount = queryTokens.filter(token => stockLower.includes(token)).length;

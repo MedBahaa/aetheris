@@ -198,7 +198,7 @@ export class PortfolioService {
 
       // Fallback : utiliser la quantité actuelle si les transactions ne sont pas disponibles
       if (quantityAtDivDate === undefined) {
-        const holding = holdings.find(h => h.symbol === div.symbol);
+        const holding = holdings.find((h: PortfolioHolding) => h.symbol === div.symbol);
         quantityAtDivDate = holding?.totalQuantity || 0;
       }
 

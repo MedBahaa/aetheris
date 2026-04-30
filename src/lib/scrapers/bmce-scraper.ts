@@ -58,8 +58,8 @@ export class BMCEBourseScraper {
       }
 
       // Trouver la meilleure correspondance avec un bmce_id valide
-      const match = companies?.find(c => c.bmce_id && !c.bmce_id.includes(','));
-      const fallback = companies?.find(c => c.bmce_id);
+      const match = companies?.find((c: { bmce_id: string | null }) => c.bmce_id && !c.bmce_id.includes(','));
+      const fallback = companies?.find((c: { bmce_id: string | null }) => c.bmce_id);
 
       const company = match || fallback;
 

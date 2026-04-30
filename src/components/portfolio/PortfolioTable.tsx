@@ -134,7 +134,7 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
               {sortedHoldings.map((s) => {
                 const isExpanded = expandedSymbol === s.symbol;
                 const isSettingAlert = alertSymbol === s.symbol;
-                const alert = alerts.find(a => a.symbol === s.symbol);
+                const alert = alerts.find((a: PriceAlert) => a.symbol === s.symbol);
                 const isSlTriggered = alert?.sl_price && s.curPrice <= alert.sl_price;
                 const isTpTriggered = alert?.tp_price && s.curPrice >= alert.tp_price;
 

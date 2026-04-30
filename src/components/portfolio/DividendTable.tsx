@@ -44,7 +44,7 @@ export const DividendTable: React.FC<DividendTableProps> = ({
             </thead>
             <tbody>
               {dividends.map((div, i) => {
-                const holding = holdings.find(h => h.symbol === div.symbol);
+                const holding = holdings.find((h: PortfolioHolding) => h.symbol === div.symbol);
                 const qty = holding?.totalQuantity || 0;
                 const revenue = qty * div.amount_per_share;
                 return (

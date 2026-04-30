@@ -40,7 +40,7 @@ export async function GET(request: Request) {
 
     // 3. Vérifier chaque alerte
     for (const alert of alerts) {
-      const stock = result.stocks.find(s => 
+      const stock = result.stocks.find((s: { symbol: string; price: string }) => 
         s.symbol.toLowerCase() === alert.symbol.toLowerCase() ||
         s.symbol.toLowerCase().includes(alert.symbol.toLowerCase())
       );
