@@ -42,7 +42,7 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
   onNavigateToStock,
 }) => {
   // ────────────────── TRI INTERACTIF ──────────────────
-  type SortKey = 'symbol' | 'totalQuantity' | 'weightedAveragePrice' | 'curPrice' | 'valuation' | 'poids' | 'pvNette' | 'perf';
+  type SortKey = 'symbol' | 'totalQuantity' | 'weightedAveragePrice' | 'curPrice' | 'valuation' | 'poids' | 'pvNette' | 'yoc';
   type SortDir = 'asc' | 'desc';
   const [sortKey, setSortKey] = useState<SortKey>('valuation');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -76,6 +76,7 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
         const perfB = b.totalCost > 0 ? (b.pvNette || 0) / b.totalCost : 0;
         return dir * (perfA - perfB);
       }
+      case 'yoc': return dir * ((a.yieldOnCost ?? 0) - (b.yieldOnCost ?? 0));
       default: return 0;
     }
   });
@@ -121,10 +122,10 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
                   <span className="th-sort">POIDS <SortIcon col="poids" /></span>
                 </th>
                 <th style={{ width: '120px', cursor: 'pointer' }} onClick={() => handleSort('pvNette')}>
-                  <span className="th-sort">PL LATENTE <SortIcon col="pvNette" /></span>
+                  <span className="th-sort">PL LAT. / PERF. <SortIcon col="pvNette" /></span>
                 </th>
-                <th style={{ width: '100px', cursor: 'pointer' }} onClick={() => handleSort('perf')}>
-                  <span className="th-sort">PERF. <SortIcon col="perf" /></span>
+                <th style={{ width: '100px', cursor: 'pointer' }} onClick={() => handleSort('yoc')}>
+                  <span className="th-sort">DIV. / YOC <SortIcon col="yoc" /></span>
                 </th>
                 <th>ALERTES</th>
                 <th style={{ textAlign: 'right', width: '120px' }}>ACTION</th>
@@ -162,12 +163,16 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
                       <td>
                         <div className={`momentum-box ${(s.pvNette ?? 0) >= 0 ? 'bull' : 'bear'}`}>
                           <span className="m-abs mono">{(s.pvNette ?? 0) >= 0 ? '+' : ''}{(s.pvNette ?? 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })}</span>
+                          <span className="mono-tiny opacity-70">
+                            {(s.pvNette ?? 0) >= 0 ? '+' : ''}{(( (s.pvNette ?? 0) / s.totalCost) * 100).toFixed(2)}%
+                          </span>
                         </div>
                       </td>
                       <td>
-                        <span className={`mono font-bold ${(s.pvNette ?? 0) >= 0 ? 'text-emerald' : 'text-rose'}`}>
-                          {(s.pvNette ?? 0) >= 0 ? '+' : ''}{(( (s.pvNette ?? 0) / s.totalCost) * 100).toFixed(2)}%
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="mono text-emerald font-bold">{(s.totalDividends ?? 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} <span className="text-[9px]">MAD</span></span>
+                          <span className="mono-tiny opacity-50">YOC: {(s.yieldOnCost ?? 0).toFixed(2)}%</span>
+                        </div>
                       </td>
                       <td>
                         <div className="flex gap-2">
@@ -264,12 +269,10 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
                     <td>
                       <div className={`momentum-box ${totalPvNette >= 0 ? 'bull' : 'bear'}`}>
                         <span className="m-abs mono">{totalPvNette >= 0 ? '+' : ''}{totalPvNette.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}</span>
+                        <span className="mono-tiny opacity-70">
+                          {totalPerfPct >= 0 ? '+' : ''}{totalPerfPct.toFixed(2)}%
+                        </span>
                       </div>
-                    </td>
-                    <td>
-                      <span className={`mono font-bold ${totalPerfPct >= 0 ? 'text-emerald' : 'text-rose'}`}>
-                        {totalPerfPct >= 0 ? '+' : ''}{totalPerfPct.toFixed(2)}%
-                      </span>
                     </td>
                     <td></td>
                     <td></td>

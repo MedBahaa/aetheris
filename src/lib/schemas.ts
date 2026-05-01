@@ -219,6 +219,9 @@ export interface PortfolioHolding {
   gainLoss?: number;
   gainLossPercentage?: number;
   pvNette?: number;          // Performance nette (après taxes)
+  yieldOnCost?: number;      // Rendement sur prix d'achat (Yield on Cost)
+  dividendYield?: number;    // Rendement sur cours actuel
+  totalDividends?: number;   // Somme des dividendes reçus pour cette ligne
   slHit?: boolean;           // Stop-Loss atteint
   tpHit?: boolean;           // Take-Profit atteint
   alert?: PriceAlert | null; // Alerte associée

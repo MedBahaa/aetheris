@@ -69,7 +69,10 @@ export const SectorAllocationDonut: React.FC<SectorAllocationDonutProps> = ({ se
                 })}
               </svg>
               <div className="donut-center-text">
-                <span className="mono-tiny">{sortedSectors.length} SECTEURS</span>
+                <div className="center-stack">
+                  <span className="center-count mono">{sortedSectors.length}</span>
+                  <span className="center-label mono-tiny opacity-40">SECTEURS</span>
+                </div>
               </div>
             </div>
 
@@ -148,8 +151,28 @@ export const SectorAllocationDonut: React.FC<SectorAllocationDonutProps> = ({ se
           justify-content: center;
           width: 100%;
           height: 100%;
-          border-radius: 50%;
-          background: transparent;
+          pointer-events: none;
+        }
+        
+        .center-stack {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          line-height: 1.1;
+        }
+
+        .center-count {
+          font-size: 1.8rem;
+          font-weight: 900;
+          color: #fff;
+          letter-spacing: -0.05em;
+        }
+
+        .center-label {
+          font-size: 9px;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
         }
 
         .donut-legend {

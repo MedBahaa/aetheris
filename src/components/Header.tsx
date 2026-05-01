@@ -67,6 +67,8 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
           flex: 1;
           display: flex;
           justify-content: center;
+          margin: 0 1.5rem;
+          min-width: 0;
         }
 
         .header-logo {
