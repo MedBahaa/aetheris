@@ -71,11 +71,6 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
       case 'valuation': return dir * ((a.totalQuantity * (a.curPrice ?? 0)) - (b.totalQuantity * (b.curPrice ?? 0)));
       case 'poids': return dir * ((a.totalQuantity * (a.curPrice ?? 0)) - (b.totalQuantity * (b.curPrice ?? 0)));
       case 'pvNette': return dir * ((a.pvNette || 0) - (b.pvNette || 0));
-      case 'perf': {
-        const perfA = a.totalCost > 0 ? (a.pvNette || 0) / a.totalCost : 0;
-        const perfB = b.totalCost > 0 ? (b.pvNette || 0) / b.totalCost : 0;
-        return dir * (perfA - perfB);
-      }
       case 'yoc': return dir * ((a.yieldOnCost ?? 0) - (b.yieldOnCost ?? 0));
       default: return 0;
     }
