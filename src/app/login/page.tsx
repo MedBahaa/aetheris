@@ -105,7 +105,7 @@ export default function LoginPage() {
             <div className="title-divider">
               <div className="divider-line"></div>
               <p className="mono-sub">
-                {mode === 'login' ? 'GATEWAY TERMINAL 2.0' : 'ENROLLMENT PROTOCOL 2.0'}
+                {mode === 'login' ? 'GATEWAY TERMINAL 3.0' : 'ENROLLMENT PROTOCOL 3.0'}
               </p>
               <div className="divider-line"></div>
             </div>
