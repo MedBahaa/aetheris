@@ -18,6 +18,9 @@ interface MacroInput {
   brent?: { price: number; changePercent: number };
   gold?: { price: number; changePercent: number };
   usDmad?: { price: number; changePercent: number };
+  keyRate?: { value: number; lastChange: string };
+  inflation?: { value: number; period: string };
+  nextBAMMeeting?: string;
   timestamp?: string;
 }
 
@@ -420,7 +423,10 @@ export class GeminiService {
         ${macro ? `CONTEXTE MACRO :
         - BRENT: $${macro.brent?.price ?? 'N/A'} (${(macro.brent?.changePercent ?? 0) > 0 ? '+' : ''}${macro.brent?.changePercent ?? 0}%)
         - OR: $${macro.gold?.price ?? 'N/A'} (${(macro.gold?.changePercent ?? 0) > 0 ? '+' : ''}${macro.gold?.changePercent ?? 0}%)
-        - USD/MAD: ${macro.usDmad?.price ?? 'N/A'} (${(macro.usDmad?.changePercent ?? 0) > 0 ? '+' : ''}${macro.usDmad?.changePercent ?? 0}%)` : ''}
+        - USD/MAD: ${macro.usDmad?.price ?? 'N/A'} (${(macro.usDmad?.changePercent ?? 0) > 0 ? '+' : ''}${macro.usDmad?.changePercent ?? 0}%)
+        - TAUX DIRECTEUR BAM: ${macro.keyRate?.value ?? 'N/A'}% (Dernière variation: ${macro.keyRate?.lastChange ?? 'N/A'})
+        - INFLATION (MAROC): ${macro.inflation?.value ?? 'N/A'}% (${macro.inflation?.period ?? 'N/A'})
+        - PROCHAIN CONSEIL BAM: ${macro.nextBAMMeeting ?? 'N/A'}` : ''}
       `;
 
       const prompt = `${dataBlock}\n\n${SYNTHESIS_SYSTEM_PROMPT}`;

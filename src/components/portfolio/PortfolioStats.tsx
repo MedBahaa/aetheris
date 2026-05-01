@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   Briefcase, TrendingUp, TrendingDown, ShieldCheck, 
-  Percent, Gift, DollarSign, AlertTriangle, PieChart, Info
+  Percent, Gift, DollarSign, AlertTriangle, PieChart, Info, Zap
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────
@@ -136,6 +136,22 @@ const tooltips = {
       <p className="tt-note">⚡ Recommandation : aucune position ne devrait dépasser 25%.</p>
     </>
   ),
+  alpha: (
+    <>
+      <strong>Alpha (Surperformance)</strong>
+      <p>Mesure l'écart entre la performance de votre portefeuille et celle de l'indice MASI.</p>
+      <code>Alpha = Perf. Portefeuille − Perf. MASI</code>
+      <p className="tt-note">🚀 Un Alpha positif signifie que vous battez le marché.</p>
+    </>
+  ),
+  rendementReel: (
+    <>
+      <strong>Rendement Réel (vs Inflation)</strong>
+      <p>Performance de votre portefeuille après déduction de l'inflation annuelle au Maroc (0.9% à fin mars 2026).</p>
+      <code>Rendement Réel ≈ Rendement Nominal − Inflation</code>
+      <p className="tt-note">💡 Un rendement réel positif signifie que vous gagnez du pouvoir d'achat.</p>
+    </>
+  ),
 };
 
 // ─────────────────────────────────────────────
@@ -152,6 +168,8 @@ interface PortfolioStatsProps {
   liquidites: number | null;
   investmentRate: number | null;
   riskScore: { score: number; label: string; color: string };
+  inflationRate: number;
+  masiReturn: number;
   showCapitalInput: boolean;
   capitalInput: string;
   setCapitalInput: (val: string) => void;
@@ -170,12 +188,17 @@ export const PortfolioStats: React.FC<PortfolioStatsProps> = ({
   liquidites,
   investmentRate,
   riskScore,
+  inflationRate,
+  masiReturn,
   showCapitalInput,
   capitalInput,
   setCapitalInput,
   setShowCapitalInput,
   handleSaveCapital
 }) => {
+  const realReturn = totalPerformance - inflationRate;
+  const alpha = totalPerformance - masiReturn;
+  
   return (
     <div className="stats-grid animate-fade-in" style={{ animationDelay: '0.1s' }}>
 
@@ -253,6 +276,24 @@ export const PortfolioStats: React.FC<PortfolioStatsProps> = ({
           <div className="risk-gauge-bar">
             <div className="risk-gauge-fill" style={{ width: `${riskScore.score}%`, background: riskScore.color }}></div>
           </div>
+        </div>
+      </div>
+
+      <div className={`stat-card glass-heavy ${alpha >= 0 ? 'bull' : 'bear'}`}>
+        <div className="stat-icon-box"><Zap size={18} /></div>
+        <div className="stat-info">
+          <span className="stat-label mono">ALPHA VS MASI <KpiTooltip content={tooltips.alpha} /></span>
+          <div className="stat-value">{alpha >= 0 ? '+' : ''}{alpha.toFixed(2)}<span className="pct">%</span></div>
+          <span className="m-sub">Vs Marché {masiReturn.toFixed(2)}%</span>
+        </div>
+      </div>
+
+      <div className={`stat-card glass-heavy ${realReturn >= 0 ? 'bull' : 'bear'}`}>
+        <div className="stat-icon-box"><TrendingUp size={18} /></div>
+        <div className="stat-info">
+          <span className="stat-label mono">RENDEMENT RÉEL (NET) <KpiTooltip content={tooltips.rendementReel} /></span>
+          <div className="stat-value">{realReturn >= 0 ? '+' : ''}{realReturn.toFixed(2)}<span className="pct">%</span></div>
+          <span className="m-sub">Vs Inflation {inflationRate}%</span>
         </div>
       </div>
 

@@ -43,6 +43,7 @@ export default function PortfolioPage() {
   const [holdings, setHoldings] = useState<PortfolioHolding[]>([]);
   const [alerts, setAlerts] = useState<PriceAlert[]>([]);
   const [masiBenchmark, setMasiBenchmark] = useState<any>(null);
+  const [macroData, setMacroData] = useState<any>(null);
 
   const [activeTab, setActiveTab] = useState<'positions' | 'dividends'>('positions');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -138,6 +139,11 @@ export default function PortfolioPage() {
       const masiRes = await fetch('/api/market-index');
       const masiData = await masiRes.json();
       if (masiData.status === 'success') setMasiBenchmark(masiData.data);
+
+      // Fetch Macro for inflation
+      const macroRes = await fetch('/api/macro');
+      const macroD = await macroRes.json();
+      if (macroD && !macroD.error) setMacroData(macroD);
 
     } catch (err) {
       console.error('Error loading data:', err);
@@ -323,6 +329,20 @@ export default function PortfolioPage() {
   const realizedPnL = PortfolioService.calculateRealizedPnL(transactions);
   const dividendIncome = PortfolioService.calculateDividendIncome(dividends, holdings, transactions);
   const totalDividends = Object.values(dividendIncome).reduce((s, v) => s + v, 0);
+
+  // Inject dividend stats into holdings
+  const holdingsWithDividends = holdingsStats.map(h => {
+    const totalDivs = dividendIncome[h.symbol] || 0;
+    const yoc = h.totalCost > 0 ? (totalDivs / h.totalCost) * 100 : 0;
+    
+    // Attempt to get current dividend yield from masiBenchmark or similar if available
+    // For now, we'll focus on YOC and Total Dividends
+    return { 
+      ...h, 
+      totalDividends: totalDivs, 
+      yieldOnCost: yoc 
+    };
+  });
   
   const totalPerformance = totalInvestedNet > 0 ? (totalPvNette / totalInvestedNet) * 100 : 0;
   const liquidites = initialCapital > 0 ? initialCapital - totalInvestedNet : null;
@@ -398,6 +418,8 @@ export default function PortfolioPage() {
             liquidites={liquidites}
             investmentRate={investmentRate}
             riskScore={riskScore}
+            inflationRate={macroData?.inflation?.value || 0.9}
+            masiReturn={masiBenchmark?.variationValue || 0}
             showCapitalInput={showCapitalInput}
             capitalInput={capitalInput}
             setCapitalInput={setCapitalInput}
@@ -426,7 +448,7 @@ export default function PortfolioPage() {
 
           {activeTab === 'positions' && (
             <PortfolioTable 
-              holdings={holdingsStats}
+              holdings={holdingsWithDividends}
               alerts={alerts}
               totalMarketValue={totalMarketValue}
               expandedSymbol={expandedSymbol}
