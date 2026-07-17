@@ -15,6 +15,8 @@ import { CompanyAnalysis, AgentType } from '@/lib/agent-engine';
 
 import { analyzeCompanyAction } from '@/lib/actions';
 import { HistoryService } from '@/lib/history-service';
+import { PremiumPaywallModal } from '@/components/portfolio/PremiumPaywallModal';
+import { getUserProfileAction, upsertUserProfileAction } from '@/lib/portfolio-actions';
 
 /**
  * Wrapper avec Suspense boundary — requis par Next.js 16 pour useSearchParams()
@@ -38,6 +40,8 @@ function Home() {
   const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [subscriptionTier, setSubscriptionTier] = useState<string>('free');
+  const [showPaywallModal, setShowPaywallModal] = useState(false);
   
   // Suggestion State
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -77,6 +81,20 @@ function Home() {
   useEffect(() => {
     setHistory(HistoryService.getFilteredHistory(activeAgent));
   }, [activeAgent]);
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const prof = await getUserProfileAction();
+        if (prof) {
+          setSubscriptionTier(prof.subscription_tier || 'free');
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    loadProfile();
+  }, []);
 
 
   // Scroll automatique des logs
@@ -144,6 +162,12 @@ function Home() {
 
     const agentToUse = overrideAgent || activeAgent;
 
+    if (agentToUse === 'STRATEGY' && subscriptionTier !== 'premium') {
+      setLoading(false);
+      setShowPaywallModal(true);
+      return;
+    }
+
     setLoading(true);
     setAnalysis(null); // On vide l'analyse pour laisser place au terminal
     setError(null);
@@ -200,6 +224,16 @@ function Home() {
   const handleSelectFromHistory = (a: CompanyAnalysis) => {
     setAnalysis(a);
     setActiveId(a.id);
+  };
+
+  const handleUpgrade = async () => {
+    try {
+      setSubscriptionTier('premium');
+      await upsertUserProfileAction({ initial_capital: 0, subscription_tier: 'premium' });
+      setShowPaywallModal(false);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   return (
@@ -399,6 +433,12 @@ function Home() {
           </div>
         </div>
       </main>
+
+      <PremiumPaywallModal 
+        isOpen={showPaywallModal}
+        onClose={() => setShowPaywallModal(false)}
+        onUpgrade={handleUpgrade}
+      />
 
       <style jsx>{`
         .mobile-header-tech { display: none; }
