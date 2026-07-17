@@ -3,12 +3,14 @@
 import { 
   History, Search, ArrowRight, BrainCircuit, Activity, 
   ShieldCheck, X, Globe, Zap, LayoutGrid, 
-  Landmark, Briefcase, ChevronDown, ChevronRight 
+  Landmark, Briefcase, ChevronDown, ChevronRight,
+  User, AlertTriangle, CheckCircle2
 } from 'lucide-react';
 import { CompanyAnalysis, AgentType } from '@/lib/agent-engine';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
+import { getUserProfileAction, upsertUserProfileAction } from '@/lib/portfolio-actions';
 
 
 interface SidebarProps {
@@ -26,6 +28,52 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
   const router = useRouter();
   const [isIntelligenceOpen, setIsIntelligenceOpen] = useState(true);
   const [sidebarSearch, setSidebarSearch] = useState('');
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profile, setProfile] = useState<{ initial_capital: number; subscription_tier: string } | null>(null);
+  const [newCapital, setNewCapital] = useState('0');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const prof = await getUserProfileAction();
+        if (prof) {
+          setProfile(prof);
+          setNewCapital(prof.initial_capital.toString());
+        }
+      } catch (err) {
+        console.error('Failed to fetch profile in sidebar:', err);
+      }
+    };
+    fetchProfile();
+  }, [showProfileModal]);
+
+  const handleSaveProfile = async (tier?: string) => {
+    try {
+      setSaving(true);
+      const cap = parseFloat(newCapital) || 0;
+      const targetTier = tier !== undefined ? tier : (profile?.subscription_tier || 'free');
+      
+      await upsertUserProfileAction({
+        initial_capital: cap,
+        subscription_tier: targetTier
+      });
+
+      setProfile({
+        initial_capital: cap,
+        subscription_tier: targetTier
+      });
+
+      if (pathname === '/portfolio') {
+        window.location.reload();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const [marketIndex, setMarketIndex] = useState<{ price: string, variation: string, value: number }>({
     price: '14 250,42',
     variation: '+0,85%',
@@ -175,6 +223,14 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
                     <span>Portefeuille</span>
                   </button>
                 </Link>
+
+                <button 
+                  onClick={() => { setShowProfileModal(true); onClose(); }} 
+                  className={`agent-btn-compact ${showProfileModal ? 'active' : ''}`}
+                >
+                  <User size={16} />
+                  <span>Mon Profil & Abonnement</span>
+                </button>
               </div>
 
               <div className="nav-spacer-tiny"></div>
@@ -256,6 +312,99 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
           </button>
           <span className="v-tag-minimal">VERSION 2.0 ALPHA</span>
         </div>
+
+        {showProfileModal && (
+          <div className="modal-overlay glass-heavy animate-fade-in" style={{ zIndex: 10000 }} onClick={() => setShowProfileModal(false)}>
+            <div className="modal-content glass-heavy animate-slide-up" style={{ maxWidth: '400px' }} onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <User size={18} className="text-emerald" />
+                  <h2 className="mono" style={{ margin: 0, fontSize: '1.1rem' }}>PROFIL & PARAMÈTRES</h2>
+                </div>
+                <button onClick={() => setShowProfileModal(false)} className="close-modal"><X size={20} /></button>
+              </div>
+
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '1rem 0' }}>
+                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label className="mono-tiny" style={{ color: '#64748b' }}>CAPITAL DE RÉFÉRENCE (MAD)</label>
+                  <input 
+                    type="number" 
+                    value={newCapital} 
+                    onChange={e => setNewCapital(e.target.value)} 
+                    placeholder="100000" 
+                    className="terminal-input-field"
+                    style={{
+                      background: 'rgba(0,0,0,0.2)',
+                      border: '1px solid var(--border-glass)',
+                      borderRadius: '8px',
+                      padding: '0.75rem',
+                      color: '#fff',
+                      fontSize: '0.85rem',
+                      fontFamily: 'monospace'
+                    }}
+                  />
+                </div>
+
+                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label className="mono-tiny" style={{ color: '#64748b' }}>STATUT DU COMPTE AETHERIS</label>
+                  <div className="subscription-toggle-box">
+                    <button 
+                      type="button" 
+                      className={`sub-toggle-btn ${profile?.subscription_tier !== 'premium' ? 'active' : ''}`}
+                      onClick={() => handleSaveProfile('free')}
+                      disabled={saving}
+                    >
+                      GRATUIT (FREE)
+                    </button>
+                    <button 
+                      type="button" 
+                      className={`sub-toggle-btn premium ${profile?.subscription_tier === 'premium' ? 'active' : ''}`}
+                      onClick={() => handleSaveProfile('premium')}
+                      disabled={saving}
+                    >
+                      👑 PREMIUM
+                    </button>
+                  </div>
+                </div>
+
+                <div className="premium-status-banner">
+                  {profile?.subscription_tier === 'premium' ? (
+                    <div className="status-banner-content premium mono-tiny">
+                      <CheckCircle2 size={14} className="text-purple" />
+                      <span style={{ fontSize: '10px' }}>Option Robo-Advisor et Agent Stratégie Débloqués.</span>
+                    </div>
+                  ) : (
+                    <div className="status-banner-content free mono-tiny">
+                      <AlertTriangle size={14} className="text-amber" />
+                      <span style={{ fontSize: '10px' }}>Activez l'offre Premium pour débloquer l'intelligence IA.</span>
+                    </div>
+                  )}
+                </div>
+
+                <button 
+                  type="button" 
+                  onClick={() => handleSaveProfile()} 
+                  className="action-btn-save mono"
+                  disabled={saving}
+                  style={{
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    color: '#000',
+                    fontWeight: 900,
+                    border: 'none',
+                    padding: '0.85rem',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '10px',
+                    letterSpacing: '0.05rem',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {saving ? 'SAUVEGARDE EN COURS...' : 'ENREGISTRER LE CAPITAL'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <style jsx>{`
           .sidebar {
@@ -397,6 +546,58 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
           
           @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
           .animate-fade-in { animation: fadeIn 0.4s ease forwards; }
+
+          .subscription-toggle-box {
+            display: flex;
+            gap: 0.5rem;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border-glass);
+            border-radius: 8px;
+            padding: 3px;
+          }
+          .sub-toggle-btn {
+            flex: 1;
+            border: none;
+            background: transparent;
+            color: #64748b;
+            font-size: 10px;
+            font-weight: 800;
+            font-family: 'JetBrains Mono', monospace;
+            padding: 0.6rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+          }
+          .sub-toggle-btn.active {
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+          }
+          .sub-toggle-btn.premium.active {
+            background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
+            color: #fff;
+            box-shadow: 0 2px 10px rgba(168, 85, 247, 0.2);
+          }
+          .premium-status-banner {
+            border-radius: 8px;
+            padding: 0.75rem;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--border-glass);
+            margin: 0.25rem 0;
+          }
+          .status-banner-content {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #94a3b8;
+          }
+          .status-banner-content.premium span {
+            color: #c084fc;
+            font-weight: 700;
+          }
+          .status-banner-content.free span {
+            color: #f59e0b;
+            font-weight: 700;
+          }
         `}</style>
       </aside>
     </>
