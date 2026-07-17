@@ -444,8 +444,8 @@ export default function LoginPage() {
         }
         .system-grid { display: flex; justify-content: center; gap: 2rem; color: #475569; }
         .stat { display: flex; align-items: center; gap: 0.4rem; }
-        .mono-tiny { font-family: 'JetBrains Mono', monospace; font-size: 7px; font-weight: 800; letter-spacing: 0.05rem; }
-        .legal-tag { font-size: 8px; color: #334155; text-align: center; }
+        .mono-tiny { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 800; letter-spacing: 0.05rem; }
+        .legal-tag { font-size: 10px; color: #334155; text-align: center; }
 
         @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
         .pulse-fast { animation: pulse 4s infinite cubic-bezier(0.4, 0, 0.6, 1); }

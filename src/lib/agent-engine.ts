@@ -39,9 +39,9 @@ export class AetherisOrchestrator {
       // Vérifier en DB le nombre d'analyses créées dans la dernière minute
       const oneMinuteAgo = new Date(Date.now() - 60000).toISOString();
       const { count, error } = await supabaseAdmin
-        .from('analyses_cache')
+        .from('analysis_cache')
         .select('*', { count: 'exact', head: true })
-        .gte('timestamp', oneMinuteAgo);
+        .gte('created_at', oneMinuteAgo);
       
       if (!error && count !== null) {
         return count >= this.MAX_REQUESTS_PER_MINUTE;

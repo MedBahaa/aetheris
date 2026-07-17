@@ -279,7 +279,7 @@ body {
 }
 
 .ticker-label { 
-  font-size: 8px; 
+  font-size: 10px; 
   font-weight: 950; 
   color: #475569; 
   letter-spacing: 0.2rem; 
@@ -402,7 +402,7 @@ body {
 
 .market-badge { 
   font-family: 'JetBrains Mono', monospace; 
-  font-size: 9px; 
+  font-size: 10px; 
   font-weight: 950; 
   color: #475569; 
   background: rgba(255,255,255,0.03); 
@@ -467,7 +467,7 @@ body {
 
 .search-box input::placeholder { 
   font-family: 'JetBrains Mono', monospace; 
-  font-size: 9px; 
+  font-size: 10px; 
   color: #1e293b; 
   letter-spacing: 0.1rem; 
 }
@@ -514,7 +514,7 @@ body {
   padding: 2rem 1.5rem; 
   color: #334155; 
   font-family: 'JetBrains Mono', monospace; 
-  font-size: 8px; 
+  font-size: 10px; 
   font-weight: 950; 
   letter-spacing: 0.2rem; 
   border-bottom: 1px solid var(--border-glass); 
@@ -959,7 +959,7 @@ body {
   gap: 0.4rem;
   padding: 0.25rem 0.75rem;
   border-radius: 100px;
-  font-size: 9px;
+  font-size: 10px; 
   font-weight: 950;
 }
 
@@ -1029,7 +1029,7 @@ body {
 }
 
 .alert-badge {
-  font-size: 8px;
+  font-size: 10px; 
   font-weight: 950;
   padding: 2px 6px;
   border-radius: 4px;
