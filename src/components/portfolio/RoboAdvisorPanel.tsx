@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState } from 'react';
 import { Sparkles, CheckCircle2, RefreshCw } from 'lucide-react';
@@ -74,7 +74,7 @@ export const RoboAdvisorPanel: React.FC<RoboAdvisorPanelProps> = ({ holdings, on
                   <div key={idx} className="comp-item">
                     <div className="comp-labels mono-tiny">
                       <span>{item.sector.toUpperCase()}</span>
-                      <span>{item.current.toFixed(0)}% $\rightarrow$ <strong className="text-purple">{item.target.toFixed(0)}%</strong></span>
+                      <span>{item.current.toFixed(0)}% → <strong className="text-purple">{item.target.toFixed(0)}%</strong></span>
                     </div>
                     <div className="comp-bar-container">
                       <div className="comp-bar-current" style={{ width: `${item.current}%` }}></div>
