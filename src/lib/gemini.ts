@@ -124,17 +124,14 @@ async function unifiedAICall(prompt: string, isJson: boolean = true, preferredMo
     // 1. Essayer les modèles Google AI (Gemma 4 / Gemini)
     return await callGoogleAI(prompt, isJson, preferredModel);
   } catch (e: any) {
-    if (e.message === 'QUOTA_EXCEEDED') {
-      console.log("🔄 [Fallback] Quota Gemini atteint. Passage sur Mistral...");
-      try {
-        // 2. Basculement sur Mistral
-        return await callMistral(prompt);
-      } catch (mistralError: any) {
-        console.error("❌ [Fallback] Mistral a également échoué.");
-        throw mistralError;
-      }
+    console.log(`🔄 [Fallback] Échec Google AI (${e.message || e}). Passage sur Mistral...`);
+    try {
+      // 2. Basculement sur Mistral
+      return await callMistral(prompt);
+    } catch (mistralError: any) {
+      console.error("❌ [Fallback] Mistral a également échoué:", mistralError.message || mistralError);
+      throw mistralError;
     }
-    throw e;
   }
 }
 
