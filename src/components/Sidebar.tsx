@@ -4,7 +4,7 @@ import {
   History, Search, ArrowRight, BrainCircuit, Activity, 
   ShieldCheck, X, Globe, Zap, LayoutGrid, 
   Landmark, Briefcase, ChevronDown, ChevronRight,
-  User, AlertTriangle, CheckCircle2
+  User, AlertTriangle, CheckCircle2, Bell, MessageSquare
 } from 'lucide-react';
 import { CompanyAnalysis, AgentType } from '@/lib/agent-engine';
 import Link from 'next/link';
@@ -29,8 +29,12 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
   const [isIntelligenceOpen, setIsIntelligenceOpen] = useState(true);
   const [sidebarSearch, setSidebarSearch] = useState('');
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [profile, setProfile] = useState<{ initial_capital: number; subscription_tier: string } | null>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [newCapital, setNewCapital] = useState('0');
+  const [telegramChatId, setTelegramChatId] = useState('');
+  const [whatsappPhone, setWhatsappPhone] = useState('');
+  const [alertChannel, setAlertChannel] = useState('EMAIL');
+  const [username, setUsername] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -40,6 +44,10 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
         if (prof) {
           setProfile(prof);
           setNewCapital(prof.initial_capital.toString());
+          setTelegramChatId(prof.telegram_chat_id || '');
+          setWhatsappPhone(prof.whatsapp_phone || '');
+          setAlertChannel(prof.alert_channel || 'EMAIL');
+          setUsername(prof.username || '');
         }
       } catch (err) {
         console.error('Failed to fetch profile in sidebar:', err);
@@ -54,15 +62,18 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
       const cap = parseFloat(newCapital) || 0;
       const targetTier = tier !== undefined ? tier : (profile?.subscription_tier || 'free');
       
-      await upsertUserProfileAction({
+      const payload = {
         initial_capital: cap,
-        subscription_tier: targetTier
-      });
+        subscription_tier: targetTier,
+        telegram_chat_id: telegramChatId,
+        whatsapp_phone: whatsappPhone,
+        alert_channel: alertChannel,
+        username: username
+      };
 
-      setProfile({
-        initial_capital: cap,
-        subscription_tier: targetTier
-      });
+      await upsertUserProfileAction(payload);
+
+      setProfile(payload);
 
       if (pathname === '/portfolio') {
         window.location.reload();
@@ -414,7 +425,7 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
 
         {showProfileModal && (
           <div className="modal-overlay glass-heavy animate-fade-in" style={{ zIndex: 10000 }} onClick={() => setShowProfileModal(false)}>
-            <div className="modal-content glass-heavy animate-slide-up" style={{ maxWidth: '400px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-content glass-heavy animate-slide-up" style={{ maxWidth: '450px', width: '90%', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
               <div className="modal-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <User size={18} className="text-emerald" />
@@ -423,20 +434,22 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
                 <button onClick={() => setShowProfileModal(false)} className="close-modal"><X size={20} /></button>
               </div>
 
-              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '1rem 0' }}>
-                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label className="mono-tiny" style={{ color: '#64748b' }}>CAPITAL DE RÉFÉRENCE (MAD)</label>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem 0' }}>
+                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <label className="mono-tiny" style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <User size={12} className="text-emerald" /> NOM D'UTILISATEUR (COMPÉTITION)
+                  </label>
                   <input 
-                    type="number" 
-                    value={newCapital} 
-                    onChange={e => setNewCapital(e.target.value)} 
-                    placeholder="100000" 
+                    type="text" 
+                    value={username} 
+                    onChange={e => setUsername(e.target.value)} 
+                    placeholder="Saisissez un pseudo" 
                     className="terminal-input-field"
                     style={{
-                      background: 'rgba(0,0,0,0.2)',
-                      border: '1px solid var(--border-glass)',
+                      background: 'rgba(0,0,0,0.3)',
+                      border: '1px solid rgba(255,255,255,0.1)',
                       borderRadius: '8px',
-                      padding: '0.75rem',
+                      padding: '0.65rem',
                       color: '#fff',
                       fontSize: '0.85rem',
                       fontFamily: 'monospace'
@@ -444,8 +457,105 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
                   />
                 </div>
 
-                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label className="mono-tiny" style={{ color: '#64748b' }}>STATUT DU COMPTE AETHERIS</label>
+                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <label className="mono-tiny" style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Activity size={12} className="text-emerald" /> CAPITAL DE RÉFÉRENCE (MAD)
+                  </label>
+                  <input 
+                    type="number" 
+                    value={newCapital} 
+                    onChange={e => setNewCapital(e.target.value)} 
+                    placeholder="100000" 
+                    className="terminal-input-field"
+                    style={{
+                      background: 'rgba(0,0,0,0.3)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '8px',
+                      padding: '0.65rem',
+                      color: '#fff',
+                      fontSize: '0.85rem',
+                      fontFamily: 'monospace'
+                    }}
+                  />
+                </div>
+
+                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <label className="mono-tiny" style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Bell size={12} className="text-emerald" /> CANAL D'ALERTE FAVORI
+                  </label>
+                  <select 
+                    value={alertChannel} 
+                    onChange={e => setAlertChannel(e.target.value)}
+                    style={{
+                      background: 'rgba(15, 23, 42, 0.6)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '8px',
+                      padding: '0.65rem',
+                      color: '#fff',
+                      fontSize: '0.85rem',
+                      outline: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <option value="EMAIL" style={{ background: '#0f172a' }}>📧 Email uniquement</option>
+                    <option value="TELEGRAM" style={{ background: '#0f172a' }}>✈️ Telegram uniquement</option>
+                    <option value="WHATSAPP" style={{ background: '#0f172a' }}>💬 WhatsApp uniquement</option>
+                    <option value="ALL" style={{ background: '#0f172a' }}>🔥 Tous les canaux (Email + Telegram + WhatsApp)</option>
+                  </select>
+                </div>
+
+                {(alertChannel === 'TELEGRAM' || alertChannel === 'ALL') && (
+                  <div className="form-group animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <label className="mono-tiny" style={{ color: '#c084fc', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      ✈️ CHAT ID TELEGRAM
+                    </label>
+                    <input 
+                      type="text" 
+                      value={telegramChatId} 
+                      onChange={e => setTelegramChatId(e.target.value)} 
+                      placeholder="Votre Chat ID (ex: 123456789)" 
+                      className="terminal-input-field"
+                      style={{
+                        background: 'rgba(168, 85, 247, 0.05)',
+                        border: '1px solid rgba(168, 85, 247, 0.3)',
+                        borderRadius: '8px',
+                        padding: '0.65rem',
+                        color: '#fff',
+                        fontSize: '0.85rem',
+                        fontFamily: 'monospace'
+                      }}
+                    />
+                    <span style={{ fontSize: '9px', color: '#64748b' }}>Envoyez un message à <b>@userinfobot</b> pour trouver votre Chat ID.</span>
+                  </div>
+                )}
+
+                {(alertChannel === 'WHATSAPP' || alertChannel === 'ALL') && (
+                  <div className="form-group animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <label className="mono-tiny" style={{ color: '#34d399', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      💬 NUMÉRO WHATSAPP
+                    </label>
+                    <input 
+                      type="text" 
+                      value={whatsappPhone} 
+                      onChange={e => setWhatsappPhone(e.target.value)} 
+                      placeholder="Format international (ex: 212600000000)" 
+                      className="terminal-input-field"
+                      style={{
+                        background: 'rgba(52, 211, 153, 0.05)',
+                        border: '1px solid rgba(52, 211, 153, 0.3)',
+                        borderRadius: '8px',
+                        padding: '0.65rem',
+                        color: '#fff',
+                        fontSize: '0.85rem',
+                        fontFamily: 'monospace'
+                      }}
+                    />
+                    <span style={{ fontSize: '9px', color: '#64748b' }}>Associez-le à CallMeBot (envoyez le message d'autorisation au numéro CallMeBot).</span>
+                  </div>
+                )}
+
+                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.5rem' }}>
+                  <label className="mono-tiny" style={{ color: '#94a3b8' }}>STATUT DU COMPTE AETHERIS</label>
                   <div className="subscription-toggle-box">
                     <button 
                       type="button" 
@@ -490,15 +600,16 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
                     color: '#000',
                     fontWeight: 900,
                     border: 'none',
-                    padding: '0.85rem',
+                    padding: '0.8rem',
                     borderRadius: '8px',
                     cursor: 'pointer',
                     fontSize: '10px',
                     letterSpacing: '0.05rem',
-                    transition: 'all 0.2s'
+                    transition: 'all 0.2s',
+                    marginTop: '0.5rem'
                   }}
                 >
-                  {saving ? 'SAUVEGARDE EN COURS...' : 'ENREGISTRER LE CAPITAL'}
+                  {saving ? 'SAUVEGARDE EN COURS...' : 'ENREGISTRER LES MODIFICATIONS'}
                 </button>
               </div>
             </div>
