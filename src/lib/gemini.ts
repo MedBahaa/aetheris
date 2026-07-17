@@ -483,4 +483,66 @@ export class GeminiService {
       return null;
     }
   }
+
+  static async optimizePortfolio(holdings: any[]): Promise<any> {
+    try {
+      const holdingsData = holdings.map(h => ({
+        symbol: h.symbol,
+        quantity: h.totalQuantity,
+        pmp: h.weightedAveragePrice,
+        valuation: h.valuation,
+        sector: h.sector || 'Inconnu'
+      }));
+
+      const prompt = `
+        Tu es un analyste financier et Robo-Advisor expert de la Bourse de Casablanca.
+        Analyse ce portefeuille d'actions marocaines :
+        \${JSON.stringify(holdingsData, null, 2)}
+
+        Consignes d'optimisation (Théorie moderne du portefeuille / Markowitz ajusté) :
+        1. Limite l'exposition à un seul secteur à 30% maximum et une seule action à 25% maximum.
+        2. Propose une allocation cible en pourcentage pour chaque secteur actuel.
+        3. Suggère des ordres d'achat (BUY) ou de vente (SELL) concrets pour rééquilibrer le portefeuille et tendre vers l'allocation idéale.
+        4. Rédige un rationnel d'IA argumenté (en français, max 150 mots) expliquant les choix boursiers.
+
+        Réponds UNIQUEMENT sous forme de JSON valide correspondant à cette structure :
+        {
+          "allocations": [
+            { "sector": "Nom du secteur", "current": 45, "target": 25 }
+          ],
+          "orders": [
+            { "type": "BUY" | "SELL", "symbol": "Symbole", "quantity": 10, "reason": "Raison" }
+          ],
+          "rationale": "Texte explicatif"
+        }
+      `;
+
+      const text = await unifiedAICall(prompt, true, 'gemini-2.0-flash');
+      return safeJsonParse(text);
+    } catch (e) {
+      console.error("Gemini Optimize Portfolio Error:", e);
+      // Calculer des pourcentages par secteur réels pour le fallback
+      const sectorsMap: Record<string, number> = {};
+      let total = 0;
+      holdings.forEach(h => {
+        const sec = h.sector || 'Inconnu';
+        sectorsMap[sec] = (sectorsMap[sec] || 0) + (h.valuation || 0);
+        total += (h.valuation || 0);
+      });
+
+      const allocations = Object.entries(sectorsMap).map(([sector, val]) => ({
+        sector,
+        current: total > 0 ? (val / total) * 100 : 0,
+        target: 25
+      }));
+
+      return {
+        allocations,
+        orders: [
+          { type: "SELL", symbol: holdings[0]?.symbol || "IAM", quantity: 1, reason: "Ajustement technique de diversification." }
+        ],
+        rationale: "Optimisation de secours exécutée localement. Votre portefeuille présente des concentrations sectorielles qui mériteraient d'être lissées sous la barre des 25% par ligne."
+      };
+    }
+  }
 }

@@ -289,31 +289,64 @@ export class PortfolioService {
   // PROFILS UTILISATEURS
   // ──────────────────────────────────
 
-  static async getUserProfile(client: SupabaseClient): Promise<{ initial_capital: number } | null> {
+  static async getUserProfile(client: SupabaseClient): Promise<{ initial_capital: number; subscription_tier: string } | null> {
     const { data: { user } } = await client.auth.getUser();
     if (!user) return null;
 
     const { data, error } = await client
       .from('user_profiles')
-      .select('initial_capital')
+      .select('initial_capital, subscription_tier')
       .eq('user_id', user.id)
       .single();
 
-    if (error && error.code !== 'PGRST116') throw error; // PGRST116 = Not found
-    return data;
+    // Fallback si la colonne n'existe pas en base
+    if (error && (error.message?.includes('subscription_tier') || error.code === 'PGRST204')) {
+      const { data: fallbackData, error: fallbackError } = await client
+        .from('user_profiles')
+        .select('initial_capital')
+        .eq('user_id', user.id)
+        .single();
+      if (fallbackError && fallbackError.code !== 'PGRST116') throw fallbackError;
+      return {
+        initial_capital: fallbackData?.initial_capital ?? 0,
+        subscription_tier: 'free'
+      };
+    }
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return {
+      initial_capital: data?.initial_capital ?? 0,
+      subscription_tier: data?.subscription_tier ?? 'free'
+    };
   }
 
-  static async upsertUserProfile(client: SupabaseClient, profile: { initial_capital: number }) {
+  static async upsertUserProfile(client: SupabaseClient, profile: { initial_capital: number; subscription_tier?: string }) {
     const { data: { user } } = await client.auth.getUser();
     if (!user) throw new Error('Non authentifié');
 
+    const payload: any = {
+      user_id: user.id,
+      initial_capital: profile.initial_capital,
+      updated_at: new Date().toISOString()
+    };
+
+    if (profile.subscription_tier !== undefined) {
+      payload.subscription_tier = profile.subscription_tier;
+    }
+
     const { error } = await client
       .from('user_profiles')
-      .upsert({ 
-        user_id: user.id, 
-        ...profile,
-        updated_at: new Date().toISOString() 
-      });
+      .upsert(payload);
+
+    // Fallback si la colonne n'existe pas en base
+    if (error && error.message?.includes('subscription_tier')) {
+      delete payload.subscription_tier;
+      const { error: fallbackError } = await client
+        .from('user_profiles')
+        .upsert(payload);
+      if (fallbackError) throw fallbackError;
+      return;
+    }
 
     if (error) throw error;
   }
