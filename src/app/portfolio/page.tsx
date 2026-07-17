@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
-  Briefcase, Plus, Download, Upload, Gift, BarChart2, RefreshCw
+  Briefcase, Plus, Download, Upload, Gift, BarChart2, RefreshCw, Sparkles, Zap
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
