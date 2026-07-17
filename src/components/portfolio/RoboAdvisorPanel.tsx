@@ -12,14 +12,20 @@ interface RoboAdvisorPanelProps {
 export const RoboAdvisorPanel: React.FC<RoboAdvisorPanelProps> = ({ holdings, onOptimize }) => {
   const [loading, setLoading] = useState(false);
   const [recommendation, setRecommendation] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const triggerOptimization = async () => {
     try {
       setLoading(true);
+      setError(null);
       const result = await onOptimize();
+      if (!result) {
+        throw new Error("L'optimisation a retourné un résultat vide.");
+      }
       setRecommendation(result);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setError(err?.message || "Une erreur s'est produite lors de l'optimisation.");
     } finally {
       setLoading(false);
     }
@@ -58,6 +64,11 @@ export const RoboAdvisorPanel: React.FC<RoboAdvisorPanelProps> = ({ holdings, on
               </>
             )}
           </button>
+          {error && (
+            <p className="error-text-mini mono-tiny animate-fade-in" style={{ color: '#ef4444', marginTop: '0.75rem', fontWeight: 'bold' }}>
+              ⚠️ {error}
+            </p>
+          )}
           {holdings.length === 0 && (
             <span className="warning-empty-holdings mono-tiny">⚠️ Remplissez votre portefeuille de transactions d'abord.</span>
           )}
