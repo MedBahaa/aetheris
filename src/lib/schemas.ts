@@ -173,6 +173,7 @@ export const PortfolioTransactionSchema = z.object({
   quantity: z.number(),
   buy_price: z.number(),
   buy_date: z.string(),
+  is_virtual: z.boolean().default(false),
   created_at: z.string(),
 });
 
@@ -187,6 +188,7 @@ export const DividendTransactionSchema = z.object({
   symbol: z.string(),
   amount_per_share: z.number(),
   dividend_date: z.string(),
+  is_virtual: z.boolean().default(false),
   created_at: z.string(),
 });
 export type DividendTransaction = z.infer<typeof DividendTransactionSchema>;

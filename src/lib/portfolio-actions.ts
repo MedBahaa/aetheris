@@ -10,9 +10,9 @@ import { GeminiService } from './gemini';
 // TRANSACTIONS (BUY & SELL)
 // ──────────────────────────────────────
 
-export async function getPortfolioTransactionsAction(): Promise<PortfolioTransaction[]> {
+export async function getPortfolioTransactionsAction(isVirtual: boolean = false): Promise<PortfolioTransaction[]> {
   const client = await createServerSupabase();
-  return await PortfolioService.getTransactions(client);
+  return await PortfolioService.getTransactions(client, isVirtual);
 }
 
 export async function addPortfolioTransactionAction(
@@ -49,9 +49,9 @@ export async function bulkImportAction(data: {
 // DIVIDENDES
 // ──────────────────────────────────────
 
-export async function getDividendsAction(): Promise<DividendTransaction[]> {
+export async function getDividendsAction(isVirtual: boolean = false): Promise<DividendTransaction[]> {
   const client = await createServerSupabase();
-  return await PortfolioService.getDividends(client);
+  return await PortfolioService.getDividends(client, isVirtual);
 }
 
 export async function addDividendAction(
@@ -96,11 +96,41 @@ export async function getUserProfileAction() {
   return await PortfolioService.getUserProfile(client);
 }
 
-export async function upsertUserProfileAction(profile: { initial_capital: number; subscription_tier?: string }) {
+export async function upsertUserProfileAction(profile: { 
+  initial_capital?: number; 
+  subscription_tier?: string;
+  telegram_chat_id?: string;
+  whatsapp_phone?: string;
+  alert_channel?: string;
+  username?: string;
+  virtual_initial_capital?: number;
+  virtual_balance?: number;
+}) {
   const client = await createServerSupabase();
   const result = await PortfolioService.upsertUserProfile(client, profile);
   revalidatePath('/portfolio');
   return result;
+}
+
+export async function addVirtualTransactionAction(
+  tx: Omit<PortfolioTransaction, 'id' | 'created_at' | 'user_id' | 'is_virtual'>
+) {
+  const client = await createServerSupabase();
+  const result = await PortfolioService.addVirtualTransaction(client, tx);
+  revalidatePath('/portfolio');
+  return result;
+}
+
+export async function resetVirtualPortfolioAction(initialCapital?: number) {
+  const client = await createServerSupabase();
+  const result = await PortfolioService.resetVirtualPortfolio(client, initialCapital);
+  revalidatePath('/portfolio');
+  return result;
+}
+
+export async function getLeaderboardAction() {
+  const client = await createServerSupabase();
+  return await PortfolioService.getLeaderboard(client);
 }
 
 export async function optimizePortfolioAction(holdings: any[]) {
