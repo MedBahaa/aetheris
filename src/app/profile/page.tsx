@@ -14,6 +14,9 @@ export default function ProfilePage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  
+  // Non-blocking toast state
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   // Form states
   const [profile, setProfile] = useState<any>(null);
@@ -66,10 +69,15 @@ export default function ProfilePage() {
 
       await upsertUserProfileAction(payload);
       setSubscriptionTier(targetTier);
-      alert('Profil mis à jour avec succès !');
+      
+      // Show smooth glass feedback
+      setSaveMessage({ type: 'success', text: 'Paramètres du compte enregistrés avec succès !' });
+      setTimeout(() => setSaveMessage(null), 4000);
+      
       loadProfile();
     } catch (err: any) {
-      alert(err.message || 'Erreur lors de la sauvegarde');
+      setSaveMessage({ type: 'error', text: err.message || 'Erreur lors de la sauvegarde' });
+      setTimeout(() => setSaveMessage(null), 4000);
     } finally {
       setSaving(false);
     }
@@ -102,6 +110,30 @@ export default function ProfilePage() {
             </div>
           </header>
 
+          {/* Smooth feedback alert banner */}
+          {saveMessage && (
+            <div 
+              className="animate-fade-in" 
+              style={{
+                padding: '1rem',
+                borderRadius: '8px',
+                marginBottom: '1.5rem',
+                background: saveMessage.type === 'success' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                border: saveMessage.type === 'success' ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
+                color: saveMessage.type === 'success' ? '#10b981' : '#ef4444',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.6rem',
+                fontSize: '13px',
+                fontWeight: 'bold',
+                fontFamily: 'monospace'
+              }}
+            >
+              {saveMessage.type === 'success' ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+              <span>{saveMessage.text}</span>
+            </div>
+          )}
+
           {loading ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem', color: '#64748b' }}>
               <RefreshCw className="animate-spin" size={24} />
@@ -128,15 +160,8 @@ export default function ProfilePage() {
                         value={username} 
                         onChange={e => setUsername(e.target.value)} 
                         placeholder="Saisissez un pseudo" 
-                        style={{
-                          background: 'rgba(0,0,0,0.3)',
-                          border: '1px solid rgba(255,255,255,0.1)',
-                          borderRadius: '8px',
-                          padding: '0.75rem',
-                          color: '#fff',
-                          fontSize: '0.85rem',
-                          fontFamily: 'monospace'
-                        }}
+                        className="terminal-input-field"
+                        style={{ padding: '0.75rem' }}
                       />
                     </div>
 
@@ -149,15 +174,8 @@ export default function ProfilePage() {
                         value={newCapital} 
                         onChange={e => setNewCapital(e.target.value)} 
                         placeholder="100000" 
-                        style={{
-                          background: 'rgba(0,0,0,0.3)',
-                          border: '1px solid rgba(255,255,255,0.1)',
-                          borderRadius: '8px',
-                          padding: '0.75rem',
-                          color: '#fff',
-                          fontSize: '0.85rem',
-                          fontFamily: 'monospace'
-                        }}
+                        className="terminal-input-field"
+                        style={{ padding: '0.75rem' }}
                       />
                     </div>
 
@@ -171,12 +189,13 @@ export default function ProfilePage() {
                         style={{
                           background: 'rgba(15, 23, 42, 0.8)',
                           border: '1px solid rgba(255,255,255,0.1)',
-                          borderRadius: '8px',
+                          borderRadius: '0.75rem',
                           padding: '0.75rem',
                           color: '#fff',
                           fontSize: '0.85rem',
                           outline: 'none',
-                          cursor: 'pointer'
+                          cursor: 'pointer',
+                          fontFamily: 'monospace'
                         }}
                       >
                         <option value="EMAIL">📧 Email uniquement</option>
@@ -191,24 +210,43 @@ export default function ProfilePage() {
                         <label className="mono-tiny" style={{ color: '#c084fc', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                           ✈️ CHAT ID TELEGRAM
                         </label>
-                        <input 
-                          type="text" 
-                          value={telegramChatId} 
-                          onChange={e => setTelegramChatId(e.target.value)} 
-                          placeholder="Votre Chat ID (ex: 123456789)" 
-                          style={{
-                            background: 'rgba(168, 85, 247, 0.05)',
-                            border: '1px solid rgba(168, 85, 247, 0.3)',
-                            borderRadius: '8px',
-                            padding: '0.75rem',
-                            color: '#fff',
-                            fontSize: '0.85rem',
-                            fontFamily: 'monospace'
-                          }}
-                        />
-                        <span style={{ fontSize: '11px', color: '#64748b', lineHeight: '1.4' }}>
-                          1. Ajoutez le bot <b>@AetherisAlertBot</b> sur Telegram.<br/>
-                          2. Envoyez un message à <b>@userinfobot</b> pour obtenir votre Chat ID.
+                        
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                          <input 
+                            type="text" 
+                            value={telegramChatId} 
+                            onChange={e => setTelegramChatId(e.target.value)} 
+                            placeholder="Votre Chat ID (ex: 123456789)" 
+                            className="terminal-input-field"
+                            style={{ padding: '0.75rem', flex: 1 }}
+                          />
+                          <a 
+                            href="https://t.me/AetherisAlertBot" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="action-chip purple"
+                            style={{
+                              padding: '0.75rem 1rem',
+                              borderRadius: '8px',
+                              textDecoration: 'none',
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                              color: '#fff',
+                              background: 'rgba(168, 85, 247, 0.2)',
+                              border: '1px solid rgba(168, 85, 247, 0.4)',
+                              whiteSpace: 'nowrap',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem'
+                            }}
+                          >
+                            ACTIVER LE BOT
+                          </a>
+                        </div>
+                        
+                        <span style={{ fontSize: '11px', color: '#64748b', lineHeight: '1.4', marginTop: '0.2rem' }}>
+                          1. Cliquez sur le bouton pour démarrer le bot <b>@AetherisAlertBot</b>.<br/>
+                          2. Envoyez un message à <b>@userinfobot</b> sur Telegram pour obtenir votre Chat ID.
                         </span>
                       </div>
                     )}
@@ -218,24 +256,43 @@ export default function ProfilePage() {
                         <label className="mono-tiny" style={{ color: '#34d399', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                           💬 NUMÉRO WHATSAPP
                         </label>
-                        <input 
-                          type="text" 
-                          value={whatsappPhone} 
-                          onChange={e => setWhatsappPhone(e.target.value)} 
-                          placeholder="Format international (ex: 212600000000)" 
-                          style={{
-                            background: 'rgba(52, 211, 153, 0.05)',
-                            border: '1px solid rgba(52, 211, 153, 0.3)',
-                            borderRadius: '8px',
-                            padding: '0.75rem',
-                            color: '#fff',
-                            fontSize: '0.85rem',
-                            fontFamily: 'monospace'
-                          }}
-                        />
-                        <span style={{ fontSize: '11px', color: '#64748b', lineHeight: '1.4' }}>
-                          1. Enregistrez le numéro CallMeBot : <b>+34 644 97 50 14</b>.<br/>
-                          2. Envoyez-lui par WhatsApp : <b>I allow callmebot to send me messages</b>.
+
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                          <input 
+                            type="text" 
+                            value={whatsappPhone} 
+                            onChange={e => setWhatsappPhone(e.target.value)} 
+                            placeholder="Format international (ex: 212600000000)" 
+                            className="terminal-input-field"
+                            style={{ padding: '0.75rem', flex: 1 }}
+                          />
+                          <a 
+                            href="https://wa.me/34644975014?text=I%20allow%20callmebot%20to%20send%20me%20messages" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="action-chip emerald"
+                            style={{
+                              padding: '0.75rem 1rem',
+                              borderRadius: '8px',
+                              textDecoration: 'none',
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                              color: '#fff',
+                              background: 'rgba(52, 211, 153, 0.2)',
+                              border: '1px solid rgba(52, 211, 153, 0.4)',
+                              whiteSpace: 'nowrap',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem'
+                            }}
+                          >
+                            AUTORISER WHATSAPP
+                          </a>
+                        </div>
+
+                        <span style={{ fontSize: '11px', color: '#64748b', lineHeight: '1.4', marginTop: '0.2rem' }}>
+                          1. Cliquez sur le bouton pour autoriser CallMeBot à vous envoyer des messages.<br/>
+                          2. Le numéro doit être au format international (sans le symbole + ni les 00 de préfixe).
                         </span>
                       </div>
                     )}
