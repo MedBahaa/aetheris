@@ -168,16 +168,105 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
         </div>
 
         <div className="sidebar-scroll-area">
-          <div className={`market-status-widget glass-mini animate-fade-in ${marketIndex.value >= 0 ? 'bullish' : 'bearish'}`}>
-             <div className="widget-grid-pattern"></div>
-             <div className="status-label">
-                <span className="pulse-dot"></span>
+          <div 
+            className="market-status-widget animate-fade-in"
+            style={{
+              margin: '1rem',
+              padding: '0.85rem 1rem',
+              borderRadius: '0.75rem',
+              background: marketIndex.value >= 0 
+                ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%)' 
+                : 'linear-gradient(135deg, rgba(239, 68, 68, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%)',
+              border: marketIndex.value >= 0 
+                ? '1px solid rgba(16, 185, 129, 0.2)' 
+                : '1px solid rgba(239, 68, 68, 0.2)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem',
+              position: 'relative',
+              overflow: 'hidden'
+            }}
+          >
+             <div 
+               className="widget-grid-pattern"
+               style={{
+                 position: 'absolute',
+                 inset: 0,
+                 opacity: 0.03,
+                 backgroundImage: 'radial-gradient(#fff 1px, transparent 0)',
+                 backgroundSize: '8px 8px',
+                 pointerEvents: 'none'
+               }}
+             ></div>
+             <div 
+               className="status-label"
+               style={{
+                 display: 'flex',
+                 alignItems: 'center',
+                 gap: '0.5rem',
+                 color: '#64748b',
+                 fontSize: '9px',
+                 fontWeight: 800,
+                 letterSpacing: '0.08rem',
+                 textTransform: 'uppercase',
+                 fontFamily: 'JetBrains Mono, monospace'
+               }}
+             >
+                <span 
+                  className="pulse-dot"
+                  style={{
+                    width: '6px',
+                    height: '6px',
+                    backgroundColor: '#10b981',
+                    borderRadius: '50%',
+                    boxShadow: '0 0 8px #10b981'
+                  }}
+                ></span>
                 <span>MASI CASABLANCA</span>
-                <span className="live-badge-glow">LIVE</span>
+                <span 
+                  className="live-badge-glow"
+                  style={{
+                    fontSize: '8px',
+                    fontWeight: 900,
+                    color: '#10b981',
+                    marginLeft: 'auto',
+                    letterSpacing: '0.05rem'
+                  }}
+                >LIVE</span>
              </div>
-             <div className="status-main">
-                <span className="index-val mono">{marketIndex.price}</span>
-                <span className={`index-change mono ${marketIndex.value >= 0 ? 'positive' : 'negative'}`}>
+             <div 
+               className="status-main"
+               style={{
+                 display: 'flex',
+                 alignItems: 'center',
+                 justifyContent: 'space-between',
+                 position: 'relative',
+                 zIndex: 10
+               }}
+             >
+                <span 
+                  className="index-val mono"
+                  style={{
+                    fontSize: '1.15rem',
+                    fontWeight: 900,
+                    color: '#fff',
+                    letterSpacing: '-0.02em'
+                  }}
+                >
+                  {marketIndex.price}
+                </span>
+                <span 
+                  className="index-change mono"
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 800,
+                    fontFamily: 'JetBrains Mono, monospace',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    color: marketIndex.value >= 0 ? '#10b981' : '#ef4444',
+                    backgroundColor: marketIndex.value >= 0 ? 'rgba(16, 185, 129, 0.06)' : 'rgba(239, 68, 68, 0.06)'
+                  }}
+                >
                   {marketIndex.value >= 0 ? '▲' : '▼'} {marketIndex.variation}
                 </span>
              </div>
@@ -666,92 +755,6 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
           .status-banner-content.free span {
             color: #f59e0b;
             font-weight: 700;
-          }
-        `}</style>
-
-        <style jsx global>{`
-          .market-status-widget {
-            margin: 1rem !important;
-            padding: 0.85rem 1rem !important;
-            border-radius: 0.75rem !important;
-            background: rgba(255, 255, 255, 0.02) !important;
-            border: 1px solid rgba(255, 255, 255, 0.05) !important;
-            display: flex !important;
-            flex-direction: column !important;
-            gap: 0.5rem !important;
-            position: relative !important;
-            overflow: hidden !important;
-            transition: all 0.3s !important;
-          }
-          .market-status-widget.bullish {
-            border-color: rgba(16, 185, 129, 0.2) !important;
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%) !important;
-          }
-          .market-status-widget.bearish {
-            border-color: rgba(239, 68, 68, 0.2) !important;
-            background: linear-gradient(135deg, rgba(239, 68, 68, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%) !important;
-          }
-          .widget-grid-pattern {
-            position: absolute !important;
-            inset: 0 !important;
-            opacity: 0.03 !important;
-            background-image: radial-gradient(#fff 1px, transparent 0) !important;
-            background-size: 8px 8px !important;
-            pointer-events: none !important;
-          }
-          .status-label {
-            display: flex !important;
-            align-items: center !important;
-            gap: 0.5rem !important;
-            color: #64748b !important;
-            font-size: 9px !important;
-            font-weight: 800 !important;
-            letter-spacing: 0.08rem !important;
-            text-transform: uppercase !important;
-            font-family: 'JetBrains Mono', monospace !important;
-          }
-          .pulse-dot {
-            width: 6px !important;
-            height: 6px !important;
-            background: #10b981 !important;
-            border-radius: 50% !important;
-            box-shadow: 0 0 8px #10b981 !important;
-            animation: pulse-live 1.8s infinite !important;
-          }
-          .live-badge-glow {
-            font-size: 8px !important;
-            font-weight: 900 !important;
-            color: #10b981 !important;
-            margin-left: auto !important;
-            letter-spacing: 0.05rem !important;
-          }
-          .status-main {
-            display: flex !important;
-            align-items: center !important;
-            justify-content: space-between !important;
-            position: relative !important;
-            z-index: 10 !important;
-          }
-          .index-val {
-            font-size: 1.15rem !important;
-            font-weight: 900 !important;
-            color: #fff !important;
-            letter-spacing: -0.02em !important;
-          }
-          .index-change {
-            font-size: 10px !important;
-            font-weight: 800 !important;
-            font-family: 'JetBrains Mono', monospace !important;
-            padding: 2px 6px !important;
-            border-radius: 4px !important;
-          }
-          .index-change.positive {
-            color: #10b981 !important;
-            background: rgba(16, 185, 129, 0.06) !important;
-          }
-          .index-change.negative {
-            color: #ef4444 !important;
-            background: rgba(239, 68, 68, 0.06) !important;
           }
         `}</style>
       </aside>
