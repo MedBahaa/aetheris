@@ -168,23 +168,18 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
         </div>
 
         <div className="sidebar-scroll-area">
-          {/* Alpha Market Status Widget */}
           <div className={`market-status-widget glass-mini animate-fade-in ${marketIndex.value >= 0 ? 'bullish' : 'bearish'}`}>
              <div className="widget-grid-pattern"></div>
              <div className="status-label">
                 <span className="pulse-dot"></span>
-                <span>BVC MASI INDEX</span>
+                <span>MASI CASABLANCA</span>
                 <span className="live-badge-glow">LIVE</span>
              </div>
              <div className="status-main">
-                 <div className="index-price-group">
-                   <span className="index-val mono">{marketIndex.price}</span>
-                   <span className="currency-tag mono-tiny">MAD</span>
-                 </div>
-                 <div className={`index-trend-box ${marketIndex.value >= 0 ? 'up' : 'down'}`}>
-                   <span className="trend-arrow">{marketIndex.value >= 0 ? '▲' : '▼'}</span>
-                   <span className="index-change mono">{marketIndex.variation}</span>
-                 </div>
+                <span className="index-val mono">{marketIndex.price}</span>
+                <span className={`index-change mono ${marketIndex.value >= 0 ? 'positive' : 'negative'}`}>
+                  {marketIndex.value >= 0 ? '▲' : '▼'} {marketIndex.variation}
+                </span>
              </div>
           </div>
 
@@ -457,25 +452,25 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
           .nav-label-top { font-size: 10px; font-weight: 900; color: #475569; letter-spacing: 0.12rem; font-family: 'JetBrains Mono', monospace; }
 
           .market-status-widget {
-            margin: 1.25rem 1rem;
-            padding: 1rem;
-            border-radius: 1rem;
-            background: rgba(255, 255, 255, 0.01);
-            border: 1px solid rgba(255, 255, 255, 0.03);
+            margin: 1rem;
+            padding: 0.85rem 1rem;
+            border-radius: 0.75rem;
+            background: rgba(255, 255, 255, 0.02) !important;
+            border: 1px solid rgba(255, 255, 255, 0.05) !important;
             display: flex;
             flex-direction: column;
-            gap: 0.6rem;
+            gap: 0.5rem;
             position: relative;
             overflow: hidden;
             transition: all 0.3s;
           }
           .market-status-widget.bullish {
-            border-color: rgba(16, 185, 129, 0.12);
-            background: radial-gradient(circle at top right, rgba(16, 185, 129, 0.02), transparent);
+            border-color: rgba(16, 185, 129, 0.2) !important;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%) !important;
           }
           .market-status-widget.bearish {
-            border-color: rgba(239, 68, 68, 0.12);
-            background: radial-gradient(circle at top right, rgba(239, 68, 68, 0.02), transparent);
+            border-color: rgba(239, 68, 68, 0.2) !important;
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%) !important;
           }
           .widget-grid-pattern {
             position: absolute;
@@ -488,8 +483,8 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
           .status-label { display: flex; align-items: center; gap: 0.5rem; color: #64748b; font-size: 9px; font-weight: 800; letter-spacing: 0.08rem; text-transform: uppercase; font-family: 'JetBrains Mono', monospace; }
           
           .pulse-dot {
-            width: 5px;
-            height: 5px;
+            width: 6px;
+            height: 6px;
             background: #10b981;
             border-radius: 50%;
             box-shadow: 0 0 8px #10b981;
@@ -509,15 +504,11 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
             letter-spacing: 0.05rem;
           }
 
-          .status-main { display: flex; align-items: center; justify-content: space-between; position: relative; z-index: 1; }
-          .index-price-group { display: flex; align-items: baseline; gap: 0.25rem; }
+          .status-main { display: flex; align-items: center; justify-content: space-between; }
           .index-val { font-size: 1.15rem; font-weight: 900; color: #fff; letter-spacing: -0.02em; }
-          .currency-tag { font-size: 8px; color: #475569; font-weight: 800; }
-          
-          .index-trend-box { display: flex; align-items: center; gap: 0.35rem; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
-          .index-trend-box.up { background: rgba(16, 185, 129, 0.06); color: #10b981; }
-          .index-trend-box.down { background: rgba(239, 68, 68, 0.06); color: #ef4444; }
-          .trend-arrow { font-size: 8px; }
+          .index-change { font-size: 10px; font-weight: 800; font-family: 'JetBrains Mono', monospace; padding: 2px 6px; border-radius: 4px; }
+          .index-change.positive { color: #10b981; background: rgba(16, 185, 129, 0.06); }
+          .index-change.negative { color: #ef4444; background: rgba(239, 68, 68, 0.06); }
 
           .sidebar-search-block { padding: 0 1rem 1rem; }
           .sidebar-search-container { position: relative; display: flex; align-items: center; }
