@@ -46,7 +46,7 @@ export async function GET(request: Request) {
 
       if (company) {
         const price = parseFloat(stock.price.replace(',', '.').replace(/\s/g, '')) || 0;
-        const volumeStr = stock.high; // Dans market-list-scraper, high contient parfois le volume ou prix haut. Ajustons.
+        const volumeVal = parseInt(stock.quantity.replace(/[\s\u00A0]/g, '').replace(',', ''), 10) || 0;
         // Si c'est juste l'historique de clôture, on insère.
         
         if (price > 0) {
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
             company_id: company.id,
             price: price,
             variation: stock.variation,
-            volume: 0, // Le scraper liste globale n'a pas toujours le volume précis
+            volume: volumeVal,
             created_at: new Date().toISOString()
           });
         }

@@ -31,7 +31,12 @@ export class MacroScraper {
       const data: any = {};
 
       await Promise.all(symbols.map(async (symbol) => {
-        const res = await fetch(`${YAHOO_API}/${symbol}?interval=1d&range=2d`, { cache: 'no-store' });
+        const res = await fetch(`${YAHOO_API}/${symbol}?interval=1d&range=2d`, {
+          cache: 'no-store',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          }
+        });
         const json = await res.json();
         
         if (json.chart.result && json.chart.result.length > 0) {

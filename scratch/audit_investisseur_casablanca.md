@@ -1,29 +1,31 @@
-# 🏛️ Audit & Analyse de l'Investisseur (Bourse de Casablanca)
+# Audit de l'Application Aetheris - Profil Investisseur BVC
 
-### 1. Points Forts (Analyse Technique)
-*   **Calcul de la TVP (Taxe sur Profit) :** Gestion des 15% de taxe (loi marocaine).
-*   **Filtre de Liquidité :** Détection des valeurs illiquides (< 100 titres/jour).
-*   **Scraping Multi-Sources :** BMCE Capital, Casabourse et données officielles.
-*   **Sentiment IA :** Analyse des news de *Médias24* ou *Bourse News* via Gemini.
+## ✅ Améliorations Réalisées
 
-### 2. Propositions d'Outils pour l'Investisseur de Casablanca
+### 1. Dashboard Macro-Économique (Bank Al-Maghrib)
+*   **Données Institutionnelles :** Intégration du Taux Directeur (2.25%) et de l'Inflation (0.9%) directement dans le terminal.
+*   **Design Ticker :** Flux défilant en temps réel incluant Pétrole (Brent), Or (Gold), USD/MAD et indices BAM.
+*   **Rendement Réel :** Calcul automatique de la performance nette d'inflation dans les statistiques du portefeuille.
 
-#### A. Le "Yield Hunter" (Spécial Dividendes)
-*   **Calendrier de Détachement :** Vue dédiée pour les Ex-Dates et Payment Dates.
-*   **Historique de Yield :** Comparaison rendement actuel vs moyenne 5 ans.
+### 2. Module "Yield Hunter" (Dividendes)
+*   **Yield on Cost (YOC) :** Affichage du rendement basé sur le prix d'achat historique.
+*   **Total Dividendes :** Suivi cumulé des revenus par action.
+*   **Benchmarking Alpha :** Calcul de la surperformance (Alpha) par rapport à l'indice MASI.
 
-#### B. Le Dashboard "BAM & Macro"
-*   **Taux Directeur :** Affichage du taux Bank Al-Maghrib et date du prochain conseil.
-*   **Inflation vs Rendement MASI :** Comparatif performance réelle.
-*   **Parité USD/MAD :** Suivi pour les valeurs exportatrices/importatrices.
+---
 
-#### C. Le Module "OPCVM & Benchmarking"
-*   **Benchmark vs Top OPCVM :** Comparaison contre les meilleurs fonds du marché (Valoris, Attijari Actions).
-*   **Corrélation au MASI :** Calcul du Bêta du portefeuille.
+## 🚀 Vision Moyen Terme : "L'Agent Actif"
 
-#### D. "Carnet d'Ordres" et Volume Spikes
-*   **Détection d'Anomalies de Volume :** Alertes sur les volumes inhabituels.
-*   **Market Depth :** Scraper le carnet d'ordres pour le timing d'entrée/sortie.
+### 3. Système d'Alertes SMS / Push
+*   **Concept :** Ne plus être dépendant de l'ouverture de l'application.
+*   **Action :** Dès qu'un seuil de prix (SL/TP) est franchi, l'application envoie un SMS automatique à l'investisseur.
+*   **Valeur :** Réactivité maximale en cas de krach éclair ou de pic de volatilité.
 
-#### E. Fiscalité PEA (Plan Épargne Actions)
-*   **Compte à rebours fiscal :** Tracker pour l'exonération après 5 ans.
+### 4. Scanner de News "AMMC & Institutionnel"
+*   **Concept :** Un radar qui écoute les sources officielles marocaines 24/7.
+*   **Sources :** AMMC, Communiqués de presse institutionnels, Boursenews, Médias24.
+*   **Intelligence :** L'IA ne remonte que les news qui impactent ton portefeuille spécifique et calcule un score d'impact probable.
+
+### 5. Comparateur OPCVM (Benchmarking Pro)
+*   **Concept :** Se mesurer aux gérants de fonds professionnels de la place (ex: Valoris, BMCE Capital).
+*   **Action :** Afficher si ton portefeuille de "particulier" fait mieux que les fonds institutionnels.

@@ -300,9 +300,8 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
             flex-direction: column;
             gap: 0.4rem;
           }
-          .status-top { display: flex; justify-content: space-between; align-items: center; }
-          .status-label { display: flex; align-items: center; gap: 0.4rem; color: #475569; font-size: 8px; font-weight: 900; letter-spacing: 0.05rem; }
-          .status-tag { font-size: 8px; font-weight: 950; color: var(--accent-emerald); }
+          .status-label { display: flex; align-items: center; gap: 0.4rem; color: #475569; font-size: 10px; font-weight: 900; letter-spacing: 0.05rem; }
+          .status-tag { font-size: 10px; font-weight: 950; color: var(--accent-emerald); }
           .status-main { display: flex; align-items: center; justify-content: space-between; }
           .index-val { font-size: 1.1rem; font-weight: 800; color: #fff; }
           .index-change { font-size: 10px; font-weight: 900; }
@@ -324,7 +323,7 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
             outline: none; 
           }
 
-          .nav-label { font-size: 9px; font-weight: 950; color: #475569; letter-spacing: 0.15rem; padding: 1rem 1.25rem 0.5rem; text-transform: uppercase; }
+          .nav-label { font-size: 10px; font-weight: 950; color: #475569; letter-spacing: 0.15rem; padding: 1rem 1.25rem 0.5rem; text-transform: uppercase; }
           .agent-btn-compact {
             display: flex;
             align-items: center;
@@ -362,9 +361,9 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
           .sub-node.active { color: var(--accent-emerald); font-weight: 600; }
 
           .history-section-compact { border-top: 1px solid rgba(255,255,255,0.03); margin-top: 1rem; }
-          .history-header { display: flex; align-items: center; gap: 0.5rem; font-size: 9px; font-weight: 950; color: #475569; padding: 1rem 1.25rem 0.5rem; }
+          .history-header { display: flex; align-items: center; gap: 0.5rem; font-size: 10px; font-weight: 950; color: #475569; padding: 1rem 1.25rem 0.5rem; }
           .history-group { margin-bottom: 0.5rem; }
-          .group-label { padding: 0.25rem 1.25rem; color: #334155; font-size: 8px; font-weight: 900; }
+          .group-label { padding: 0.25rem 1.25rem; color: #334155; font-size: 10px; font-weight: 900; }
           .history-item {
             display: flex;
             flex-direction: column;
@@ -379,7 +378,7 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
           .history-item:hover { background: rgba(255,255,255,0.02); color: #fff; }
           .history-item.active { background: rgba(255,255,255,0.04); color: #fff; }
           .h-name { font-size: 11px; font-weight: 600; }
-          .h-date { font-size: 9px; opacity: 0.3; }
+          .h-date { font-size: 10px; opacity: 0.5; }
 
           .sidebar-footer-compact {
             padding: 0.75rem 1.25rem;
@@ -390,8 +389,8 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
             background: rgba(0,0,0,0.2);
             flex-shrink: 0;
           }
-          .logout-btn-minimal { background: transparent; border: none; color: #ef4444; font-size: 9px; font-weight: 900; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; }
-          .v-tag-minimal { font-size: 9px; color: #334155; font-weight: 900; }
+          .logout-btn-minimal { background: transparent; border: none; color: #ef4444; font-size: 10px; font-weight: 900; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; }
+          .v-tag-minimal { font-size: 10px; color: #334155; font-weight: 900; }
 
           .close-btn-drawer { background: transparent; border: none; color: #475569; cursor: pointer; }
           @media (min-width: 1024px) { .close-btn-drawer { display: none; } }

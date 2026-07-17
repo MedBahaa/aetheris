@@ -5,7 +5,7 @@ import { Resend } from 'resend';
 
 export const dynamic = 'force-dynamic';
 
-const resend = new Resend('re_gMJwuKSH_CAcqHwDhVdPDAbZ39Qbx8SVS');
+const resend = new Resend(process.env.RESEND_API_KEY || '');
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization');

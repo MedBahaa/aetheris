@@ -461,7 +461,7 @@ export default function PortfolioPage() {
               deletePortfolioTransactionAction={deletePortfolioTransactionAction}
               loadData={loadData}
               setShowAddModal={setShowAddModal}
-              onNavigateToStock={(symbol) => router.push(`/stock/${symbol}`)}
+              onNavigateToStock={(symbol) => router.push(`/?q=${symbol}`)}
             />
           )}
 
