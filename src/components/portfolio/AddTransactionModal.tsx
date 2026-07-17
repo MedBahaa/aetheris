@@ -2,10 +2,12 @@
 
 import React from 'react';
 import { X, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { PortfolioHolding } from '@/lib/schemas';
 
 interface AddTransactionModalProps {
   showAddModal: boolean;
   setShowAddModal: (val: boolean) => void;
+  holdings: PortfolioHolding[];
   newTx: {
     symbol: string;
     quantity: string;
@@ -24,6 +26,7 @@ interface AddTransactionModalProps {
 export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   showAddModal,
   setShowAddModal,
+  holdings,
   newTx,
   setNewTx,
   suggestions,
@@ -33,6 +36,44 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   handleAddTransaction,
 }) => {
   if (!showAddModal) return null;
+
+  const quantityNum = parseFloat(newTx.quantity) || 0;
+  const priceNum = parseFloat(newTx.buy_price) || 0;
+  
+  let showSimulation = false;
+  let simulatedPmp = 0;
+  let estimatedFees = 0;
+  let simulatedQuantity = 0;
+  let warningMessage = '';
+
+  if (newTx.symbol && quantityNum > 0 && priceNum > 0) {
+    const existing = holdings.find(h => h.symbol.toUpperCase() === newTx.symbol.toUpperCase());
+    const BROKERAGE_FEE = 0.0099; // 0.99%
+
+    if (newTx.type === 'BUY') {
+      const currentQty = existing ? existing.totalQuantity : 0;
+      const currentPmp = existing ? existing.weightedAveragePrice : 0;
+      const currentCost = currentQty * currentPmp;
+      
+      const newCost = quantityNum * priceNum * (1 + BROKERAGE_FEE);
+      simulatedQuantity = currentQty + quantityNum;
+      simulatedPmp = simulatedQuantity > 0 ? (currentCost + newCost) / simulatedQuantity : 0;
+      estimatedFees = quantityNum * priceNum * BROKERAGE_FEE;
+      showSimulation = true;
+    } else if (newTx.type === 'SELL') {
+      const currentQty = existing ? existing.totalQuantity : 0;
+      const currentPmp = existing ? existing.weightedAveragePrice : 0;
+      
+      if (quantityNum > currentQty) {
+        warningMessage = `⚠️ Quantité insuffisante (détenu : ${currentQty})`;
+      } else {
+        simulatedQuantity = currentQty - quantityNum;
+        simulatedPmp = currentPmp;
+        estimatedFees = quantityNum * priceNum * BROKERAGE_FEE;
+        showSimulation = true;
+      }
+    }
+  }
 
   return (
     <div className="modal-overlay glass-heavy animate-fade-in" onClick={() => setShowAddModal(false)}>
@@ -81,6 +122,32 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
               <input type="date" value={newTx.buy_date} onChange={e => setNewTx({ ...newTx, buy_date: e.target.value })} className="terminal-input-field" required />
             </div>
           </div>
+
+          {showSimulation && (
+            <div className="simulator-box mono-tiny animate-fade-in" style={{ marginBottom: '1.5rem' }}>
+              <div className="sim-title">📊 SIMULATION D'IMPACT</div>
+              <div className="sim-row">
+                <span>Frais de courtage estimés (0.99%) :</span>
+                <span>{estimatedFees.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD</span>
+              </div>
+              <div className="sim-row">
+                <span>Nouvelle Quantité :</span>
+                <span>{simulatedQuantity} {newTx.type === 'BUY' ? `(+${quantityNum})` : `(-${quantityNum})`}</span>
+              </div>
+              {newTx.type === 'BUY' && (
+                <div className="sim-row">
+                  <span>Nouveau PMP estimé (frais inclus) :</span>
+                  <span className="text-emerald">{simulatedPmp.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD</span>
+                </div>
+              )}
+            </div>
+          )}
+          {warningMessage && (
+            <div className="sim-warning mono-tiny" style={{ marginBottom: '1.5rem' }}>
+              {warningMessage}
+            </div>
+          )}
+
           <button type="submit" className={`action-btn-terminal ${newTx.type === 'SELL' ? 'sell-btn' : 'strategy'} full-width`}>
             {newTx.type === 'BUY' ? <ArrowUpRight size={16} /> : <ArrowDownLeft size={16} />}
             <span>{newTx.type === 'BUY' ? "CONFIRMER L'ACHAT" : "CONFIRMER LA VENTE"}</span>

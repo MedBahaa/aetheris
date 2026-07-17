@@ -49,6 +49,7 @@ export default function PortfolioPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDivModal, setShowDivModal] = useState(false);
   const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
+  const [selectedSector, setSelectedSector] = useState<string | null>(null);
 
   // Capital Settings
   const [initialCapital, setInitialCapital] = useState<number>(0);
@@ -343,7 +344,11 @@ export default function PortfolioPage() {
       yieldOnCost: yoc 
     };
   });
-  
+
+  const filteredHoldings = selectedSector
+    ? holdingsWithDividends.filter(h => h.sector === selectedSector)
+    : holdingsWithDividends;
+
   const totalPerformance = totalInvestedNet > 0 ? (totalPvNette / totalInvestedNet) * 100 : 0;
   const liquidites = initialCapital > 0 ? initialCapital - totalInvestedNet : null;
   const investmentRate = initialCapital > 0 ? (totalInvestedNet / initialCapital) * 100 : null;
@@ -434,7 +439,11 @@ export default function PortfolioPage() {
               transactions={transactions}
               masiBenchmark={masiBenchmark}
             />
-            <SectorAllocationDonut sectors={sectors} />
+            <SectorAllocationDonut 
+              sectors={sectors} 
+              selectedSector={selectedSector} 
+              onSelectSector={setSelectedSector} 
+            />
           </div>
 
           <div className="tab-strip">
@@ -447,22 +456,30 @@ export default function PortfolioPage() {
           </div>
 
           {activeTab === 'positions' && (
-            <PortfolioTable 
-              holdings={holdingsWithDividends}
-              alerts={alerts}
-              totalMarketValue={totalMarketValue}
-              expandedSymbol={expandedSymbol}
-              setExpandedSymbol={setExpandedSymbol}
-              alertSymbol={alertSymbol}
-              setAlertSymbol={setAlertSymbol}
-              alertForm={alertForm}
-              setAlertForm={setAlertForm}
-              handleSaveAlert={handleSaveAlert}
-              deletePortfolioTransactionAction={deletePortfolioTransactionAction}
-              loadData={loadData}
-              setShowAddModal={setShowAddModal}
-              onNavigateToStock={(symbol) => router.push(`/?q=${symbol}`)}
-            />
+            <>
+              {selectedSector && (
+                <div className="active-filter-bar animate-fade-in">
+                  <span className="mono-tiny filter-label">SECTEUR FILTRÉ : {selectedSector.toUpperCase()}</span>
+                  <button className="clear-filter-btn mono-tiny" onClick={() => setSelectedSector(null)}>✕ EFFACER LE FILTRE</button>
+                </div>
+              )}
+              <PortfolioTable 
+                holdings={filteredHoldings}
+                alerts={alerts}
+                totalMarketValue={totalMarketValue}
+                expandedSymbol={expandedSymbol}
+                setExpandedSymbol={setExpandedSymbol}
+                alertSymbol={alertSymbol}
+                setAlertSymbol={setAlertSymbol}
+                alertForm={alertForm}
+                setAlertForm={setAlertForm}
+                handleSaveAlert={handleSaveAlert}
+                deletePortfolioTransactionAction={deletePortfolioTransactionAction}
+                loadData={loadData}
+                setShowAddModal={setShowAddModal}
+                onNavigateToStock={(symbol) => router.push(`/?q=${symbol}`)}
+              />
+            </>
           )}
 
           {activeTab === 'dividends' && (
@@ -479,6 +496,7 @@ export default function PortfolioPage() {
       <AddTransactionModal 
         showAddModal={showAddModal}
         setShowAddModal={setShowAddModal}
+        holdings={holdings}
         newTx={newTx}
         setNewTx={setNewTx}
         suggestions={suggestions}
@@ -516,6 +534,10 @@ export default function PortfolioPage() {
         .tab-strip { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
         .tab-btn { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1.25rem; border-radius: 0.75rem; border: 1px solid var(--border-glass); background: transparent; color: #64748b; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.2s; }
         .tab-btn.active { background: rgba(255,255,255,0.05); color: #fff; border-color: rgba(255,255,255,0.1); }
+
+        .active-filter-bar { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1.25rem; border-radius: 0.75rem; background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.2); margin-bottom: 1rem; }
+        .clear-filter-btn { background: transparent; border: none; color: #3b82f6; cursor: pointer; font-weight: 800; font-family: 'JetBrains Mono', monospace; transition: color 0.2s; }
+        .clear-filter-btn:hover { color: #fff; }
 
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @media (max-width: 1024px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }

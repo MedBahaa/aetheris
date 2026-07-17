@@ -1,4 +1,4 @@
-import { PortfolioTransaction, PortfolioHolding, DividendTransaction, PriceAlert } from './schemas';
+import { PortfolioTransaction, PortfolioHolding, DividendTransaction, PriceAlert, PortfolioTransactionSchema, DividendTransactionSchema } from './schemas';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { BROKERAGE_FEE, TAX_ON_PROFIT } from './portfolio-constants';
 
@@ -117,6 +117,24 @@ export class PortfolioService {
     const userResp = await client.auth.getUser();
     if (!userResp.data.user) throw new Error("Non autorisé");
     const userId = userResp.data.user.id;
+
+    // Validation Zod pour les transactions
+    const ImportTransactionSchema = PortfolioTransactionSchema.omit({ id: true, created_at: true, user_id: true });
+    for (const tx of data.transactions) {
+      const parsed = ImportTransactionSchema.safeParse(tx);
+      if (!parsed.success) {
+        throw new Error(`Transaction invalide pour ${tx.symbol || 'symbole inconnu'} : ${parsed.error.message}`);
+      }
+    }
+
+    // Validation Zod pour les dividendes
+    const ImportDividendSchema = DividendTransactionSchema.omit({ id: true, created_at: true, user_id: true });
+    for (const div of data.dividends) {
+      const parsed = ImportDividendSchema.safeParse(div);
+      if (!parsed.success) {
+        throw new Error(`Dividende invalide pour ${div.symbol || 'symbole inconnu'} : ${parsed.error.message}`);
+      }
+    }
 
     if (data.transactions.length > 0) {
       const txs = data.transactions.map(t => ({ ...t, user_id: userId }));
