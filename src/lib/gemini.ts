@@ -515,7 +515,9 @@ export class GeminiService {
       `;
 
       const text = await unifiedAICall(prompt, true, 'gemini-2.0-flash');
-      return safeJsonParse(text);
+      const parsed = safeJsonParse(text);
+      if (!parsed) throw new Error("JSON_PARSE_FAILED");
+      return parsed;
     } catch (e) {
       console.error("Gemini Optimize Portfolio Error:", e);
       // Calculer des pourcentages par secteur réels pour le fallback
