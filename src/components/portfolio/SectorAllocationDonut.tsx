@@ -8,6 +8,8 @@ interface Sector {
 
 interface SectorAllocationDonutProps {
   sectors: Sector[];
+  selectedSector: string | null;
+  onSelectSector: (sector: string | null) => void;
 }
 
 const DONUT_COLORS = [
@@ -20,7 +22,11 @@ const DONUT_COLORS = [
   '#ec4899', // Rose
 ];
 
-export const SectorAllocationDonut: React.FC<SectorAllocationDonutProps> = ({ sectors }) => {
+export const SectorAllocationDonut: React.FC<SectorAllocationDonutProps> = ({ 
+  sectors,
+  selectedSector,
+  onSelectSector
+}) => {
   const radius = 60;
   const circumference = 2 * Math.PI * radius;
   let currentOffset = 0;
@@ -50,6 +56,9 @@ export const SectorAllocationDonut: React.FC<SectorAllocationDonutProps> = ({ se
                   const strokeDashoffset = -currentOffset;
                   currentOffset += strokeLength;
                   const color = DONUT_COLORS[index % DONUT_COLORS.length];
+                  const isSelected = selectedSector === sector.name;
+                  const isAnySelected = selectedSector !== null;
+                  const opacity = isAnySelected ? (isSelected ? 1 : 0.3) : 1;
 
                   return (
                     <circle
@@ -63,7 +72,14 @@ export const SectorAllocationDonut: React.FC<SectorAllocationDonutProps> = ({ se
                       strokeDasharray={strokeDasharray}
                       strokeDashoffset={strokeDashoffset}
                       className="donut-segment animate-draw"
-                      style={{ transformOrigin: 'center', transform: 'rotate(-90deg)' }}
+                      style={{ 
+                        transformOrigin: 'center', 
+                        transform: 'rotate(-90deg)', 
+                        opacity, 
+                        cursor: 'pointer',
+                        transition: 'opacity 0.2s'
+                      }}
+                      onClick={() => onSelectSector(isSelected ? null : sector.name)}
                     />
                   );
                 })}
@@ -77,18 +93,36 @@ export const SectorAllocationDonut: React.FC<SectorAllocationDonutProps> = ({ se
             </div>
 
             <div className="donut-legend">
-              {sortedSectors.map((sector, index) => (
-                <div key={sector.name} className="legend-item">
-                  <div className="legend-label">
-                    <span 
-                      className="legend-dot" 
-                      style={{ backgroundColor: DONUT_COLORS[index % DONUT_COLORS.length] }} 
-                    />
-                    <span className="legend-name truncate">{sector.name}</span>
+              {sortedSectors.map((sector, index) => {
+                const isSelected = selectedSector === sector.name;
+                const isAnySelected = selectedSector !== null;
+                const opacity = isAnySelected ? (isSelected ? 1 : 0.4) : 1;
+                
+                return (
+                  <div 
+                    key={sector.name} 
+                    className={`legend-item ${isSelected ? 'active' : ''}`}
+                    style={{ 
+                      opacity, 
+                      cursor: 'pointer', 
+                      transition: 'all 0.2s',
+                      background: isSelected ? 'rgba(255,255,255,0.03)' : 'transparent',
+                      borderRadius: '4px',
+                      padding: '2px 4px'
+                    }}
+                    onClick={() => onSelectSector(isSelected ? null : sector.name)}
+                  >
+                    <div className="legend-label">
+                      <span 
+                        className="legend-dot" 
+                        style={{ backgroundColor: DONUT_COLORS[index % DONUT_COLORS.length] }} 
+                      />
+                      <span className="legend-name truncate" style={{ fontWeight: isSelected ? 'bold' : 'normal' }}>{sector.name}</span>
+                    </div>
+                    <span className="legend-pct mono" style={{ color: isSelected ? '#fff' : undefined }}>{sector.pct.toFixed(1)}%</span>
                   </div>
-                  <span className="legend-pct mono">{sector.pct.toFixed(1)}%</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         ) : (
