@@ -184,7 +184,8 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
               flexDirection: 'column',
               gap: '0.5rem',
               position: 'relative',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              flexShrink: 0
             }}
           >
              <div 
