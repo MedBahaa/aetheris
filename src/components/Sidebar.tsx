@@ -451,64 +451,7 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
           }
           .nav-label-top { font-size: 10px; font-weight: 900; color: #475569; letter-spacing: 0.12rem; font-family: 'JetBrains Mono', monospace; }
 
-          .market-status-widget {
-            margin: 1rem;
-            padding: 0.85rem 1rem;
-            border-radius: 0.75rem;
-            background: rgba(255, 255, 255, 0.02) !important;
-            border: 1px solid rgba(255, 255, 255, 0.05) !important;
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-            position: relative;
-            overflow: hidden;
-            transition: all 0.3s;
-          }
-          .market-status-widget.bullish {
-            border-color: rgba(16, 185, 129, 0.2) !important;
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%) !important;
-          }
-          .market-status-widget.bearish {
-            border-color: rgba(239, 68, 68, 0.2) !important;
-            background: linear-gradient(135deg, rgba(239, 68, 68, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%) !important;
-          }
-          .widget-grid-pattern {
-            position: absolute;
-            inset: 0;
-            opacity: 0.03;
-            background-image: radial-gradient(#fff 1px, transparent 0);
-            background-size: 8px 8px;
-            pointer-events: none;
-          }
-          .status-label { display: flex; align-items: center; gap: 0.5rem; color: #64748b; font-size: 9px; font-weight: 800; letter-spacing: 0.08rem; text-transform: uppercase; font-family: 'JetBrains Mono', monospace; }
-          
-          .pulse-dot {
-            width: 6px;
-            height: 6px;
-            background: #10b981;
-            border-radius: 50%;
-            box-shadow: 0 0 8px #10b981;
-            animation: pulse-live 1.8s infinite;
-          }
-          @keyframes pulse-live {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
-            70% { transform: scale(1); box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-          }
-          
-          .live-badge-glow {
-            font-size: 8px;
-            font-weight: 900;
-            color: #10b981;
-            margin-left: auto;
-            letter-spacing: 0.05rem;
-          }
 
-          .status-main { display: flex; align-items: center; justify-content: space-between; }
-          .index-val { font-size: 1.15rem; font-weight: 900; color: #fff; letter-spacing: -0.02em; }
-          .index-change { font-size: 10px; font-weight: 800; font-family: 'JetBrains Mono', monospace; padding: 2px 6px; border-radius: 4px; }
-          .index-change.positive { color: #10b981; background: rgba(16, 185, 129, 0.06); }
-          .index-change.negative { color: #ef4444; background: rgba(239, 68, 68, 0.06); }
 
           .sidebar-search-block { padding: 0 1rem 1rem; }
           .sidebar-search-container { position: relative; display: flex; align-items: center; }
@@ -723,6 +666,92 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
           .status-banner-content.free span {
             color: #f59e0b;
             font-weight: 700;
+          }
+        `}</style>
+
+        <style jsx global>{`
+          .market-status-widget {
+            margin: 1rem !important;
+            padding: 0.85rem 1rem !important;
+            border-radius: 0.75rem !important;
+            background: rgba(255, 255, 255, 0.02) !important;
+            border: 1px solid rgba(255, 255, 255, 0.05) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 0.5rem !important;
+            position: relative !important;
+            overflow: hidden !important;
+            transition: all 0.3s !important;
+          }
+          .market-status-widget.bullish {
+            border-color: rgba(16, 185, 129, 0.2) !important;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%) !important;
+          }
+          .market-status-widget.bearish {
+            border-color: rgba(239, 68, 68, 0.2) !important;
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%) !important;
+          }
+          .widget-grid-pattern {
+            position: absolute !important;
+            inset: 0 !important;
+            opacity: 0.03 !important;
+            background-image: radial-gradient(#fff 1px, transparent 0) !important;
+            background-size: 8px 8px !important;
+            pointer-events: none !important;
+          }
+          .status-label {
+            display: flex !important;
+            align-items: center !important;
+            gap: 0.5rem !important;
+            color: #64748b !important;
+            font-size: 9px !important;
+            font-weight: 800 !important;
+            letter-spacing: 0.08rem !important;
+            text-transform: uppercase !important;
+            font-family: 'JetBrains Mono', monospace !important;
+          }
+          .pulse-dot {
+            width: 6px !important;
+            height: 6px !important;
+            background: #10b981 !important;
+            border-radius: 50% !important;
+            box-shadow: 0 0 8px #10b981 !important;
+            animation: pulse-live 1.8s infinite !important;
+          }
+          .live-badge-glow {
+            font-size: 8px !important;
+            font-weight: 900 !important;
+            color: #10b981 !important;
+            margin-left: auto !important;
+            letter-spacing: 0.05rem !important;
+          }
+          .status-main {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            position: relative !important;
+            z-index: 10 !important;
+          }
+          .index-val {
+            font-size: 1.15rem !important;
+            font-weight: 900 !important;
+            color: #fff !important;
+            letter-spacing: -0.02em !important;
+          }
+          .index-change {
+            font-size: 10px !important;
+            font-weight: 800 !important;
+            font-family: 'JetBrains Mono', monospace !important;
+            padding: 2px 6px !important;
+            border-radius: 4px !important;
+          }
+          .index-change.positive {
+            color: #10b981 !important;
+            background: rgba(16, 185, 129, 0.06) !important;
+          }
+          .index-change.negative {
+            color: #ef4444 !important;
+            background: rgba(239, 68, 68, 0.06) !important;
           }
         `}</style>
       </aside>
