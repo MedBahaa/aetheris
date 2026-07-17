@@ -1,7 +1,43 @@
 import { supabaseAdmin } from './supabase';
-import { CompanyAnalysis } from './schemas';
 
-export class AnalysisCache {
+// Client REST Upstash Redis ultra-léger sans paquet npm
+class RedisClient {
+  private static get config() {
+    return {
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN
+    };
+  }
+
+  static get isAvailable(): boolean {
+    const { url, token } = this.config;
+    return !!(url && token);
+  }
+
+  static async execute(command: any[]): Promise<any> {
+    const { url, token } = this.config;
+    if (!url || !token) throw new Error("Credentials Redis manquants");
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(command),
+      cache: 'no-store'
+    });
+
+    if (!res.ok) {
+      throw new Error(`Erreur Redis REST API : ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    return data.result;
+  }
+}
+
+export class CacheService {
   /** TTL dynamique par type d'agent */
   private static readonly TTL_MAP: Record<string, number> = {
     TECHNICAL:   5 * 60 * 1000,    // 5 min  — les cours bougent en séance
@@ -12,15 +48,29 @@ export class AnalysisCache {
   private static readonly DEFAULT_TTL = 15 * 60 * 1000;
 
   /**
-   * Tente de récupérer une analyse depuis le cache
+   * Tente de récupérer une analyse en cache
    */
-  static async get(ticker: string, type: string, forceRefresh: boolean = false): Promise<CompanyAnalysis | null> {
-    if (!supabaseAdmin || forceRefresh) {
-      if (forceRefresh) console.log(`[Cache] 🔄 Force Refresh demandé pour ${ticker} (${type}). Bypassing cache...`);
-      return null;
+  static async get(ticker: string, type: string, forceRefresh: boolean = false): Promise<any | null> {
+    if (forceRefresh) return null;
+    const key = `aetheris:cache:${type.toLowerCase()}:${ticker.toUpperCase()}`;
+
+    // Driver Redis
+    if (RedisClient.isAvailable) {
+      try {
+        console.log(`[Cache] 🔴 Lecture Redis pour ${key}`);
+        const result = await RedisClient.execute(["GET", key]);
+        if (result) {
+          return JSON.parse(result);
+        }
+        return null;
+      } catch (e) {
+        console.warn("[Cache Warning] Échec lecture Redis, bascule sur la base de données :", e);
+      }
     }
 
+    // Fallback Driver Supabase (DB)
     try {
+      console.log(`[Cache] 💾 Lecture Supabase DB pour ${ticker} (${type})`);
       const { data, error } = await supabaseAdmin
         .from('analysis_cache')
         .select('data, created_at')
@@ -32,31 +82,44 @@ export class AnalysisCache {
 
       if (error || !data) return null;
 
-      // Vérifier si le cache est encore valide avec le TTL adapté au type
+      // Vérifier le TTL adapté au type d'agent
       const createdAt = new Date(data.created_at).getTime();
       const now = Date.now();
       const ttl = this.TTL_MAP[type] || this.DEFAULT_TTL;
-      
+
       if (now - createdAt > ttl) {
-        console.log(`[Cache] Cache expiré pour ${ticker} (${type}) — TTL: ${ttl / 60000}min`);
-        return null;
+        console.log(`[Cache] Cache expiré pour ${ticker} (${type})`);
+        return null; // Expiré
       }
 
-      console.log(`[Cache] ✅ Hit pour ${ticker} (${type})`);
-      return data.data as CompanyAnalysis;
+      return data.data;
     } catch (e) {
-      console.error('[Cache] Get error:', e);
+      console.error("Cache Read Error (Supabase):", e);
       return null;
     }
   }
 
   /**
-   * Sauvegarde une analyse dans le cache
+   * Sauvegarde une analyse en cache
    */
-  static async set(ticker: string, type: string, analysis: CompanyAnalysis): Promise<void> {
-    if (!supabaseAdmin) return;
+  static async set(ticker: string, type: string, analysis: any): Promise<void> {
+    const key = `aetheris:cache:${type.toLowerCase()}:${ticker.toUpperCase()}`;
+    const ttl = this.TTL_MAP[type] || this.DEFAULT_TTL;
 
+    // Driver Redis
+    if (RedisClient.isAvailable) {
+      try {
+        console.log(`[Cache] 🔴 Écriture Redis pour ${key} (TTL: ${ttl / 1000}s)`);
+        await RedisClient.execute(["SET", key, JSON.stringify(analysis), "PX", ttl]);
+        return;
+      } catch (e) {
+        console.warn("[Cache Warning] Échec écriture Redis, bascule sur la base de données :", e);
+      }
+    }
+
+    // Fallback Driver Supabase (DB)
     try {
+      console.log(`[Cache] 💾 Écriture Supabase DB pour ${ticker} (${type})`);
       const { error } = await supabaseAdmin
         .from('analysis_cache')
         .upsert({
@@ -67,17 +130,14 @@ export class AnalysisCache {
         }, { onConflict: 'ticker,type' });
 
       if (error) {
-        // Si la table n'existe pas, on log l'erreur mais on ne bloque pas
         if (error.code === '42P01') {
           console.warn('[Cache] ⚠️ Table analysis_cache inexistante. Le cache est désactivé.');
         } else {
           console.error('[Cache] Set error:', error.message);
         }
-      } else {
-        console.log(`[Cache] 💾 Sauvegardé pour ${ticker} (${type})`);
       }
     } catch (e) {
-      console.error('[Cache] Set exception:', e);
+      console.error("Cache Write Error (Supabase):", e);
     }
   }
 }

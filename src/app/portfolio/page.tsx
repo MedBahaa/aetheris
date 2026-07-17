@@ -19,6 +19,7 @@ import {
   upsertAlertAction,
   getUserProfileAction,
   upsertUserProfileAction,
+  optimizePortfolioAction
 } from '@/lib/portfolio-actions';
 import { PortfolioStats } from '@/components/portfolio/PortfolioStats';
 import { SectorAllocationDonut } from '@/components/portfolio/SectorAllocationDonut';
@@ -27,6 +28,8 @@ import { PortfolioTable } from '@/components/portfolio/PortfolioTable';
 import { DividendTable } from '@/components/portfolio/DividendTable';
 import { AddTransactionModal } from '@/components/portfolio/AddTransactionModal';
 import { AddDividendModal } from '@/components/portfolio/AddDividendModal';
+import { PremiumPaywallModal } from '@/components/portfolio/PremiumPaywallModal';
+import { RoboAdvisorPanel } from '@/components/portfolio/RoboAdvisorPanel';
 import { PortfolioService } from '@/lib/portfolio-service';
 import { BROKERAGE_FEE, TAX_ON_PROFIT } from '@/lib/portfolio-constants';
 import { SymbolMapper } from '@/lib/symbol-mapper';
@@ -50,6 +53,9 @@ export default function PortfolioPage() {
   const [showDivModal, setShowDivModal] = useState(false);
   const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
+  const [subscriptionTier, setSubscriptionTier] = useState<string>('free');
+  const [showPaywallModal, setShowPaywallModal] = useState(false);
+  const [showRoboPanel, setShowRoboPanel] = useState(false);
 
   // Capital Settings
   const [initialCapital, setInitialCapital] = useState<number>(0);
@@ -100,8 +106,9 @@ export default function PortfolioPage() {
       setTransactions(txs);
       setDividends(divs);
       setAlerts(als);
-      if (profile?.initial_capital) {
+      if (profile) {
         setInitialCapital(profile.initial_capital);
+        setSubscriptionTier(profile.subscription_tier || 'free');
       }
 
       const calculatedHoldings = PortfolioService.calculateHoldings(txs);
@@ -237,6 +244,31 @@ export default function PortfolioPage() {
       }
     }
     setShowCapitalInput(false);
+  };
+
+  const handleToggleSubscription = async () => {
+    try {
+      const nextTier = subscriptionTier === 'premium' ? 'free' : 'premium';
+      setSubscriptionTier(nextTier);
+      await upsertUserProfileAction({ initial_capital: initialCapital, subscription_tier: nextTier });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleUpgrade = async () => {
+    try {
+      setSubscriptionTier('premium');
+      await upsertUserProfileAction({ initial_capital: initialCapital, subscription_tier: 'premium' });
+      setShowPaywallModal(false);
+      setShowRoboPanel(true);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleOptimizePortfolio = async () => {
+    return await optimizePortfolioAction(holdings);
   };
 
   const exportToCsv = (txs: any[], divs: any[]) => {
@@ -389,7 +421,31 @@ export default function PortfolioPage() {
                 <div className="market-badge opacity-70">VALEUR RÉELLE & PMP</div>
               </div>
             </div>
-            <div className="header-actions-row">
+             <div className="header-actions-row">
+              <button 
+                onClick={handleToggleSubscription} 
+                className={`action-chip ${subscriptionTier === 'premium' ? 'premium-gold' : 'free-badge'}`}
+                title="Togglere l'abonnement Premium pour test"
+              >
+                <Sparkles size={12} />
+                <span className="mono-tiny">{subscriptionTier === 'premium' ? '👑 PREMIUM' : '⭐ FREE (TEST)'}</span>
+              </button>
+              
+              <button 
+                onClick={() => {
+                  if (subscriptionTier !== 'premium') {
+                    setShowPaywallModal(true);
+                  } else {
+                    setShowRoboPanel(!showRoboPanel);
+                  }
+                }} 
+                className={`action-chip purple ${showRoboPanel ? 'active' : ''}`}
+                title="Robo-Advisor"
+              >
+                <Zap size={12} />
+                <span className="mono-tiny">ROBO-ADVISOR</span>
+              </button>
+
               {masiBenchmark && (
                 <div className={`benchmark-chip ${masiBenchmark.variationValue >= 0 ? 'bull' : 'bear'}`}>
                   <BarChart2 size={12} />
@@ -431,6 +487,13 @@ export default function PortfolioPage() {
             setShowCapitalInput={setShowCapitalInput}
             handleSaveCapital={handleSaveCapital}
           />
+
+          {showRoboPanel && subscriptionTier === 'premium' && (
+            <RoboAdvisorPanel 
+              holdings={holdings} 
+              onOptimize={handleOptimizePortfolio} 
+            />
+          )}
 
           <div className="portfolio-charts-grid">
             <PortfolioEvolutionChart 
@@ -514,6 +577,12 @@ export default function PortfolioPage() {
         handleAddDividend={handleAddDividend}
       />
 
+      <PremiumPaywallModal 
+        isOpen={showPaywallModal}
+        onClose={() => setShowPaywallModal(false)}
+        onUpgrade={handleUpgrade}
+      />
+
       <style jsx>{`
         .max-container { width: 100%; max-width: 1400px; margin: 0 auto; padding: 2rem 1.5rem; }
         .terminal-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem; }
@@ -534,6 +603,14 @@ export default function PortfolioPage() {
         .tab-strip { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
         .tab-btn { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1.25rem; border-radius: 0.75rem; border: 1px solid var(--border-glass); background: transparent; color: #64748b; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.2s; }
         .tab-btn.active { background: rgba(255,255,255,0.05); color: #fff; border-color: rgba(255,255,255,0.1); }
+
+        .action-chip.premium-gold { color: #f59e0b; border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.05); }
+        .action-chip.premium-gold:hover { background: rgba(245,158,11,0.15); }
+        .action-chip.free-badge { color: #64748b; border-color: rgba(255,255,255,0.05); background: rgba(255,255,255,0.01); }
+        .action-chip.free-badge:hover { color: #fff; background: rgba(255,255,255,0.05); }
+        .action-chip.purple { color: #a855f7; border-color: rgba(168,85,247,0.3); background: rgba(168,85,247,0.05); }
+        .action-chip.purple:hover { background: rgba(168,85,247,0.15); }
+        .action-chip.purple.active { background: rgba(168,85,247,0.25); color: #fff; border-color: #a855f7; }
 
         .active-filter-bar { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1.25rem; border-radius: 0.75rem; background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.2); margin-bottom: 1rem; }
         .clear-filter-btn { background: transparent; border: none; color: #3b82f6; cursor: pointer; font-weight: 800; font-family: 'JetBrains Mono', monospace; transition: color 0.2s; }

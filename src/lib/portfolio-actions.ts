@@ -4,6 +4,7 @@ import { PortfolioService } from './portfolio-service';
 import { PortfolioTransaction, DividendTransaction, PriceAlert } from './schemas';
 import { revalidatePath } from 'next/cache';
 import { createServerSupabase } from './supabase-server';
+import { GeminiService } from './gemini';
 
 // ──────────────────────────────────────
 // TRANSACTIONS (BUY & SELL)
@@ -95,10 +96,14 @@ export async function getUserProfileAction() {
   return await PortfolioService.getUserProfile(client);
 }
 
-export async function upsertUserProfileAction(profile: { initial_capital: number }) {
+export async function upsertUserProfileAction(profile: { initial_capital: number; subscription_tier?: string }) {
   const client = await createServerSupabase();
   const result = await PortfolioService.upsertUserProfile(client, profile);
   revalidatePath('/portfolio');
   return result;
+}
+
+export async function optimizePortfolioAction(holdings: any[]) {
+  return await GeminiService.optimizePortfolio(holdings);
 }
 
