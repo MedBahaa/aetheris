@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { MarketListScraper } from '@/lib/scrapers/market-list-scraper';
 import { IndexScraper } from '@/lib/scrapers/index-scraper';
 import { MacroScraper } from '@/lib/scrapers/macro-scraper';
@@ -39,13 +39,13 @@ export async function GET(request: Request) {
   // 2. Test IndexScraper (MASI)
   try {
     const start = Date.now();
-    const result = await IndexScraper.scrapeMASI();
+    const result = await IndexScraper.getMASI();
     const duration = Date.now() - start;
     
-    if (result.status === 'success' && result.indexValue > 0) {
-      reports.indexMASI = { status: 'success', value: result.indexValue, durationMs: duration };
+    if (result && result.price !== '---') {
+      reports.indexMASI = { status: 'success', value: result.price, durationMs: duration };
     } else {
-      throw new Error(result.error || 'Valeur MASI nulle ou invalide');
+      throw new Error('Valeur MASI nulle ou invalide');
     }
   } catch (err: any) {
     reports.indexMASI = { status: 'error', message: err.message };
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
     const result = await MacroScraper.getMacroData();
     const duration = Date.now() - start;
     
-    if (result.brent && result.gold && result.usDmad) {
+    if (result && result.brent && result.gold && result.usDmad) {
       reports.macro = { status: 'success', durationMs: duration };
     } else {
       throw new Error('Données macroéconomiques incomplètes');

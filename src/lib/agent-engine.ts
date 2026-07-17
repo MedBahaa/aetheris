@@ -1,7 +1,7 @@
 import { NewsWorker, MarketWorker, StrategyWorker, FundamentalWorker } from './agents/worker-agents';
 import { GeminiService } from './gemini';
 import { supabaseAdmin } from './supabase';
-import { AnalysisCache } from './cache-service';
+import { CacheService } from './cache-service';
 import { InputSanitizer } from './input-sanitizer';
 import { 
   CompanyAnalysis, 
@@ -111,7 +111,7 @@ export class AetherisOrchestrator {
     const searchTicker = symbol.toUpperCase();
     
     // 1. Check Cache first
-    const cachedResult = await AnalysisCache.get(searchTicker, type, forceRefresh);
+    const cachedResult = await CacheService.get(searchTicker, type, forceRefresh);
     if (cachedResult) {
       console.log(`[Orchestrator] 🧊 CACHE HIT : Chargement instantané pour ${searchTicker} (${type}).`);
       return cachedResult;
@@ -144,7 +144,7 @@ export class AetherisOrchestrator {
           this.persistNewsItems(companyDbId, newsData.news).catch(e => console.error(e));
           
           // Calcul du Momentum (Comparaison avec le cache précédent)
-          const previousAnalysis = await AnalysisCache.get(searchTicker, 'SENTIMENT', false);
+          const previousAnalysis = await CacheService.get(searchTicker, 'SENTIMENT', false);
           if (previousAnalysis && previousAnalysis.globalScore !== undefined && newsData.globalScore !== undefined) {
              const diff = newsData.globalScore - previousAnalysis.globalScore;
              const momentumDir = diff > 0.05 ? '📈 AMÉLIORATION' : diff < -0.05 ? '📉 DÉGRADATION' : '➡️ STABLE';
@@ -375,14 +375,14 @@ export class AetherisOrchestrator {
         }
         
         const finalResult = revalidation.data;
-        AnalysisCache.set(searchTicker, type, finalResult).catch(e => console.error(e));
+        CacheService.set(searchTicker, type, finalResult).catch(e => console.error(e));
         return finalResult;
       }
 
       const finalResult = validation.data;
 
       // 3. Save to Cache (Async)
-      AnalysisCache.set(searchTicker, type, finalResult).catch(e => console.error(e));
+      CacheService.set(searchTicker, type, finalResult).catch(e => console.error(e));
 
       return finalResult;
 
