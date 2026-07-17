@@ -1,15 +1,17 @@
 import { PortfolioTransaction, PortfolioHolding, DividendTransaction, PriceAlert, PortfolioTransactionSchema, DividendTransactionSchema } from './schemas';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { BROKERAGE_FEE, TAX_ON_PROFIT } from './portfolio-constants';
+import { MarketListScraper } from './scrapers/market-list-scraper';
 
 export class PortfolioService {
   /**
    * Récupère toutes les transactions de l'utilisateur connecté
    */
-  static async getTransactions(client: SupabaseClient): Promise<PortfolioTransaction[]> {
+  static async getTransactions(client: SupabaseClient, isVirtual: boolean = false): Promise<PortfolioTransaction[]> {
     const { data, error } = await client
       .from('portfolio_transactions')
       .select('*')
+      .eq('is_virtual', isVirtual)
       .order('buy_date', { ascending: true });
 
     if (error) throw error;
@@ -153,10 +155,11 @@ export class PortfolioService {
   // DIVIDENDES
   // ──────────────────────────────────
 
-  static async getDividends(client: SupabaseClient): Promise<DividendTransaction[]> {
+  static async getDividends(client: SupabaseClient, isVirtual: boolean = false): Promise<DividendTransaction[]> {
     const { data, error } = await client
       .from('portfolio_dividends')
       .select('*')
+      .eq('is_virtual', isVirtual)
       .order('dividend_date', { ascending: false });
     if (error) throw error;
     return data || [];
@@ -289,64 +292,69 @@ export class PortfolioService {
   // PROFILS UTILISATEURS
   // ──────────────────────────────────
 
-  static async getUserProfile(client: SupabaseClient): Promise<{ initial_capital: number; subscription_tier: string } | null> {
+  static async getUserProfile(client: SupabaseClient): Promise<{ 
+    initial_capital: number; 
+    subscription_tier: string;
+    telegram_chat_id?: string;
+    whatsapp_phone?: string;
+    alert_channel?: string;
+    username?: string;
+    virtual_initial_capital?: number;
+    virtual_balance?: number;
+  } | null> {
     const { data: { user } } = await client.auth.getUser();
     if (!user) return null;
 
     const { data, error } = await client
       .from('user_profiles')
-      .select('initial_capital, subscription_tier')
+      .select('initial_capital, subscription_tier, telegram_chat_id, whatsapp_phone, alert_channel, username, virtual_initial_capital, virtual_balance')
       .eq('user_id', user.id)
       .single();
 
-    // Fallback si la colonne n'existe pas en base
-    if (error && (error.message?.includes('subscription_tier') || error.code === 'PGRST204')) {
-      const { data: fallbackData, error: fallbackError } = await client
-        .from('user_profiles')
-        .select('initial_capital')
-        .eq('user_id', user.id)
-        .single();
-      if (fallbackError && fallbackError.code !== 'PGRST116') throw fallbackError;
-      return {
-        initial_capital: fallbackData?.initial_capital ?? 0,
-        subscription_tier: 'free'
-      };
-    }
-
     if (error && error.code !== 'PGRST116') throw error;
+    
     return {
       initial_capital: data?.initial_capital ?? 0,
-      subscription_tier: data?.subscription_tier ?? 'free'
+      subscription_tier: data?.subscription_tier ?? 'free',
+      telegram_chat_id: data?.telegram_chat_id ?? '',
+      whatsapp_phone: data?.whatsapp_phone ?? '',
+      alert_channel: data?.alert_channel ?? 'EMAIL',
+      username: data?.username ?? '',
+      virtual_initial_capital: data?.virtual_initial_capital ?? 100000,
+      virtual_balance: data?.virtual_balance ?? 100000,
     };
   }
 
-  static async upsertUserProfile(client: SupabaseClient, profile: { initial_capital: number; subscription_tier?: string }) {
+  static async upsertUserProfile(client: SupabaseClient, profile: { 
+    initial_capital?: number; 
+    subscription_tier?: string;
+    telegram_chat_id?: string;
+    whatsapp_phone?: string;
+    alert_channel?: string;
+    username?: string;
+    virtual_initial_capital?: number;
+    virtual_balance?: number;
+  }) {
     const { data: { user } } = await client.auth.getUser();
     if (!user) throw new Error('Non authentifié');
 
     const payload: any = {
       user_id: user.id,
-      initial_capital: profile.initial_capital,
       updated_at: new Date().toISOString()
     };
 
-    if (profile.subscription_tier !== undefined) {
-      payload.subscription_tier = profile.subscription_tier;
-    }
+    if (profile.initial_capital !== undefined) payload.initial_capital = profile.initial_capital;
+    if (profile.subscription_tier !== undefined) payload.subscription_tier = profile.subscription_tier;
+    if (profile.telegram_chat_id !== undefined) payload.telegram_chat_id = profile.telegram_chat_id;
+    if (profile.whatsapp_phone !== undefined) payload.whatsapp_phone = profile.whatsapp_phone;
+    if (profile.alert_channel !== undefined) payload.alert_channel = profile.alert_channel;
+    if (profile.username !== undefined) payload.username = profile.username;
+    if (profile.virtual_initial_capital !== undefined) payload.virtual_initial_capital = profile.virtual_initial_capital;
+    if (profile.virtual_balance !== undefined) payload.virtual_balance = profile.virtual_balance;
 
     const { error } = await client
       .from('user_profiles')
       .upsert(payload);
-
-    // Fallback si la colonne n'existe pas en base
-    if (error && error.message?.includes('subscription_tier')) {
-      delete payload.subscription_tier;
-      const { error: fallbackError } = await client
-        .from('user_profiles')
-        .upsert(payload);
-      if (fallbackError) throw fallbackError;
-      return;
-    }
 
     if (error) throw error;
   }
@@ -491,5 +499,153 @@ export class PortfolioService {
       maxDrawdown: Number(maxDrawdown.toFixed(2)),
       maxDrawdownPercentage: Number((maxDrawdownPercentage * 100).toFixed(2))
     };
+  }
+
+  // ──────────────────────────────────
+  // PAPER TRADING & CLASSEMENT
+  // ──────────────────────────────────
+
+  static async addVirtualTransaction(
+    client: SupabaseClient, 
+    tx: Omit<PortfolioTransaction, 'id' | 'created_at' | 'user_id' | 'is_virtual'>
+  ) {
+    const { data: { user } } = await client.auth.getUser();
+    if (!user) throw new Error('Utilisateur non authentifié. Veuillez vous reconnecter.');
+
+    // Récupérer le profil utilisateur pour le solde virtuel
+    const profile = await this.getUserProfile(client);
+    if (!profile) throw new Error('Profil utilisateur introuvable.');
+
+    const currentBalance = profile.virtual_balance ?? 100000;
+    const txType = tx.type || 'BUY';
+    const transactionValue = tx.quantity * tx.buy_price;
+    const fee = transactionValue * BROKERAGE_FEE;
+
+    if (txType === 'BUY') {
+      const totalCost = transactionValue + fee;
+      if (currentBalance < totalCost) {
+        throw new Error(`Solde virtuel insuffisant (Trésorerie: ${currentBalance.toFixed(2)} MAD vs Requis: ${totalCost.toFixed(2)} MAD)`);
+      }
+      
+      const { data, error } = await client
+        .from('portfolio_transactions')
+        .insert([{ ...tx, user_id: user.id, is_virtual: true }])
+        .select();
+
+      if (error) throw error;
+
+      const newBalance = currentBalance - totalCost;
+      await this.upsertUserProfile(client, { virtual_balance: newBalance });
+
+      return data[0];
+    } else {
+      // Vente
+      const txs = await this.getTransactions(client, true);
+      const holdings = this.calculateHoldings(txs);
+      const holding = holdings.find(h => h.symbol.toLowerCase() === tx.symbol.toLowerCase());
+
+      if (!holding || holding.totalQuantity < tx.quantity) {
+        throw new Error(`Quantité insuffisante d'actions à vendre (${holding?.totalQuantity || 0} possédées vs ${tx.quantity} demandées)`);
+      }
+
+      const { data, error } = await client
+        .from('portfolio_transactions')
+        .insert([{ ...tx, user_id: user.id, is_virtual: true }])
+        .select();
+
+      if (error) throw error;
+
+      const revenue = transactionValue - fee;
+      const newBalance = currentBalance + revenue;
+      await this.upsertUserProfile(client, { virtual_balance: newBalance });
+
+      return data[0];
+    }
+  }
+
+  static async resetVirtualPortfolio(client: SupabaseClient, initialCapital: number = 100000) {
+    const { data: { user } } = await client.auth.getUser();
+    if (!user) throw new Error('Non authentifié');
+
+    const { error: txError } = await client
+      .from('portfolio_transactions')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('is_virtual', true);
+    if (txError) throw txError;
+
+    const { error: divError } = await client
+      .from('portfolio_dividends')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('is_virtual', true);
+    if (divError) throw divError;
+
+    await this.upsertUserProfile(client, {
+      virtual_initial_capital: initialCapital,
+      virtual_balance: initialCapital
+    });
+  }
+
+  static async getLeaderboard(client: SupabaseClient): Promise<any[]> {
+    const { data: profiles, error: pError } = await client
+      .from('user_profiles')
+      .select('user_id, username, virtual_initial_capital, virtual_balance');
+    if (pError) throw pError;
+    if (!profiles) return [];
+
+    const { data: txs, error: tError } = await client
+      .from('portfolio_transactions')
+      .select('*')
+      .eq('is_virtual', true);
+    if (tError) throw tError;
+
+    const marketData = await MarketListScraper.scrapeAll();
+    const pricesMap = new Map<string, number>();
+    if (marketData.status === 'success' && marketData.stocks) {
+      marketData.stocks.forEach((s: any) => {
+        const price = parseFloat(s.price.replace(',', '.').replace(/\s/g, ''));
+        if (!isNaN(price)) {
+          pricesMap.set(s.symbol.toLowerCase(), price);
+        }
+      });
+    }
+
+    const userTxsMap = new Map<string, PortfolioTransaction[]>();
+    txs?.forEach(tx => {
+      if (!userTxsMap.has(tx.user_id)) {
+        userTxsMap.set(tx.user_id, []);
+      }
+      userTxsMap.get(tx.user_id)!.push(tx);
+    });
+
+    const leaderboard = profiles.map(profile => {
+      const userTxs = userTxsMap.get(profile.user_id) || [];
+      const holdings = this.calculateHoldings(userTxs);
+      
+      let stockValuation = 0;
+      holdings.forEach(h => {
+        const currentPrice = pricesMap.get(h.symbol.toLowerCase()) || h.weightedAveragePrice;
+        stockValuation += h.totalQuantity * currentPrice;
+      });
+
+      const totalValue = Number(profile.virtual_balance) + stockValuation;
+      const initial = Number(profile.virtual_initial_capital) || 100000;
+      const roi = initial > 0 ? ((totalValue / initial) - 1) * 100 : 0;
+
+      const displayName = profile.username || `Trader_${profile.user_id.substring(0, 6)}`;
+
+      return {
+        userId: profile.user_id,
+        username: displayName,
+        totalValue,
+        virtualBalance: Number(profile.virtual_balance),
+        stockValuation,
+        roi,
+        initial
+      };
+    });
+
+    return leaderboard.sort((a, b) => b.roi - a.roi);
   }
 }

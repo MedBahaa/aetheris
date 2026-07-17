@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
-  Briefcase, Plus, Download, Upload, Gift, BarChart2, RefreshCw, Sparkles, Zap
+  Briefcase, Plus, Download, Upload, Gift, BarChart2, RefreshCw, Sparkles, Zap, Trophy, Bell, Award, DollarSign, PieChart, AlertTriangle
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
@@ -19,6 +19,9 @@ import {
   upsertAlertAction,
   getUserProfileAction,
   upsertUserProfileAction,
+  addVirtualTransactionAction,
+  resetVirtualPortfolioAction,
+  getLeaderboardAction,
   optimizePortfolioAction
 } from '@/lib/portfolio-actions';
 import { PortfolioStats } from '@/components/portfolio/PortfolioStats';
@@ -48,7 +51,7 @@ export default function PortfolioPage() {
   const [masiBenchmark, setMasiBenchmark] = useState<any>(null);
   const [macroData, setMacroData] = useState<any>(null);
 
-  const [activeTab, setActiveTab] = useState<'positions' | 'dividends'>('positions');
+  const [activeTab, setActiveTab] = useState<'positions' | 'dividends' | 'leaderboard' | 'alerts_settings'>('positions');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDivModal, setShowDivModal] = useState(false);
   const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
@@ -56,6 +59,16 @@ export default function PortfolioPage() {
   const [subscriptionTier, setSubscriptionTier] = useState<string>('free');
   const [showPaywallModal, setShowPaywallModal] = useState(false);
   const [showRoboPanel, setShowRoboPanel] = useState(false);
+
+  // Mode Virtuel / Paper Trading & Social
+  const [isVirtualMode, setIsVirtualMode] = useState<boolean>(false);
+  const [telegramChatId, setTelegramChatId] = useState('');
+  const [whatsappPhone, setWhatsappPhone] = useState('');
+  const [alertChannel, setAlertChannel] = useState('EMAIL');
+  const [username, setUsername] = useState('');
+  const [virtualBalance, setVirtualBalance] = useState(100000);
+  const [virtualInitialCapital, setVirtualInitialCapital] = useState(100000);
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
   // Capital Settings
   const [initialCapital, setInitialCapital] = useState<number>(0);
@@ -98,8 +111,8 @@ export default function PortfolioPage() {
     try {
       setLoading(true);
       const [txs, divs, als, profile] = await Promise.all([
-        getPortfolioTransactionsAction(),
-        getDividendsAction().catch(() => []),
+        getPortfolioTransactionsAction(isVirtualMode),
+        getDividendsAction(isVirtualMode).catch(() => []),
         getAlertsAction().catch(() => []),
         getUserProfileAction().catch(() => null),
       ]);
@@ -107,8 +120,18 @@ export default function PortfolioPage() {
       setDividends(divs);
       setAlerts(als);
       if (profile) {
-        setInitialCapital(profile.initial_capital);
+        if (isVirtualMode) {
+          setInitialCapital(profile.virtual_initial_capital ?? 100000);
+        } else {
+          setInitialCapital(profile.initial_capital);
+        }
         setSubscriptionTier(profile.subscription_tier || 'free');
+        setTelegramChatId(profile.telegram_chat_id || '');
+        setWhatsappPhone(profile.whatsapp_phone || '');
+        setAlertChannel(profile.alert_channel || 'EMAIL');
+        setUsername(profile.username || '');
+        setVirtualBalance(profile.virtual_balance ?? 100000);
+        setVirtualInitialCapital(profile.virtual_initial_capital ?? 100000);
       }
 
       const calculatedHoldings = PortfolioService.calculateHoldings(txs);
@@ -158,11 +181,18 @@ export default function PortfolioPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isVirtualMode]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Charger le classement uniquement à l'affichage de l'onglet Leaderboard
+  useEffect(() => {
+    if (activeTab === 'leaderboard') {
+      getLeaderboardAction().then(setLeaderboard).catch(console.error);
+    }
+  }, [activeTab]);
 
   // Handle Search Suggestions
   useEffect(() => {
@@ -193,26 +223,33 @@ export default function PortfolioPage() {
   const handleAddTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await addPortfolioTransactionAction({
-        symbol: newTx.symbol,
-        quantity: parseInt(newTx.quantity),
+      const payload = {
+        symbol: newTx.symbol.toUpperCase(),
+        quantity: parseFloat(newTx.quantity),
         buy_price: parseFloat(newTx.buy_price),
         buy_date: newTx.buy_date,
-        type: newTx.type
-      });
+        type: newTx.type,
+        is_virtual: isVirtualMode
+      };
+      if (isVirtualMode) {
+        await addVirtualTransactionAction(payload);
+      } else {
+        await addPortfolioTransactionAction(payload);
+      }
       setShowAddModal(false);
       setNewTx({ symbol: '', quantity: '', buy_price: '', buy_date: new Date().toISOString().split('T')[0], type: 'BUY' });
       loadData();
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) { alert(err.message || "Erreur lors de l'enregistrement de la transaction"); }
   };
 
   const handleAddDividend = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await addDividendAction({
-        symbol: newDiv.symbol,
+        symbol: newDiv.symbol.toUpperCase(),
         amount_per_share: parseFloat(newDiv.amount_per_share),
-        dividend_date: newDiv.dividend_date
+        dividend_date: newDiv.dividend_date,
+        is_virtual: isVirtualMode
       });
       setShowDivModal(false);
       setNewDiv({ symbol: '', amount_per_share: '', dividend_date: new Date().toISOString().split('T')[0] });
@@ -235,12 +272,24 @@ export default function PortfolioPage() {
   const handleSaveCapital = async () => {
     const val = parseFloat(capitalInput);
     if (!isNaN(val) && val > 0) {
-      setInitialCapital(val);
-      localStorage.setItem('aetheris_capital', val.toString());
-      try {
-        await upsertUserProfileAction({ initial_capital: val });
-      } catch (err) {
-        console.error('Error saving capital to DB:', err);
+      if (isVirtualMode) {
+        setVirtualInitialCapital(val);
+        setVirtualBalance(val);
+        try {
+          await resetVirtualPortfolioAction(val);
+          loadData();
+        } catch (err) {
+          console.error('Error resetting virtual portfolio:', err);
+        }
+      } else {
+        setInitialCapital(val);
+        localStorage.setItem('aetheris_capital', val.toString());
+        try {
+          await upsertUserProfileAction({ initial_capital: val });
+          loadData();
+        } catch (err) {
+          console.error('Error saving capital to DB:', err);
+        }
       }
     }
     setShowCapitalInput(false);
@@ -315,7 +364,8 @@ export default function PortfolioPage() {
           importedDividends.push({
             symbol,
             amount_per_share: parseFloat(cols[3]),
-            dividend_date: cols[4].trim()
+            dividend_date: cols[4].trim(),
+            is_virtual: isVirtualMode
           });
         } else {
           importedTransactions.push({
@@ -323,7 +373,8 @@ export default function PortfolioPage() {
             symbol,
             quantity: parseInt(cols[2]),
             buy_price: parseFloat(cols[3]),
-            buy_date: cols[4].trim()
+            buy_date: cols[4].trim(),
+            is_virtual: isVirtualMode
           });
         }
       }
@@ -382,8 +433,10 @@ export default function PortfolioPage() {
     : holdingsWithDividends;
 
   const totalPerformance = totalInvestedNet > 0 ? (totalPvNette / totalInvestedNet) * 100 : 0;
-  const liquidites = initialCapital > 0 ? initialCapital - totalInvestedNet : null;
-  const investmentRate = initialCapital > 0 ? (totalInvestedNet / initialCapital) * 100 : null;
+  const liquidites = isVirtualMode ? virtualBalance : (initialCapital > 0 ? initialCapital - totalInvestedNet : null);
+  const investmentRate = isVirtualMode 
+    ? (virtualInitialCapital > 0 ? (totalInvestedNet / virtualInitialCapital) * 100 : null) 
+    : (initialCapital > 0 ? (totalInvestedNet / initialCapital) * 100 : null);
 
   const sectorBreakdown: Record<string, number> = {};
   holdingsStats.forEach(h => {
@@ -418,10 +471,54 @@ export default function PortfolioPage() {
               </div>
               <div className="title-row">
                 <h1 className="title-h1">Mon Portefeuille</h1>
-                <div className="market-badge opacity-70">VALEUR RÉELLE & PMP</div>
+                <div className="market-badge opacity-70">{isVirtualMode ? 'COMPTE DE PAPER TRADING' : 'VALEUR RÉELLE & PMP'}</div>
               </div>
             </div>
              <div className="header-actions-row">
+               <button 
+                 onClick={() => {
+                   setIsVirtualMode(!isVirtualMode);
+                 }} 
+                 className="action-chip"
+                 style={{
+                   background: isVirtualMode ? 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' : 'rgba(255, 255, 255, 0.05)',
+                   border: isVirtualMode ? '1px solid rgba(168, 85, 247, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
+                   color: '#fff',
+                   fontWeight: 'bold',
+                 }}
+                 title="Basculez vers le mode Paper Trading (Portefeuille Virtuel)"
+               >
+                 <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+                 <span className="mono-tiny">{isVirtualMode ? '🎮 MODE VIRTUEL (PAPER)' : '💰 MODE RÉEL'}</span>
+               </button>
+
+               {isVirtualMode && (
+                 <button 
+                   onClick={async () => {
+                     if (confirm("Voulez-vous réinitialiser votre portefeuille virtuel à 100 000 MAD ? Toutes vos transactions virtuelles seront supprimées.")) {
+                       try {
+                         setLoading(true);
+                         await resetVirtualPortfolioAction(100000);
+                         await loadData();
+                       } catch (err: any) {
+                         alert(err.message);
+                       } finally {
+                         setLoading(false);
+                       }
+                     }
+                   }} 
+                   className="action-chip red"
+                   style={{
+                     background: 'rgba(239, 68, 68, 0.15)',
+                     border: '1px solid rgba(239, 68, 68, 0.3)',
+                     color: '#ef4444'
+                   }}
+                   title="Réinitialiser le portefeuille virtuel"
+                 >
+                   <RefreshCw size={12} /> <span className="mono-tiny">RÉINITIALISER</span>
+                 </button>
+               )}
+
               <button 
                 onClick={handleToggleSubscription} 
                 className={`action-chip ${subscriptionTier === 'premium' ? 'premium-gold' : 'free-badge'}`}
@@ -516,6 +613,12 @@ export default function PortfolioPage() {
             <button className={`tab-btn ${activeTab === 'dividends' ? 'active' : ''}`} onClick={() => setActiveTab('dividends')}>
               <Gift size={13} /> Dividendes
             </button>
+            <button className={`tab-btn ${activeTab === 'leaderboard' ? 'active' : ''}`} onClick={() => setActiveTab('leaderboard')}>
+              <Trophy size={13} /> Classement (Paper)
+            </button>
+            <button className={`tab-btn ${activeTab === 'alerts_settings' ? 'active' : ''}`} onClick={() => setActiveTab('alerts_settings')}>
+              <Bell size={13} /> Paramètres Alertes
+            </button>
           </div>
 
           {activeTab === 'positions' && (
@@ -552,6 +655,198 @@ export default function PortfolioPage() {
               setShowDivModal={setShowDivModal}
               onDeleteDividend={(id) => deleteDividendAction(id).then(loadData)}
             />
+          )}
+
+          {activeTab === 'alerts_settings' && (
+            <div className="alerts-settings-panel glass-heavy animate-fade-in" style={{ padding: '2rem', borderRadius: '1rem', marginTop: '1rem', color: '#fff' }}>
+              <h3 className="mono font-bold text-lg mb-4" style={{ color: '#a855f7', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Sparkles size={16} /> CONFIGURATION DES ALERTES (TELEGRAM / WHATSAPP)
+              </h3>
+              <p className="text-sm text-gray-400 mb-6" style={{ fontSize: '0.85rem', color: '#94a3b8', lineHeight: '1.5' }}>
+                Recevez des notifications instantanées sur votre téléphone lorsque les cours de la Bourse de Casablanca atteignent vos seuils de Stop-Loss (SL) ou Take-Profit (TP).
+              </p>
+
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                try {
+                  setLoading(true);
+                  await upsertUserProfileAction({
+                    telegram_chat_id: telegramChatId,
+                    whatsapp_phone: whatsappPhone,
+                    alert_channel: alertChannel,
+                    username: username
+                  });
+                  alert("Paramètres d'alertes enregistrés avec succès !");
+                } catch (err: any) {
+                  alert(err.message || "Erreur de sauvegarde");
+                } finally {
+                  setLoading(false);
+                }
+              }} className="space-y-4" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label className="mono text-xs text-purple font-semibold" style={{ fontSize: '11px', color: '#a855f7' }}>NOM D'UTILISATEUR (COMPÉTITION)</label>
+                  <input 
+                    type="text" 
+                    value={username} 
+                    onChange={e => setUsername(e.target.value)} 
+                    placeholder="Saisissez un pseudo pour le classement" 
+                    style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '0.6rem', color: '#fff', fontSize: '13px' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label className="mono text-xs text-purple font-semibold" style={{ fontSize: '11px', color: '#a855f7' }}>CANAL DE NOTIFICATION</label>
+                  <select 
+                    value={alertChannel} 
+                    onChange={e => setAlertChannel(e.target.value)}
+                    style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '0.6rem', color: '#fff', fontSize: '13px' }}
+                  >
+                    <option value="EMAIL">📧 Email uniquement</option>
+                    <option value="TELEGRAM">✈️ Telegram uniquement</option>
+                    <option value="WHATSAPP">💬 WhatsApp uniquement</option>
+                    <option value="ALL">🔥 Tous les canaux (Email + Telegram + WhatsApp)</option>
+                  </select>
+                </div>
+
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <h4 className="mono font-bold text-sm" style={{ fontSize: '13px', color: '#3b82f6' }}>1. Configurer Telegram</h4>
+                  <p style={{ fontSize: '11px', color: '#64748b', lineHeight: '1.4' }}>
+                    1. Ouvrez l'application Telegram et cherchez le bot <b>@AetherisAlertBot</b> (ou le bot de votre entreprise).<br/>
+                    2. Cliquez sur <b>Démarrer (/start)</b>.<br/>
+                    3. Envoyez un message au bot <b>@userinfobot</b> ou <b>@getidsbot</b> pour récupérer votre <b>Chat ID</b> personnel.<br/>
+                    4. Copiez et collez votre Chat ID ci-dessous.
+                  </p>
+                  <input 
+                    type="text" 
+                    value={telegramChatId} 
+                    onChange={e => setTelegramChatId(e.target.value)} 
+                    placeholder="Votre Chat ID Telegram (ex: 123456789)" 
+                    style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '0.6rem', color: '#fff', fontSize: '13px' }}
+                  />
+                </div>
+
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <h4 className="mono font-bold text-sm" style={{ fontSize: '13px', color: '#10b981' }}>2. Configurer WhatsApp (via CallMeBot)</h4>
+                  <p style={{ fontSize: '11px', color: '#64748b', lineHeight: '1.4' }}>
+                    1. Enregistrez le numéro de téléphone de CallMeBot dans vos contacts : <b>+34 644 97 50 14</b>.<br/>
+                    2. Envoyez le message suivant par WhatsApp : <b>I allow callmebot to send me messages</b>.<br/>
+                    3. Attendez de recevoir le message contenant votre clé d'API WhatsApp.<br/>
+                    4. Renseignez votre numéro de téléphone (au format international, ex: 212600000000) ci-dessous.
+                  </p>
+                  <input 
+                    type="text" 
+                    value={whatsappPhone} 
+                    onChange={e => setWhatsappPhone(e.target.value)} 
+                    placeholder="Votre numéro de téléphone (ex: 212600000000)" 
+                    style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '0.6rem', color: '#fff', fontSize: '13px' }}
+                  />
+                </div>
+
+                <button 
+                  type="submit" 
+                  disabled={loading}
+                  style={{
+                    background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '0.75rem',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    marginTop: '1rem'
+                  }}
+                >
+                  {loading ? 'Enregistrement en cours...' : 'ENREGISTRER LES CONFIGURATIONS'}
+                </button>
+
+              </form>
+            </div>
+          )}
+
+          {activeTab === 'leaderboard' && (
+            <div className="leaderboard-panel glass-heavy animate-fade-in" style={{ padding: '2rem', borderRadius: '1rem', marginTop: '1rem', color: '#fff' }}>
+              <h3 className="mono font-bold text-lg mb-4" style={{ color: '#a855f7', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Trophy size={16} /> CLASSEMENT DES COMPÉTITORS (PAPER TRADING)
+              </h3>
+              <p className="text-sm text-gray-400 mb-6" style={{ fontSize: '0.85rem', color: '#94a3b8', lineHeight: '1.5' }}>
+                Découvrez les investisseurs les plus performants de la Bourse de Casablanca sur la base de leur portefeuille virtuel (Paper Trading).
+              </p>
+
+              {leaderboard.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
+                  Chargement du classement...
+                </div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '1rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: '#64748b', fontSize: '11px', textTransform: 'uppercase', fontFamily: 'JetBrains Mono, monospace' }}>
+                      <th style={{ textAlign: 'left', padding: '0.75rem' }}>Rang</th>
+                      <th style={{ textAlign: 'left', padding: '0.75rem' }}>Trader</th>
+                      <th style={{ textAlign: 'right', padding: '0.75rem' }}>Valeur Portefeuille</th>
+                      <th style={{ textAlign: 'right', padding: '0.75rem' }}>Trésorerie</th>
+                      <th style={{ textAlign: 'right', padding: '0.75rem' }}>Actions</th>
+                      <th style={{ textAlign: 'right', padding: '0.75rem' }}>Performance (ROI)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leaderboard.map((item, index) => {
+                      const isTop3 = index < 3;
+                      const badgeColor = index === 0 ? '#f59e0b' : index === 1 ? '#cbd5e1' : index === 2 ? '#b45309' : '';
+                      const isCurrentUser = item.userId === (transactions[0]?.user_id || item.userId);
+                      
+                      return (
+                        <tr 
+                          key={item.userId} 
+                          style={{ 
+                            borderBottom: '1px solid rgba(255,255,255,0.03)', 
+                            fontSize: '13px', 
+                            background: isCurrentUser ? 'rgba(168, 85, 247, 0.05)' : 'transparent',
+                            fontWeight: isCurrentUser ? 'bold' : 'normal'
+                          }}
+                        >
+                          <td style={{ padding: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            {isTop3 ? (
+                              <span style={{ 
+                                display: 'inline-flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center', 
+                                width: '20px', 
+                                height: '20px', 
+                                borderRadius: '50%', 
+                                background: badgeColor, 
+                                color: '#000', 
+                                fontWeight: 'bold',
+                                fontSize: '11px' 
+                              }}>
+                                {index + 1}
+                              </span>
+                            ) : (
+                              <span className="mono" style={{ color: '#64748b', paddingLeft: '6px' }}>{index + 1}</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '0.75rem' }}>
+                            {item.username} {isCurrentUser && <span className="mono-tiny" style={{ fontSize: '8px', padding: '2px 4px', background: 'rgba(168, 85, 247, 0.2)', color: '#c084fc', borderRadius: '4px', marginLeft: '4px' }}>VOUS</span>}
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right' }} className="mono">
+                            {item.totalValue.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right', color: '#64748b' }} className="mono">
+                            {item.virtualBalance.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right', color: '#64748b' }} className="mono">
+                            {item.stockValuation.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right', color: item.roi >= 0 ? '#10b981' : '#ef4444' }} className="mono">
+                            {item.roi >= 0 ? '▲' : '▼'} {Math.abs(item.roi).toFixed(2)} %
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
           )}
         </div>
       </main>
