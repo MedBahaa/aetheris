@@ -169,19 +169,22 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
 
         <div className="sidebar-scroll-area">
           {/* Alpha Market Status Widget */}
-          <div className="market-status-widget glass-mini animate-fade-in">
-             <div className="status-top">
-               <div className="status-label">
-                  <Globe size={10} />
-                  <span>MASI CASABLANCA</span>
-               </div>
-               <div className="status-tag active">LIVE</div>
+          <div className={`market-status-widget glass-mini animate-fade-in ${marketIndex.value >= 0 ? 'bullish' : 'bearish'}`}>
+             <div className="widget-grid-pattern"></div>
+             <div className="status-label">
+                <span className="pulse-dot"></span>
+                <span>BVC MASI INDEX</span>
+                <span className="live-badge-glow">LIVE</span>
              </div>
              <div className="status-main">
-                <span className="index-val mono">{marketIndex.price}</span>
-                <span className={`index-change mono ${marketIndex.value > 0 ? 'positive' : marketIndex.value < 0 ? 'negative' : 'neutral'}`}>
-                  {marketIndex.variation}
-                </span>
+                 <div className="index-price-group">
+                   <span className="index-val mono">{marketIndex.price}</span>
+                   <span className="currency-tag mono-tiny">MAD</span>
+                 </div>
+                 <div className={`index-trend-box ${marketIndex.value >= 0 ? 'up' : 'down'}`}>
+                   <span className="trend-arrow">{marketIndex.value >= 0 ? '▲' : '▼'}</span>
+                   <span className="index-change mono">{marketIndex.variation}</span>
+                 </div>
              </div>
           </div>
 
@@ -226,10 +229,21 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
 
                 <button 
                   onClick={() => { setShowProfileModal(true); onClose(); }} 
-                  className={`agent-btn-compact ${showProfileModal ? 'active' : ''}`}
+                  className={`agent-btn-compact user-profile-btn ${showProfileModal ? 'active' : ''} ${profile?.subscription_tier === 'premium' ? 'premium-active' : ''}`}
                 >
-                  <User size={16} />
+                  <div className="user-avatar-group">
+                    {profile?.subscription_tier === 'premium' ? (
+                      <span className="premium-crown-avatar">👑</span>
+                    ) : (
+                      <User size={16} />
+                    )}
+                  </div>
                   <span>Mon Profil & Abonnement</span>
+                  {profile?.subscription_tier === 'premium' ? (
+                    <span className="premium-badge-nav mono-tiny">PREMIUM</span>
+                  ) : (
+                    <span className="free-badge-nav mono-tiny">FREE</span>
+                  )}
                 </button>
               </div>
 
@@ -247,15 +261,15 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
                 {isIntelligenceOpen && (
                   <div className="submenu-compact">
                     {[
-                      { id: 'SENTIMENT', label: 'Veille Narrative', icon: <Zap size={13} /> },
-                      { id: 'TECHNICAL', label: 'Trading Quant', icon: <Activity size={13} /> },
-                      { id: 'FUNDAMENTAL', label: 'Analyse Fonda', icon: <Landmark size={13} /> },
-                      { id: 'STRATEGY', label: 'Stratégie Alpha', icon: <ShieldCheck size={13} /> }
+                      { id: 'SENTIMENT', label: 'Veille Narrative', icon: <Zap size={13} />, className: 'sentiment' },
+                      { id: 'TECHNICAL', label: 'Trading Quant', icon: <Activity size={13} />, className: 'technical' },
+                      { id: 'FUNDAMENTAL', label: 'Analyse Fonda', icon: <Landmark size={13} />, className: 'fundamental' },
+                      { id: 'STRATEGY', label: 'Stratégie Alpha', icon: <ShieldCheck size={13} />, className: 'strategy' }
                     ].map(agent => (
                       <button 
                         key={agent.id}
                         onClick={() => handleAgentClick(agent.id as AgentType)}
-                        className={`sub-node ${activeAgent === agent.id ? 'active' : ''}`}
+                        className={`sub-node ${agent.className} ${activeAgent === agent.id ? 'active' : ''}`}
                       >
                         {agent.icon}
                         <span>{agent.label}</span>
@@ -417,7 +431,10 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
             left: 0;
             width: var(--sidebar-width);
             z-index: 1000;
-            background: rgba(2, 4, 8, 0.95);
+            background: rgba(8, 10, 15, 0.85) !important;
+            backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(255, 255, 255, 0.04);
+            box-shadow: 10px 0 30px rgba(0,0,0,0.5);
           }
 
           .sidebar-scroll-area {
@@ -434,112 +451,230 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
             align-items: center; 
             justify-content: space-between; 
             padding: 1.25rem;
-            border-bottom: 1px solid var(--border-glass);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
             flex-shrink: 0;
           }
-          .nav-label-top { font-size: 10px; font-weight: 900; color: #475569; letter-spacing: 0.1rem; }
+          .nav-label-top { font-size: 10px; font-weight: 900; color: #475569; letter-spacing: 0.12rem; font-family: 'JetBrains Mono', monospace; }
 
           .market-status-widget {
-            margin: 1rem;
-            padding: 0.75rem 1rem;
-            border-radius: 0.75rem;
-            background: rgba(255,255,255,0.02);
-            border: 1px solid var(--border-glass);
+            margin: 1.25rem 1rem;
+            padding: 1rem;
+            border-radius: 1rem;
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid rgba(255, 255, 255, 0.03);
             display: flex;
             flex-direction: column;
-            gap: 0.4rem;
+            gap: 0.6rem;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s;
           }
-          .status-label { display: flex; align-items: center; gap: 0.4rem; color: #475569; font-size: 10px; font-weight: 900; letter-spacing: 0.05rem; }
-          .status-tag { font-size: 10px; font-weight: 950; color: var(--accent-emerald); }
-          .status-main { display: flex; align-items: center; justify-content: space-between; }
-          .index-val { font-size: 1.1rem; font-weight: 800; color: #fff; }
-          .index-change { font-size: 10px; font-weight: 900; }
-          .index-change.positive { color: var(--accent-emerald); }
-          .index-change.negative { color: #ef4444; }
-          .index-change.neutral { color: #f8fafc; }
+          .market-status-widget.bullish {
+            border-color: rgba(16, 185, 129, 0.12);
+            background: radial-gradient(circle at top right, rgba(16, 185, 129, 0.02), transparent);
+          }
+          .market-status-widget.bearish {
+            border-color: rgba(239, 68, 68, 0.12);
+            background: radial-gradient(circle at top right, rgba(239, 68, 68, 0.02), transparent);
+          }
+          .widget-grid-pattern {
+            position: absolute;
+            inset: 0;
+            opacity: 0.03;
+            background-image: radial-gradient(#fff 1px, transparent 0);
+            background-size: 8px 8px;
+            pointer-events: none;
+          }
+          .status-label { display: flex; align-items: center; gap: 0.5rem; color: #64748b; font-size: 9px; font-weight: 800; letter-spacing: 0.08rem; text-transform: uppercase; font-family: 'JetBrains Mono', monospace; }
+          
+          .pulse-dot {
+            width: 5px;
+            height: 5px;
+            background: #10b981;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #10b981;
+            animation: pulse-live 1.8s infinite;
+          }
+          @keyframes pulse-live {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+            70% { transform: scale(1); box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+          }
+          
+          .live-badge-glow {
+            font-size: 8px;
+            font-weight: 900;
+            color: #10b981;
+            margin-left: auto;
+            letter-spacing: 0.05rem;
+          }
+
+          .status-main { display: flex; align-items: center; justify-content: space-between; position: relative; z-index: 1; }
+          .index-price-group { display: flex; align-items: baseline; gap: 0.25rem; }
+          .index-val { font-size: 1.15rem; font-weight: 900; color: #fff; letter-spacing: -0.02em; }
+          .currency-tag { font-size: 8px; color: #475569; font-weight: 800; }
+          
+          .index-trend-box { display: flex; align-items: center; gap: 0.35rem; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+          .index-trend-box.up { background: rgba(16, 185, 129, 0.06); color: #10b981; }
+          .index-trend-box.down { background: rgba(239, 68, 68, 0.06); color: #ef4444; }
+          .trend-arrow { font-size: 8px; }
 
           .sidebar-search-block { padding: 0 1rem 1rem; }
           .sidebar-search-container { position: relative; display: flex; align-items: center; }
-          .s-icon { position: absolute; left: 10px; color: #334155; }
+          .s-icon { position: absolute; left: 12px; color: #475569; transition: color 0.2s; }
           .sidebar-search-input { 
             width: 100%; 
-            background: rgba(0,0,0,0.3); 
-            border: 1px solid var(--border-glass); 
-            border-radius: 6px; 
-            padding: 0.5rem 0.75rem 0.5rem 2.25rem; 
+            background: rgba(0,0,0,0.25); 
+            border: 1px solid rgba(255, 255, 255, 0.04); 
+            border-radius: 8px; 
+            padding: 0.6rem 0.75rem 0.6rem 2.25rem; 
             color: #fff; 
             font-size: 11px; 
             outline: none; 
+            transition: all 0.25s;
+          }
+          .sidebar-search-input:focus {
+            border-color: rgba(16, 185, 129, 0.25);
+            background: rgba(0,0,0,0.4);
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.05);
+          }
+          .sidebar-search-container:focus-within .s-icon {
+            color: #10b981;
           }
 
-          .nav-label { font-size: 10px; font-weight: 950; color: #475569; letter-spacing: 0.15rem; padding: 1rem 1.25rem 0.5rem; text-transform: uppercase; }
+          .nav-label { font-size: 9px; font-weight: 950; color: #475569; letter-spacing: 0.15rem; padding: 1.25rem 1.25rem 0.6rem; text-transform: uppercase; font-family: 'JetBrains Mono', monospace; }
+          
           .agent-btn-compact {
             display: flex;
             align-items: center;
             gap: 0.75rem;
             width: 100%;
-            padding: 0.6rem 1.25rem;
+            padding: 0.7rem 1.25rem;
             background: transparent;
             border: none;
-            color: #64748b;
+            color: #94a3b8;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
             text-align: left;
-            font-size: 13px;
+            font-size: 12px;
+            font-weight: 500;
           }
-          .agent-btn-compact:hover { background: rgba(255,255,255,0.03); color: #fff; }
-          .agent-btn-compact.active { background: rgba(255,255,255,0.05); color: #fff; }
-          .live-pulse { width: 4px; height: 4px; background: var(--accent-emerald); border-radius: 50%; margin-left: auto; box-shadow: 0 0 8px var(--accent-emerald); }
+          .agent-btn-compact:hover { 
+            background: rgba(255, 255, 255, 0.02); 
+            color: #fff; 
+            padding-left: 1.45rem; 
+          }
+          .agent-btn-compact.active { 
+            background: rgba(255, 255, 255, 0.04); 
+            color: #fff; 
+            font-weight: 700;
+            border-left: 2px solid #10b981;
+          }
+          
+          .user-profile-btn {
+            position: relative;
+          }
+          .user-avatar-group {
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.05);
+            font-size: 10px;
+            transition: all 0.2s;
+          }
+          .user-profile-btn.premium-active .user-avatar-group {
+            background: rgba(245, 158, 11, 0.1);
+          }
+          .premium-crown-avatar {
+            font-size: 10px;
+          }
+          .premium-badge-nav {
+            margin-left: auto;
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: #000;
+            font-weight: 900;
+            font-size: 8px;
+            padding: 1px 4px;
+            border-radius: 3px;
+            letter-spacing: 0.01rem;
+            font-family: 'JetBrains Mono', monospace;
+          }
+          .free-badge-nav {
+            margin-left: auto;
+            background: rgba(255,255,255,0.05);
+            color: #64748b;
+            font-weight: 800;
+            font-size: 8px;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-family: 'JetBrains Mono', monospace;
+          }
+
+          .live-pulse { width: 4px; height: 4px; background: #10b981; border-radius: 50%; margin-left: auto; box-shadow: 0 0 8px #10b981; }
           .chevron-icon { margin-left: auto; opacity: 0.5; }
 
-          .submenu-compact { margin-left: 2rem; border-left: 1px solid rgba(255,255,255,0.05); }
+          .submenu-compact { margin-left: 2rem; border-left: 1px solid rgba(255,255,255,0.04); }
+          
           .sub-node {
             display: flex;
             align-items: center;
             gap: 0.75rem;
-            padding: 0.4rem 1rem;
+            padding: 0.45rem 1rem;
             background: transparent;
             border: none;
             color: #475569;
             font-size: 11px;
+            font-weight: 500;
             cursor: pointer;
             width: 100%;
             text-align: left;
+            transition: all 0.2s;
           }
-          .sub-node:hover { color: #fff; background: rgba(255,255,255,0.02); }
-          .sub-node.active { color: var(--accent-emerald); font-weight: 600; }
+          .sub-node:hover { padding-left: 1.15rem; }
+          
+          .sub-node.sentiment:hover, .sub-node.sentiment.active { color: #10b981; background: rgba(16,185,129,0.04); }
+          .sub-node.technical:hover, .sub-node.technical.active { color: #3b82f6; background: rgba(59,130,246,0.04); }
+          .sub-node.fundamental:hover, .sub-node.fundamental.active { color: #f59e0b; background: rgba(245,158,11,0.04); }
+          .sub-node.strategy:hover, .sub-node.strategy.active { color: #a855f7; background: rgba(168,85,247,0.04); }
+          
+          .sub-node.active { font-weight: 700; }
 
-          .history-section-compact { border-top: 1px solid rgba(255,255,255,0.03); margin-top: 1rem; }
-          .history-header { display: flex; align-items: center; gap: 0.5rem; font-size: 10px; font-weight: 950; color: #475569; padding: 1rem 1.25rem 0.5rem; }
-          .history-group { margin-bottom: 0.5rem; }
-          .group-label { padding: 0.25rem 1.25rem; color: #334155; font-size: 10px; font-weight: 900; }
+          .history-section-compact { border-top: 1px solid rgba(255,255,255,0.03); margin-top: 1.25rem; }
+          .history-header { display: flex; align-items: center; gap: 0.5rem; font-size: 9px; font-weight: 950; color: #475569; padding: 1.25rem 1.25rem 0.6rem; letter-spacing: 0.12rem; font-family: 'JetBrains Mono', monospace; }
+          .history-group { margin-bottom: 0.75rem; }
+          .group-label { padding: 0.25rem 1.25rem; color: #334155; font-size: 9px; font-weight: 900; letter-spacing: 0.05rem; }
           .history-item {
             display: flex;
             flex-direction: column;
-            padding: 0.4rem 1.25rem;
+            padding: 0.5rem 1.25rem;
             width: 100%;
             background: transparent;
             border: none;
             color: #64748b;
             text-align: left;
             cursor: pointer;
+            transition: all 0.2s;
           }
-          .history-item:hover { background: rgba(255,255,255,0.02); color: #fff; }
-          .history-item.active { background: rgba(255,255,255,0.04); color: #fff; }
+          .history-item:hover { background: rgba(255,255,255,0.02); color: #fff; padding-left: 1.45rem; }
+          .history-item.active { background: rgba(255,255,255,0.04); color: #fff; border-left: 2px solid #3b82f6; }
           .h-name { font-size: 11px; font-weight: 600; }
-          .h-date { font-size: 10px; opacity: 0.5; }
+          .h-date { font-size: 9px; opacity: 0.4; margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
 
           .sidebar-footer-compact {
-            padding: 0.75rem 1.25rem;
-            border-top: 1px solid var(--border-glass);
+            padding: 1rem 1.25rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.04);
             display: flex;
             align-items: center;
             justify-content: space-between;
-            background: rgba(0,0,0,0.2);
+            background: rgba(0,0,0,0.15);
             flex-shrink: 0;
           }
-          .logout-btn-minimal { background: transparent; border: none; color: #ef4444; font-size: 10px; font-weight: 900; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; }
-          .v-tag-minimal { font-size: 10px; color: #334155; font-weight: 900; }
+          .logout-btn-minimal { background: transparent; border: none; color: #ef4444; font-size: 9px; font-weight: 900; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; letter-spacing: 0.05rem; font-family: 'JetBrains Mono', monospace; }
+          .logout-btn-minimal:hover { color: #f43f5e; }
+          .v-tag-minimal { font-size: 9px; color: #334155; font-weight: 900; font-family: 'JetBrains Mono', monospace; }
 
           .close-btn-drawer { background: transparent; border: none; color: #475569; cursor: pointer; }
           @media (min-width: 1024px) { .close-btn-drawer { display: none; } }
@@ -551,7 +686,7 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
             display: flex;
             gap: 0.5rem;
             background: rgba(0,0,0,0.3);
-            border: 1px solid var(--border-glass);
+            border: 1px solid rgba(255, 255, 255, 0.04);
             border-radius: 8px;
             padding: 3px;
           }
@@ -581,7 +716,7 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
             border-radius: 8px;
             padding: 0.75rem;
             background: rgba(255,255,255,0.02);
-            border: 1px solid var(--border-glass);
+            border: 1px solid rgba(255, 255, 255, 0.04);
             margin: 0.25rem 0;
           }
           .status-banner-content {
