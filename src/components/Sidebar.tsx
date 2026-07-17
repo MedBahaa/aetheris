@@ -28,14 +28,7 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
   const router = useRouter();
   const [isIntelligenceOpen, setIsIntelligenceOpen] = useState(true);
   const [sidebarSearch, setSidebarSearch] = useState('');
-  const [showProfileModal, setShowProfileModal] = useState(false);
   const [profile, setProfile] = useState<any>(null);
-  const [newCapital, setNewCapital] = useState('0');
-  const [telegramChatId, setTelegramChatId] = useState('');
-  const [whatsappPhone, setWhatsappPhone] = useState('');
-  const [alertChannel, setAlertChannel] = useState('EMAIL');
-  const [username, setUsername] = useState('');
-  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -43,47 +36,13 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
         const prof = await getUserProfileAction();
         if (prof) {
           setProfile(prof);
-          setNewCapital(prof.initial_capital.toString());
-          setTelegramChatId(prof.telegram_chat_id || '');
-          setWhatsappPhone(prof.whatsapp_phone || '');
-          setAlertChannel(prof.alert_channel || 'EMAIL');
-          setUsername(prof.username || '');
         }
       } catch (err) {
         console.error('Failed to fetch profile in sidebar:', err);
       }
     };
     fetchProfile();
-  }, [showProfileModal]);
-
-  const handleSaveProfile = async (tier?: string) => {
-    try {
-      setSaving(true);
-      const cap = parseFloat(newCapital) || 0;
-      const targetTier = tier !== undefined ? tier : (profile?.subscription_tier || 'free');
-      
-      const payload = {
-        initial_capital: cap,
-        subscription_tier: targetTier,
-        telegram_chat_id: telegramChatId,
-        whatsapp_phone: whatsappPhone,
-        alert_channel: alertChannel,
-        username: username
-      };
-
-      await upsertUserProfileAction(payload);
-
-      setProfile(payload);
-
-      if (pathname === '/portfolio') {
-        window.location.reload();
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setSaving(false);
-    }
-  };
+  }, [pathname]);
 
   const [marketIndex, setMarketIndex] = useState<{ price: string, variation: string, value: number }>({
     price: '14 250,42',
@@ -323,24 +282,25 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
                   </button>
                 </Link>
 
-                <button 
-                  onClick={() => { setShowProfileModal(true); onClose(); }} 
-                  className={`agent-btn-compact user-profile-btn ${showProfileModal ? 'active' : ''} ${profile?.subscription_tier === 'premium' ? 'premium-active' : ''}`}
-                >
-                  <div className="user-avatar-group">
+                <Link href="/profile" style={{ textDecoration: 'none' }} onClick={onClose}>
+                  <button 
+                    className={`agent-btn-compact user-profile-btn ${pathname === '/profile' ? 'active' : ''} ${profile?.subscription_tier === 'premium' ? 'premium-active' : ''}`}
+                  >
+                    <div className="user-avatar-group">
+                      {profile?.subscription_tier === 'premium' ? (
+                        <span className="premium-crown-avatar">👑</span>
+                      ) : (
+                        <User size={16} />
+                      )}
+                    </div>
+                    <span>Mon Profil & Abonnement</span>
                     {profile?.subscription_tier === 'premium' ? (
-                      <span className="premium-crown-avatar">👑</span>
+                      <span className="premium-badge-nav mono-tiny">PREMIUM</span>
                     ) : (
-                      <User size={16} />
+                      <span className="free-badge-nav mono-tiny">FREE</span>
                     )}
-                  </div>
-                  <span>Mon Profil & Abonnement</span>
-                  {profile?.subscription_tier === 'premium' ? (
-                    <span className="premium-badge-nav mono-tiny">PREMIUM</span>
-                  ) : (
-                    <span className="free-badge-nav mono-tiny">FREE</span>
-                  )}
-                </button>
+                  </button>
+                </Link>
               </div>
 
               <div className="nav-spacer-tiny"></div>
@@ -423,198 +383,7 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
           <span className="v-tag-minimal">VERSION 2.0 ALPHA</span>
         </div>
 
-        {showProfileModal && (
-          <div className="modal-overlay glass-heavy animate-fade-in" style={{ zIndex: 10000 }} onClick={() => setShowProfileModal(false)}>
-            <div className="modal-content glass-heavy animate-slide-up" style={{ maxWidth: '450px', width: '90%', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-              <div className="modal-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <User size={18} className="text-emerald" />
-                  <h2 className="mono" style={{ margin: 0, fontSize: '1.1rem' }}>PROFIL & PARAMÈTRES</h2>
-                </div>
-                <button onClick={() => setShowProfileModal(false)} className="close-modal"><X size={20} /></button>
-              </div>
 
-              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem 0' }}>
-                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  <label className="mono-tiny" style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <User size={12} className="text-emerald" /> NOM D'UTILISATEUR (COMPÉTITION)
-                  </label>
-                  <input 
-                    type="text" 
-                    value={username} 
-                    onChange={e => setUsername(e.target.value)} 
-                    placeholder="Saisissez un pseudo" 
-                    className="terminal-input-field"
-                    style={{
-                      background: 'rgba(0,0,0,0.3)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: '8px',
-                      padding: '0.65rem',
-                      color: '#fff',
-                      fontSize: '0.85rem',
-                      fontFamily: 'monospace'
-                    }}
-                  />
-                </div>
-
-                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  <label className="mono-tiny" style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <Activity size={12} className="text-emerald" /> CAPITAL DE RÉFÉRENCE (MAD)
-                  </label>
-                  <input 
-                    type="number" 
-                    value={newCapital} 
-                    onChange={e => setNewCapital(e.target.value)} 
-                    placeholder="100000" 
-                    className="terminal-input-field"
-                    style={{
-                      background: 'rgba(0,0,0,0.3)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: '8px',
-                      padding: '0.65rem',
-                      color: '#fff',
-                      fontSize: '0.85rem',
-                      fontFamily: 'monospace'
-                    }}
-                  />
-                </div>
-
-                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  <label className="mono-tiny" style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <Bell size={12} className="text-emerald" /> CANAL D'ALERTE FAVORI
-                  </label>
-                  <select 
-                    value={alertChannel} 
-                    onChange={e => setAlertChannel(e.target.value)}
-                    style={{
-                      background: 'rgba(15, 23, 42, 0.6)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: '8px',
-                      padding: '0.65rem',
-                      color: '#fff',
-                      fontSize: '0.85rem',
-                      outline: 'none',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <option value="EMAIL" style={{ background: '#0f172a' }}>📧 Email uniquement</option>
-                    <option value="TELEGRAM" style={{ background: '#0f172a' }}>✈️ Telegram uniquement</option>
-                    <option value="WHATSAPP" style={{ background: '#0f172a' }}>💬 WhatsApp uniquement</option>
-                    <option value="ALL" style={{ background: '#0f172a' }}>🔥 Tous les canaux (Email + Telegram + WhatsApp)</option>
-                  </select>
-                </div>
-
-                {(alertChannel === 'TELEGRAM' || alertChannel === 'ALL') && (
-                  <div className="form-group animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                    <label className="mono-tiny" style={{ color: '#c084fc', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      ✈️ CHAT ID TELEGRAM
-                    </label>
-                    <input 
-                      type="text" 
-                      value={telegramChatId} 
-                      onChange={e => setTelegramChatId(e.target.value)} 
-                      placeholder="Votre Chat ID (ex: 123456789)" 
-                      className="terminal-input-field"
-                      style={{
-                        background: 'rgba(168, 85, 247, 0.05)',
-                        border: '1px solid rgba(168, 85, 247, 0.3)',
-                        borderRadius: '8px',
-                        padding: '0.65rem',
-                        color: '#fff',
-                        fontSize: '0.85rem',
-                        fontFamily: 'monospace'
-                      }}
-                    />
-                    <span style={{ fontSize: '9px', color: '#64748b' }}>Envoyez un message à <b>@userinfobot</b> pour trouver votre Chat ID.</span>
-                  </div>
-                )}
-
-                {(alertChannel === 'WHATSAPP' || alertChannel === 'ALL') && (
-                  <div className="form-group animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                    <label className="mono-tiny" style={{ color: '#34d399', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      💬 NUMÉRO WHATSAPP
-                    </label>
-                    <input 
-                      type="text" 
-                      value={whatsappPhone} 
-                      onChange={e => setWhatsappPhone(e.target.value)} 
-                      placeholder="Format international (ex: 212600000000)" 
-                      className="terminal-input-field"
-                      style={{
-                        background: 'rgba(52, 211, 153, 0.05)',
-                        border: '1px solid rgba(52, 211, 153, 0.3)',
-                        borderRadius: '8px',
-                        padding: '0.65rem',
-                        color: '#fff',
-                        fontSize: '0.85rem',
-                        fontFamily: 'monospace'
-                      }}
-                    />
-                    <span style={{ fontSize: '9px', color: '#64748b' }}>Associez-le à CallMeBot (envoyez le message d'autorisation au numéro CallMeBot).</span>
-                  </div>
-                )}
-
-                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.5rem' }}>
-                  <label className="mono-tiny" style={{ color: '#94a3b8' }}>STATUT DU COMPTE AETHERIS</label>
-                  <div className="subscription-toggle-box">
-                    <button 
-                      type="button" 
-                      className={`sub-toggle-btn ${profile?.subscription_tier !== 'premium' ? 'active' : ''}`}
-                      onClick={() => handleSaveProfile('free')}
-                      disabled={saving}
-                    >
-                      GRATUIT (FREE)
-                    </button>
-                    <button 
-                      type="button" 
-                      className={`sub-toggle-btn premium ${profile?.subscription_tier === 'premium' ? 'active' : ''}`}
-                      onClick={() => handleSaveProfile('premium')}
-                      disabled={saving}
-                    >
-                      👑 PREMIUM
-                    </button>
-                  </div>
-                </div>
-
-                <div className="premium-status-banner">
-                  {profile?.subscription_tier === 'premium' ? (
-                    <div className="status-banner-content premium mono-tiny">
-                      <CheckCircle2 size={14} className="text-purple" />
-                      <span style={{ fontSize: '10px' }}>Option Robo-Advisor et Agent Stratégie Débloqués.</span>
-                    </div>
-                  ) : (
-                    <div className="status-banner-content free mono-tiny">
-                      <AlertTriangle size={14} className="text-amber" />
-                      <span style={{ fontSize: '10px' }}>Activez l'offre Premium pour débloquer l'intelligence IA.</span>
-                    </div>
-                  )}
-                </div>
-
-                <button 
-                  type="button" 
-                  onClick={() => handleSaveProfile()} 
-                  className="action-btn-save mono"
-                  disabled={saving}
-                  style={{
-                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                    color: '#000',
-                    fontWeight: 900,
-                    border: 'none',
-                    padding: '0.8rem',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontSize: '10px',
-                    letterSpacing: '0.05rem',
-                    transition: 'all 0.2s',
-                    marginTop: '0.5rem'
-                  }}
-                >
-                  {saving ? 'SAUVEGARDE EN COURS...' : 'ENREGISTRER LES MODIFICATIONS'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         <style jsx>{`
           .sidebar {
