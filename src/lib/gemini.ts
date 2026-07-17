@@ -494,7 +494,7 @@ export class GeminiService {
       const prompt = `
         Tu es un analyste financier et Robo-Advisor expert de la Bourse de Casablanca.
         Analyse ce portefeuille d'actions marocaines :
-        \${JSON.stringify(holdingsData, null, 2)}
+        ${JSON.stringify(holdingsData, null, 2)}
 
         Consignes d'optimisation (Théorie moderne du portefeuille / Markowitz ajusté) :
         1. Limite l'exposition à un seul secteur à 30% maximum et une seule action à 25% maximum.
