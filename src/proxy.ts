@@ -75,7 +75,7 @@ export async function proxy(request: NextRequest) {
     }
 
     // Si c'est une navigation standard vers une page protégée
-    if (!request.nextUrl.pathname.startsWith('/login')) {
+    if (!request.nextUrl.pathname.startsWith('/login') && !request.nextUrl.pathname.startsWith('/profile')) {
       const url = request.nextUrl.clone()
       url.pathname = '/login'
       return NextResponse.redirect(url)
