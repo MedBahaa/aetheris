@@ -59,7 +59,13 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  let user = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data?.user || null
+  } catch (err) {
+    console.error('[Proxy Middleware] Authentication check threw an exception:', err)
+  }
 
   const isApiRoute = request.nextUrl.pathname.startsWith('/api/')
   const isServerAction = request.headers.has('next-action')
@@ -75,7 +81,7 @@ export async function proxy(request: NextRequest) {
     }
 
     // Si c'est une navigation standard vers une page protégée
-    if (!request.nextUrl.pathname.startsWith('/login') && !request.nextUrl.pathname.startsWith('/profile')) {
+    if (!request.nextUrl.pathname.startsWith('/login')) {
       const url = request.nextUrl.clone()
       url.pathname = '/login'
       return NextResponse.redirect(url)
