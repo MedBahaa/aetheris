@@ -114,7 +114,7 @@ export default function PortfolioPage() {
         getPortfolioTransactionsAction(isVirtualMode),
         getDividendsAction(isVirtualMode).catch(() => []),
         getAlertsAction().catch(() => []),
-        getUserProfileAction().catch(() => null),
+        getUserProfileAction().then(res => (res && res.success) ? res.data : null).catch(() => null),
       ]);
       setTransactions(txs);
       setDividends(divs);

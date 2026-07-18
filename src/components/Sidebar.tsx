@@ -33,9 +33,9 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const prof = await getUserProfileAction();
-        if (prof) {
-          setProfile(prof);
+        const res = await getUserProfileAction();
+        if (res && res.success && res.data) {
+          setProfile(res.data);
         }
       } catch (err) {
         console.error('Failed to fetch profile in sidebar:', err);

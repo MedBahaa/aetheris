@@ -85,9 +85,9 @@ function Home() {
   useEffect(() => {
     const loadProfile = async () => {
       try {
-        const prof = await getUserProfileAction();
-        if (prof) {
-          setSubscriptionTier(prof.subscription_tier || 'free');
+        const res = await getUserProfileAction();
+        if (res && res.success && res.data) {
+          setSubscriptionTier(res.data.subscription_tier || 'free');
         }
       } catch (err) {
         console.error(err);
