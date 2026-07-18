@@ -92,8 +92,14 @@ export async function upsertAlertAction(
 // ──────────────────────────────────────
 
 export async function getUserProfileAction() {
-  const client = await createServerSupabase();
-  return await PortfolioService.getUserProfile(client);
+  try {
+    const client = await createServerSupabase();
+    const data = await PortfolioService.getUserProfile(client);
+    return { success: true, data };
+  } catch (err: any) {
+    console.error('Error in getUserProfileAction:', err);
+    return { success: false, error: err.message || 'Impossible de charger le profil' };
+  }
 }
 
 export async function upsertUserProfileAction(profile: { 
@@ -106,10 +112,15 @@ export async function upsertUserProfileAction(profile: {
   virtual_initial_capital?: number;
   virtual_balance?: number;
 }) {
-  const client = await createServerSupabase();
-  const result = await PortfolioService.upsertUserProfile(client, profile);
-  revalidatePath('/portfolio');
-  return result;
+  try {
+    const client = await createServerSupabase();
+    const data = await PortfolioService.upsertUserProfile(client, profile);
+    revalidatePath('/portfolio');
+    return { success: true, data };
+  } catch (err: any) {
+    console.error('Error in upsertUserProfileAction:', err);
+    return { success: false, error: err.message || 'Impossible de sauvegarder le profil' };
+  }
 }
 
 export async function addVirtualTransactionAction(

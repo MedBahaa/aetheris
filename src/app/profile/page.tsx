@@ -38,8 +38,9 @@ export default function ProfilePage() {
   const loadProfile = useCallback(async () => {
     try {
       setLoading(true);
-      const prof = await getUserProfileAction();
-      if (prof) {
+      const res = await getUserProfileAction();
+      if (res && res.success && res.data) {
+        const prof = res.data;
         setProfile(prof);
         setNewCapital(prof.initial_capital.toString());
         setTelegramChatId(prof.telegram_chat_id || '');
@@ -47,6 +48,8 @@ export default function ProfilePage() {
         setAlertChannel(prof.alert_channel || 'EMAIL');
         setUsername(prof.username || '');
         setSubscriptionTier(prof.subscription_tier || 'free');
+      } else {
+        console.error('Failed to load profile:', res?.error);
       }
     } catch (err) {
       console.error('Failed to load profile:', err);
@@ -77,7 +80,13 @@ export default function ProfilePage() {
         username: username
       };
 
-      await upsertUserProfileAction(payload);
+      const res = await upsertUserProfileAction(payload);
+      if (res && !res.success) {
+        setSaveMessage({ type: 'error', text: res.error || 'Erreur lors de la sauvegarde' });
+        setTimeout(() => setSaveMessage(null), 4000);
+        return;
+      }
+
       setSubscriptionTier(targetTier);
       
       // Show smooth glass feedback
