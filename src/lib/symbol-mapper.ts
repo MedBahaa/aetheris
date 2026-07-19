@@ -24,8 +24,9 @@ export const SYMBOL_ALIASES: Record<string, string> = {
   'AKDITAL': 'AKT',
   
   // Energy & Industry
-  'TAQA MOROCCO': 'TAQ',
-  'TAQA': 'TAQ',
+  'TAQA MOROCCO': 'TQM',
+  'TAQA': 'TQM',
+  'TAQ': 'TQM',
   'CIMENTS DU MAROC': 'CMA',
   'LAFARGEHOLCIM': 'LHM',
   'LAFARGE': 'LHM',
@@ -51,8 +52,9 @@ export const SYMBOL_ALIASES: Record<string, string> = {
   'SODEP': 'MSA',
   'SOD': 'MSA',
   'MSA': 'MSA',
-  'TOTALENERGIES': 'TQM',
-  'TOTAL': 'TQM',
+  'TOTALENERGIES': 'TMA',
+  'TOTAL': 'TMA',
+  'TMA': 'TMA',
 
   // Agroalimentaire
   'COSUMAR': 'CSR',
