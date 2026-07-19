@@ -38,9 +38,8 @@ interface NewsItem {
 }
 
 // Modèles avec fallback automatique
-// Gemma 4 31B (Raisonnement profond - 1500 req/j)
-// Gemma 4 26B A4B (Vitesse & Agents - 1500 req/j)
-const MODELS = ['gemma-4-31b-it', 'gemma-4-26b-a4b-it', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'];
+// Utilisation des derniers modèles officiels de Google AI (Gemini 2.5/2.0/1.5)
+const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
 
 /** Appel via Google Generative AI avec retry + fallback
  * AUDIT FIX: Retry sur les erreurs transitoires (timeout, 500, réseau),
@@ -449,7 +448,7 @@ export class GeminiService {
 
       const prompt = `${dataBlock}\n\n${SYNTHESIS_SYSTEM_PROMPT}`;
 
-      let text = await unifiedAICall(prompt, true, 'gemma-4-31b-it');
+      let text = await unifiedAICall(prompt, true, 'gemini-2.5-flash');
       const parsed = safeJsonParse(text);
       return sanitizeAIResult(parsed);
 
@@ -518,7 +517,7 @@ export class GeminiService {
 
       const prompt = `${dataBlock}\n\n${TECHNICAL_SYSTEM_PROMPT}`;
 
-      const text = await unifiedAICall(prompt, true, 'gemma-4-26b-a4b-it');
+      const text = await unifiedAICall(prompt, true, 'gemini-2.5-flash');
       const parsed = safeJsonParse(text);
       if (!parsed) return null;
 
