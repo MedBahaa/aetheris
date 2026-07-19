@@ -140,4 +140,68 @@ export class CacheService {
       console.error("Cache Write Error (Supabase):", e);
     }
   }
+
+  /**
+   * Récupère une valeur générique par clé de cache (ex: hash de prompt LLM)
+   */
+  static async getGeneric(key: string): Promise<any | null> {
+    if (RedisClient.isAvailable) {
+      try {
+        const result = await RedisClient.execute(["GET", key]);
+        if (result) return JSON.parse(result);
+        return null;
+      } catch (e) {
+        console.warn("[Cache Warning] Échec GET Redis générique:", e);
+      }
+    }
+
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('analysis_cache')
+        .select('data, created_at')
+        .eq('ticker', key.substring(0, 100)) // Limitation de longueur du ticker
+        .eq('type', 'GENERIC')
+        .maybeSingle();
+
+      if (error || !data) return null;
+
+      // TTL générique de 15 minutes pour les appels LLM
+      const createdAt = new Date(data.created_at).getTime();
+      if (Date.now() - createdAt > 15 * 60 * 1000) {
+        return null; // Expiré
+      }
+
+      return data.data;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
+   * Stocke une valeur générique avec TTL
+   */
+  static async setGeneric(key: string, value: any): Promise<void> {
+    if (RedisClient.isAvailable) {
+      try {
+        const ttlMs = 15 * 60 * 1000; // 15 min TTL
+        await RedisClient.execute(["SET", key, JSON.stringify(value), "PX", ttlMs]);
+        return;
+      } catch (e) {
+        console.warn("[Cache Warning] Échec SET Redis générique:", e);
+      }
+    }
+
+    try {
+      await supabaseAdmin
+        .from('analysis_cache')
+        .upsert({
+          ticker: key.substring(0, 100),
+          type: 'GENERIC',
+          data: value,
+          created_at: new Date().toISOString()
+        }, { onConflict: 'ticker,type' });
+    } catch (e) {
+      // Ignorer l'échec de cache non critique
+    }
+  }
 }
