@@ -63,7 +63,28 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (mounted) {
-      loadProfile();
+      const params = new URLSearchParams(window.location.search);
+      const sessionId = params.get('session_id');
+      if (sessionId) {
+        setLoading(true);
+        import('@/lib/stripe-actions').then(async ({ verifyStripeSessionAction }) => {
+          try {
+            const res = await verifyStripeSessionAction(sessionId);
+            if (res.success) {
+              setSaveMessage({ type: 'success', text: 'Paiement Stripe validé ! Bienvenue chez Aetheris Pro.' });
+              window.history.replaceState({}, document.title, window.location.pathname);
+            } else {
+              setSaveMessage({ type: 'error', text: 'Échec de validation : ' + res.error });
+            }
+          } catch (err: any) {
+            setSaveMessage({ type: 'error', text: 'Erreur réseau : ' + err.message });
+          } finally {
+            loadProfile();
+          }
+        });
+      } else {
+        loadProfile();
+      }
     }
   }, [mounted, loadProfile]);
 
