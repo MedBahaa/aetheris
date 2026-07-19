@@ -430,9 +430,10 @@ function Home() {
                   className="global-refresh-btn glass"
                   onClick={() => executeSearch(analysis.companyName, true)}
                   title="Rafraîchir l'analyse (Bypasser le cache)"
+                  style={{ color: '#f8fafc' }}
                 >
                   <RefreshCcw size={14} className="text-emerald" />
-                  <span className="mono">ACTUALISER</span>
+                  <span className="mono" style={{ color: '#f8fafc' }}>ACTUALISER</span>
                 </button>
 
                 {analysis.isPremiumSignal && (
