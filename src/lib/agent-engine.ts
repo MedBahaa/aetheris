@@ -217,7 +217,18 @@ export class AetherisOrchestrator {
           },
           price: marketData.price
         };
-        dataQuality.sources.push('BMCE', 'CASABOURSE');
+        // Remplir les sources à partir des sources réelles utilisées par le scraper
+        const actualSources = new Set<string>();
+        if (fundamentalData.fundamentals?.dataSources) {
+          Object.values(fundamentalData.fundamentals.dataSources).forEach(src => {
+            if (src !== 'UNKNOWN') actualSources.add(src);
+          });
+        }
+        if (actualSources.size > 0) {
+          dataQuality.sources.push(...Array.from(actualSources) as any[]);
+        } else {
+          dataQuality.sources.push('BMCE', 'CASABOURSE');
+        }
 
         // AUDIT FIX: Tracker les données manquantes dans les fondamentaux
         const fundFields = ['peRatio', 'dividendYield', 'marketCap', 'roe', 'netProfit'];
@@ -260,7 +271,16 @@ export class AetherisOrchestrator {
         const macroData = await MacroScraper.getMacroData();
         
         // Sources tracking
-        dataQuality.sources.push('BMCE', 'CASABOURSE', 'RSS');
+        const actualSources = new Set<string>(['RSS']);
+        if (fundamentalData.fundamentals?.dataSources) {
+          Object.values(fundamentalData.fundamentals.dataSources).forEach(src => {
+            if (src !== 'UNKNOWN') actualSources.add(src);
+          });
+        } else {
+          actualSources.add('BMCE');
+          actualSources.add('CASABOURSE');
+        }
+        dataQuality.sources.push(...Array.from(actualSources) as any[]);
         if (macroData) dataQuality.sources.push('YAHOO');
 
         // Signal Premium
