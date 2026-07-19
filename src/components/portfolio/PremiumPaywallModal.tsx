@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { X, Sparkles, CheckCircle2, Zap, CreditCard, Lock, ShieldCheck, Check, Loader2 } from 'lucide-react';
+import { createCheckoutSessionAction } from '@/lib/stripe-actions';
 
 interface PremiumPaywallModalProps {
   isOpen: boolean;
@@ -89,6 +90,29 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
     }, 2500);
   };
 
+  const handleCheckout = async () => {
+    setStep('processing');
+    try {
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      const res = await createCheckoutSessionAction(origin);
+      if (res.success) {
+        if (res.sandbox) {
+          // Sandbox Mode - display simulated virtual card
+          setStep('checkout');
+        } else if (res.url) {
+          // Production Mode - redirect to secure Stripe Checkout
+          window.location.href = res.url;
+        }
+      } else {
+        alert("Erreur de redirection Stripe : " + res.error);
+        setStep('features');
+      }
+    } catch (err: any) {
+      alert("Erreur de communication : " + err.message);
+      setStep('features');
+    }
+  };
+
   // Détecte le type de carte pour l'affichage visuel
   const getCardType = (num: string) => {
     const clean = num.replace(/\s/g, '');
@@ -149,7 +173,7 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
             </div>
 
             <div className="premium-actions">
-              <button type="button" className="upgrade-btn mono" onClick={() => setStep('checkout')}>
+              <button type="button" className="upgrade-btn mono" onClick={handleCheckout}>
                 <Zap size={14} /> SOUSCRIRE À L'OFFRE PRO
               </button>
               <button type="button" className="dismiss-btn mono" onClick={onClose}>PLUS TARD</button>
