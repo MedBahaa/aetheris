@@ -93,4 +93,112 @@ export class WafabourseScraper {
       return [];
     }
   }
+
+  static async getStockHistoryDetailed(company: string): Promise<{ closes: number[], historyPoints: { timestamp: string; price: number; volume: number }[] }> {
+    const symbol = SymbolMapper.resolve(company) || company;
+    console.log(`[WafabourseScraper] Récupération détaillée de l'historique pour : ${symbol}...`);
+
+    try {
+      const tokenRes = await fetch('https://www.wafabourse.com/api/proxy/token', {
+        headers: {
+          'Origin': 'https://www.wafabourse.com',
+          'Referer': 'https://www.wafabourse.com/fr/market-tracking',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!tokenRes.ok) {
+        throw new Error(`Échec de récupération du token : HTTP ${tokenRes.status}`);
+      }
+
+      const tokenData = await tokenRes.json();
+      const token = tokenData.token;
+      const setCookie = tokenRes.headers.get('set-cookie');
+      const cookiesStr = setCookie ? setCookie.split(';')[0] : '';
+
+      const postData = {
+        "ACTIONS": [
+          {
+            "ACTION": {
+              "NAME": "VALEUR-GRAPH",
+              "TYPE": "SELECT",
+              "VALUE": "VALEUR-GRAPH"
+            },
+            "PARAMS": [
+              {
+                "NAME": "Symbol_",
+                "TYPE": "S",
+                "VALUE": symbol
+              }
+            ]
+          }
+        ]
+      };
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Origin': 'https://www.wafabourse.com',
+        'Referer': 'https://www.wafabourse.com/fr/market-tracking',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'x-proxy-token': token
+      };
+
+      if (cookiesStr) {
+        headers['Cookie'] = cookiesStr;
+      }
+
+      const graphRes = await fetch('https://www.wafabourse.com/api/proxy/data/JNNJ', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(postData)
+      });
+
+      if (!graphRes.ok) {
+        throw new Error(`Échec de récupération du graphique : HTTP ${graphRes.status}`);
+      }
+
+      const parsed = await graphRes.json();
+      const dataPoints = parsed[0]?.["VALEUR-GRAPH"]?.Data;
+
+      if (!dataPoints || !Array.isArray(dataPoints)) {
+        console.warn(`[WafabourseScraper] Pas de données graphiques valides pour ${symbol}`);
+        return { closes: [], historyPoints: [] };
+      }
+
+      const closes: number[] = [];
+      const historyPoints: { timestamp: string; price: number; volume: number }[] = [];
+
+      dataPoints.forEach((dp: any) => {
+        const price = typeof dp.Cours === 'number' ? dp.Cours : parseFloat(dp.Cours);
+        if (!isNaN(price) && price > 0) {
+          closes.push(price);
+          
+          let timestamp = new Date().toISOString();
+          if (dp.Seance) {
+            try {
+              const [dStr] = dp.Seance.split(' ');
+              const [day, month, year] = dStr.split('/');
+              timestamp = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0).toISOString();
+            } catch (e) {
+              // Fallback
+            }
+          }
+          
+          historyPoints.push({
+            timestamp,
+            price,
+            volume: typeof dp.Volume === 'number' ? dp.Volume : (parseInt(dp.Volume) || 0)
+          });
+        }
+      });
+
+      console.log(`[WafabourseScraper] Succès : ${closes.length} séances détaillées récupérées pour ${symbol}`);
+      return { closes, historyPoints };
+
+    } catch (error: any) {
+      console.error(`[WafabourseScraper] Erreur sur ${symbol} :`, error.message);
+      return { closes: [], historyPoints: [] };
+    }
+  }
 }
