@@ -22,7 +22,7 @@ const mapping = [
   { symbol: 'COL', bmce_id: '11349116', name: 'COLORADO' },
   { symbol: 'CSR', bmce_id: '26545773', name: 'COSUMAR' },
   { symbol: 'CTM', bmce_id: '277392', name: 'CTM' },
-  { symbol: 'TAQ', bmce_id: '23057746', name: 'TAQA MOROCCO' },
+  { symbol: 'TQM', bmce_id: '23057746', name: 'TAQA MOROCCO' },
   { symbol: 'SOT', bmce_id: '112290536', name: 'SOTHEMA' },
   { symbol: 'TGC', bmce_id: '115038557', name: 'TGCC' },
   { symbol: 'SNA', bmce_id: '138953776', name: 'STOKVIS NORD AFRIQUE' }
