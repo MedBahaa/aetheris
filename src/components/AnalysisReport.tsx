@@ -128,7 +128,9 @@ export default function AnalysisReport({ analysis }: AnalysisReportProps) {
                       <p className="log-summary">{item.summary}</p>
                    </div>
                    <div className="log-actions">
-                      <span className={`action-tag mono ${item.sentiment.toLowerCase()}`}>{item.sentiment.charAt(0).toUpperCase() + item.sentiment.slice(1).toLowerCase()}</span>
+                       <span className={`action-tag mono ${item.sentiment.toLowerCase()}`}>
+                         {item.sentiment.replace(/_/g, ' ').charAt(0).toUpperCase() + item.sentiment.replace(/_/g, ' ').slice(1).toLowerCase()}
+                       </span>
                       <button className="log-toggle">
                         {expandedNews === item.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                       </button>
@@ -244,7 +246,9 @@ export default function AnalysisReport({ analysis }: AnalysisReportProps) {
           border-radius: 6px; text-transform: uppercase; 
           transition: all 0.3s var(--ease);
         }
+        .action-tag.fortement_positif { color: #10b981; border-color: rgba(16, 185, 129, 0.5); background: rgba(16, 185, 129, 0.08); box-shadow: 0 0 10px rgba(16, 185, 129, 0.15); }
         .action-tag.positif { color: var(--accent-emerald); border-color: rgba(16, 185, 129, 0.2); background: rgba(16, 185, 129, 0.03); }
+        .action-tag.fortement_negatif { color: #e11d48; border-color: rgba(225, 29, 72, 0.5); background: rgba(225, 29, 72, 0.08); box-shadow: 0 0 10px rgba(225, 29, 72, 0.15); }
         .action-tag.negatif { color: #f43f5e; border-color: rgba(244, 63, 94, 0.2); background: rgba(244, 63, 94, 0.03); }
         .action-tag.neutre { color: #f8fafc; border-color: rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.02); }
 
