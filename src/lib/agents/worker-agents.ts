@@ -29,9 +29,43 @@ export const NewsWorker = {
         // 2. Analyse Sémantique réelle via Gemini Flash (Structured JSON)
         const sentimentAnalysis = await GeminiService.analyzeNewsSentiment(company, allNews);
 
+        // Calcul du Score Global avec Dépréciation Temporelle (Time Decay)
+        let totalWeight = 0;
+        let weightedScoreSum = 0;
+
+        allNews.forEach((n, i) => {
+          const detail = sentimentAnalysis.details[i];
+          if (!detail) return;
+
+          const ageInDays = Math.max(0, (Date.now() - new Date(n.pubDate).getTime()) / (1000 * 60 * 60 * 24));
+          const timeDecayWeight = Math.exp(-0.08 * ageInDays); // Demi-vie d'environ 8.6 jours
+          const sourceWeight = n.sourceType === 'OFFICIAL' ? 2.0 : n.sourceType === 'SPECIALIZED' ? 1.5 : 1.0;
+          
+          const weight = sourceWeight * timeDecayWeight;
+          const articleScore = detail.score || 0;
+
+          weightedScoreSum += articleScore * weight;
+          totalWeight += weight;
+        });
+
+        const globalScore = totalWeight > 0 ? (weightedScoreSum / totalWeight) : 0;
+
+        let globalSentiment: 'FORTEMENT_POSITIF' | 'POSITIF' | 'NEUTRE' | 'NEGATIF' | 'FORTEMENT_NEGATIF' = 'NEUTRE';
+        if (globalScore >= 0.6) {
+          globalSentiment = 'FORTEMENT_POSITIF';
+        } else if (globalScore >= 0.15) {
+          globalSentiment = 'POSITIF';
+        } else if (globalScore > -0.15) {
+          globalSentiment = 'NEUTRE';
+        } else if (globalScore > -0.6) {
+          globalSentiment = 'NEGATIF';
+        } else {
+          globalSentiment = 'FORTEMENT_NEGATIF';
+        }
+
         return {
-          globalScore: sentimentAnalysis.globalScore,
-          globalSentiment: sentimentAnalysis.globalScore > 0.2 ? 'POSITIF' : sentimentAnalysis.globalScore < -0.2 ? 'NEGATIF' : 'NEUTRE',
+          globalScore,
+          globalSentiment,
           probableImpact: sentimentAnalysis.impactSummary,
           consolidatedSummary: sentimentAnalysis.consolidatedSummary,
           collectionStatus: {
@@ -254,14 +288,25 @@ export const StrategyWorker = {
     const factors: string[] = [];
 
     // 1. SENTIMENT (Poids: 25 pts)
-    if (news.globalSentiment === 'POSITIF') {
-      const sentimentScore = news.globalScore ? Math.min(25, Math.round(news.globalScore * 25)) : 15;
-      score += sentimentScore;
-      factors.push(`Sentiment +${sentimentScore} (${news.globalSentiment})`);
+    const gScore = news.globalScore || 0;
+    
+    // Volume density boost (si beaucoup d'articles récents, cela augmente la force/validité du sentiment de 20%)
+    const volumeBoost = (news.collectionStatus?.articlesFound || 0) >= 5 ? 1.2 : 1.0;
+    
+    let sentimentPoints = 0;
+    if (news.globalSentiment === 'FORTEMENT_POSITIF') {
+      sentimentPoints = Math.min(25, Math.round(gScore * 25 * volumeBoost));
+    } else if (news.globalSentiment === 'POSITIF') {
+      sentimentPoints = Math.min(18, Math.round(gScore * 25 * volumeBoost));
+    } else if (news.globalSentiment === 'FORTEMENT_NEGATIF') {
+      sentimentPoints = Math.max(-25, Math.round(gScore * 25 * volumeBoost));
     } else if (news.globalSentiment === 'NEGATIF') {
-      const sentimentScore = news.globalScore ? Math.max(-25, Math.round(news.globalScore * 25)) : -15;
-      score += sentimentScore;
-      factors.push(`Sentiment ${sentimentScore} (${news.globalSentiment})`);
+      sentimentPoints = Math.max(-18, Math.round(gScore * 25 * volumeBoost));
+    }
+
+    if (sentimentPoints !== 0) {
+      score += sentimentPoints;
+      factors.push(`Sentiment ${sentimentPoints >= 0 ? '+' : ''}${sentimentPoints} (${news.globalSentiment})`);
     } else {
       factors.push(`Sentiment 0 (NEUTRE)`);
     }

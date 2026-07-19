@@ -7,19 +7,20 @@ interface AnalysisReportProps {
 }
 
 const SentimentBadge = ({ sentiment }: { sentiment: Sentiment }) => {
-  // Styles defined in global Emotion/CSS-in-JS block below via class names
-
-
   const Icons = {
+    FORTEMENT_POSITIF: <TrendingUp size={12} />,
     POSITIF: <TrendingUp size={12} />,
     NEGATIF: <TrendingDown size={12} />,
+    FORTEMENT_NEGATIF: <TrendingDown size={12} />,
     NEUTRE: <Minus size={12} />,
   };
+
+  const label = sentiment.replace('_', ' ');
 
   return (
     <span className={`sent-badge sent-${sentiment.toLowerCase()}`}>
       {Icons[sentiment]}
-      {sentiment.charAt(0).toUpperCase() + sentiment.slice(1).toLowerCase()}
+      {label.charAt(0).toUpperCase() + label.slice(1).toLowerCase()}
     </span>
   );
 };
@@ -274,19 +275,31 @@ export default function AnalysisReport({ analysis }: AnalysisReportProps) {
           background: rgba(255,255,255,0.02); border: 1px solid var(--border-glass); 
           transition: all 0.3s var(--ease);
         }
+        .sent-fortement_positif { 
+          color: #10b981; 
+          border-color: rgba(16, 185, 129, 0.6);
+          background: rgba(16, 185, 129, 0.15);
+          box-shadow: inset 0 0 15px rgba(16, 185, 129, 0.25);
+          filter: drop-shadow(0 0 16px rgba(16, 185, 129, 0.3)); 
+        }
         .sent-positif { 
-          color: var(--accent-emerald); 
+          color: #a7f3d0; 
           border-color: rgba(16, 185, 129, 0.3);
           background: rgba(16, 185, 129, 0.05);
           box-shadow: inset 0 0 10px rgba(16, 185, 129, 0.1);
-          filter: drop-shadow(0 0 12px rgba(16, 185, 129, 0.15)); 
+        }
+        .sent-fortement_negatif { 
+          color: #e11d48; 
+          border-color: rgba(225, 29, 72, 0.6);
+          background: rgba(225, 29, 72, 0.15);
+          box-shadow: inset 0 0 15px rgba(225, 29, 72, 0.25);
+          filter: drop-shadow(0 0 16px rgba(225, 29, 72, 0.3)); 
         }
         .sent-negatif { 
-          color: #f43f5e; 
+          color: #fca5a5; 
           border-color: rgba(244, 63, 94, 0.3);
           background: rgba(244, 63, 94, 0.05);
           box-shadow: inset 0 0 10px rgba(244, 63, 94, 0.1);
-          filter: drop-shadow(0 0 12px rgba(244, 63, 94, 0.15)); 
         }
         .sent-neutre { 
           color: #f8fafc; 

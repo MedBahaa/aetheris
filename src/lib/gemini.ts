@@ -319,6 +319,12 @@ export class GeminiService {
         1. FILTRAGE INTELLIGENT: IGNORE toute actualité qui ne concerne PAS directement la société "${company}" ou ses filiales. (ex: "IAM" peut parfois désigner Identity Access Management dans des articles IT internationaux. Ce sont de FAUX POSITIFS, ignore-les en donnant un score de 0).
         2. Si un article parle du Maroc en général ou d'un secteur macro sans lien DIRECT avec "${company}", donne-lui un score de 0.
         3. Donne un score numérique précis entre -1.0 (Très Négatif) et 1.0 (Très Positif).
+           Assigne le sentiment individuel selon ces seuils :
+           - Score >= 0.6 : FORTEMENT_POSITIF
+           - Score entre 0.15 (inclus) et 0.6 : POSITIF
+           - Score entre -0.15 (exclus) et 0.15 (exclus) : NEUTRE
+           - Score entre -0.6 et -0.15 (inclus) : NEGATIF
+           - Score <= -0.6 : FORTEMENT_NEGATIF
         4. Le score global est la moyenne PONDÉRÉE des articles PERTINENTS uniquement.
         
         Réponds UNIQUEMENT en JSON valide avec ce schéma exact :
@@ -328,7 +334,7 @@ export class GeminiService {
           "consolidatedSummary": "Synthèse narrative complète combinant toutes les sources en un seul récit cohérent.",
           "details": [
             { 
-              "sentiment": "POSITIF" | "NEGATIF" | "NEUTRE", 
+              "sentiment": "FORTEMENT_POSITIF" | "POSITIF" | "NEUTRE" | "NEGATIF" | "FORTEMENT_NEGATIF", 
               "score": number, 
               "impact": "Court terme" | "Moyen terme" | "Long terme",
               "explanation": "1 phrase très percutante expliquant précisément pourquoi cette news a ce score."

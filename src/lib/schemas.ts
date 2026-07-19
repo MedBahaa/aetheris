@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const SentimentSchema = z.enum(['POSITIF', 'NEGATIF', 'NEUTRE']);
+export const SentimentSchema = z.enum(['FORTEMENT_POSITIF', 'POSITIF', 'NEUTRE', 'NEGATIF', 'FORTEMENT_NEGATIF']);
 export const ImpactSchema = z.enum(['Court terme', 'Moyen terme', 'Long terme']);
 export const ActionSchema = z.enum(['ACHETER', 'ATTENDRE', 'VENDRE']);
 export const ConfidenceSchema = z.enum(['Faible', 'Moyen', 'Élevé']);

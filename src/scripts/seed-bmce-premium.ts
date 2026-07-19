@@ -20,13 +20,12 @@ const mapping = [
   { symbol: 'CMA', bmce_id: '18337', name: 'CIMENTS DU MAROC' },
   { symbol: 'CMT', bmce_id: '4240267', name: 'COMPAGNIE MINIERE DE TOUISSIT' },
   { symbol: 'COL', bmce_id: '11349116', name: 'COLORADO' },
-  { symbol: 'CSM', bmce_id: '26545773', name: 'COSUMAR' },
+  { symbol: 'CSR', bmce_id: '26545773', name: 'COSUMAR' },
   { symbol: 'CTM', bmce_id: '277392', name: 'CTM' },
-  { symbol: 'TQM', bmce_id: '23057746', name: 'TAQA MOROCCO' },
+  { symbol: 'TAQ', bmce_id: '23057746', name: 'TAQA MOROCCO' },
   { symbol: 'SOT', bmce_id: '112290536', name: 'SOTHEMA' },
-  { symbol: 'TGCC', bmce_id: '115038557', name: 'TGCC' },
-  { symbol: 'SNA', bmce_id: '138953776', name: 'STOKVIS NORD AFRIQUE' },
-  { symbol: 'SGTM', bmce_id: '150904121', name: 'SGTM' }
+  { symbol: 'TGC', bmce_id: '115038557', name: 'TGCC' },
+  { symbol: 'SNA', bmce_id: '138953776', name: 'STOKVIS NORD AFRIQUE' }
 ];
 
 async function seedPremium() {
