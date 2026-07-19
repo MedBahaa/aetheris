@@ -295,16 +295,6 @@ export default function PortfolioPage() {
     setShowCapitalInput(false);
   };
 
-  const handleToggleSubscription = async () => {
-    try {
-      const nextTier = subscriptionTier === 'premium' ? 'free' : 'premium';
-      setSubscriptionTier(nextTier);
-      await upsertUserProfileAction({ initial_capital: initialCapital, subscription_tier: nextTier });
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   const handleUpgrade = async () => {
     try {
       setSubscriptionTier('premium');
@@ -520,12 +510,16 @@ export default function PortfolioPage() {
                )}
 
               <button 
-                onClick={handleToggleSubscription} 
+                onClick={() => {
+                  if (subscriptionTier !== 'premium') {
+                    setShowPaywallModal(true);
+                  }
+                }} 
                 className={`action-chip ${subscriptionTier === 'premium' ? 'premium-gold' : 'free-badge'}`}
-                title="Togglere l'abonnement Premium pour test"
+                title={subscriptionTier === 'premium' ? 'Abonnement Pro Actif' : "Souscrire à l'offre Pro"}
               >
                 <Sparkles size={12} />
-                <span className="mono-tiny">{subscriptionTier === 'premium' ? '👑 PREMIUM' : '⭐ FREE (TEST)'}</span>
+                <span className="mono-tiny">{subscriptionTier === 'premium' ? '👑 PRO ACTIVE' : '⭐ CLASSIQUE (FREE)'}</span>
               </button>
               
               <button 

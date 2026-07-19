@@ -4,12 +4,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   User, Activity, Bell, Sparkles, CheckCircle2, AlertTriangle, 
   RefreshCw, ArrowLeft, ShieldCheck, Mail, Send, Phone, Info,
-  ExternalLink, CreditCard, ChevronRight, HelpCircle
+  ExternalLink, CreditCard, ChevronRight, HelpCircle, Zap
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import { getUserProfileAction, upsertUserProfileAction } from '@/lib/portfolio-actions';
 import { useRouter } from 'next/navigation';
+import { PremiumPaywallModal } from '@/components/portfolio/PremiumPaywallModal';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -29,6 +30,7 @@ export default function ProfilePage() {
   const [alertChannel, setAlertChannel] = useState('EMAIL');
   const [username, setUsername] = useState('');
   const [subscriptionTier, setSubscriptionTier] = useState('free');
+  const [showPaywallModal, setShowPaywallModal] = useState(false);
 
   // Client-only mounting guard to prevent SSR/Hydration errors in production
   useEffect(() => {
@@ -96,6 +98,55 @@ export default function ProfilePage() {
       loadProfile();
     } catch (err: any) {
       setSaveMessage({ type: 'error', text: err.message || 'Erreur lors de la sauvegarde' });
+      setTimeout(() => setSaveMessage(null), 4000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpgrade = async () => {
+    try {
+      setSubscriptionTier('premium');
+      const cap = parseFloat(newCapital) || 0;
+      await upsertUserProfileAction({
+        initial_capital: cap,
+        subscription_tier: 'premium',
+        telegram_chat_id: telegramChatId,
+        whatsapp_phone: whatsappPhone,
+        alert_channel: alertChannel,
+        username: username
+      });
+      setShowPaywallModal(false);
+      setSaveMessage({ type: 'success', text: 'Abonnement activé avec succès ! Bienvenue chez Aetheris Pro.' });
+      setTimeout(() => setSaveMessage(null), 4000);
+      loadProfile();
+    } catch (err: any) {
+      console.error(err);
+      setSaveMessage({ type: 'error', text: err.message || 'Erreur lors de la mise à niveau.' });
+      setTimeout(() => setSaveMessage(null), 4000);
+    }
+  };
+
+  const handleDowngrade = async () => {
+    if (!window.confirm("Êtes-vous sûr de vouloir résilier votre abonnement AETHERIS PRO ? Vous perdrez l'accès au Robo-Advisor et aux analyses stratégiques de l'IA.")) return;
+    try {
+      setSaving(true);
+      const cap = parseFloat(newCapital) || 0;
+      await upsertUserProfileAction({
+        initial_capital: cap,
+        subscription_tier: 'free',
+        telegram_chat_id: telegramChatId,
+        whatsapp_phone: whatsappPhone,
+        alert_channel: alertChannel,
+        username: username
+      });
+      setSubscriptionTier('free');
+      setSaveMessage({ type: 'success', text: 'Abonnement résilié avec succès.' });
+      setTimeout(() => setSaveMessage(null), 4000);
+      loadProfile();
+    } catch (err: any) {
+      console.error(err);
+      setSaveMessage({ type: 'error', text: err.message || 'Erreur lors de la résiliation.' });
       setTimeout(() => setSaveMessage(null), 4000);
     } finally {
       setSaving(false);
@@ -350,22 +401,48 @@ export default function ProfilePage() {
 
                   <h2 className="premium-title">Basculez vers la puissance de l'IA</h2>
                   
-                  <div className="tier-toggle">
-                    <button 
-                      type="button" 
-                      onClick={() => handleSaveProfile(undefined, 'free')}
-                      className={`toggle-option ${subscriptionTier !== 'premium' ? 'active' : ''}`}
-                    >
-                      VERSION CRÉATION (FREE)
-                    </button>
-                    <button 
-                      type="button" 
-                      onClick={() => handleSaveProfile(undefined, 'premium')}
-                      className={`toggle-option premium ${subscriptionTier === 'premium' ? 'active' : ''}`}
-                    >
-                      👑 ACCÈS PREMIUM
-                    </button>
-                  </div>
+                  {subscriptionTier === 'premium' ? (
+                    <div className="pro-active-box">
+                      <div className="pro-details-row">
+                        <span className="mono-tiny text-slate-500">PLAN ACTIF</span>
+                        <h3 className="pro-plan-title font-bold text-white">AETHERIS PRO</h3>
+                      </div>
+                      <div className="pro-details-row">
+                        <span className="mono-tiny text-slate-500">FACTURATION</span>
+                        <p className="pro-plan-price font-bold text-emerald">199.00 MAD / mois</p>
+                      </div>
+                      <div className="pro-details-row card-row">
+                        <span className="mono-tiny text-slate-500">MODE DE PAIEMENT</span>
+                        <div className="c-details">
+                          <CreditCard size={12} className="text-purple" />
+                          <span className="mono text-slate-300">VISA •••• 4242</span>
+                        </div>
+                      </div>
+                      
+                      <button 
+                        type="button" 
+                        onClick={handleDowngrade}
+                        className="cancel-pro-btn mono"
+                      >
+                        RÉSILIER L'ABONNEMENT PRO
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="pro-inactive-box">
+                      <div className="pro-price-tag">
+                        <span className="price">199 MAD</span>
+                        <span className="period">/mois</span>
+                      </div>
+                      
+                      <button 
+                        type="button" 
+                        onClick={() => setShowPaywallModal(true)}
+                        className="activate-pro-btn mono"
+                      >
+                        <Zap size={14} /> ACTIVER AETHERIS PRO
+                      </button>
+                    </div>
+                  )}
 
                   <div className="features-list">
                     <h3 className="features-list-title">TABLEAU DES AVANTAGES :</h3>
@@ -422,6 +499,12 @@ export default function ProfilePage() {
 
         </div>
       </main>
+
+      <PremiumPaywallModal
+        isOpen={showPaywallModal}
+        onClose={() => setShowPaywallModal(false)}
+        onUpgrade={handleUpgrade}
+      />
 
       <style jsx>{`
         .app-container {
@@ -917,38 +1000,96 @@ export default function ProfilePage() {
           color: #fff;
         }
 
-        .tier-toggle {
+        .pro-active-box {
           display: flex;
-          background: rgba(0, 0, 0, 0.3);
-          padding: 4px;
-          border-radius: 0.75rem;
-          border: 1px solid rgba(255, 255, 255, 0.04);
+          flex-direction: column;
+          gap: 1.15rem;
+          background: rgba(168, 85, 247, 0.03);
+          border: 1px dashed rgba(168, 85, 247, 0.2);
+          padding: 1.5rem;
+          border-radius: 1rem;
         }
 
-        .toggle-option {
-          flex: 1;
+        .pro-details-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .c-details {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .cancel-pro-btn {
+          margin-top: 0.5rem;
           background: transparent;
-          border: none;
-          color: #64748b;
-          font-family: 'Outfit', sans-serif;
+          border: 1px solid rgba(244, 63, 94, 0.2);
+          border-radius: 0.75rem;
+          color: #f43f5e;
+          padding: 0.75rem;
           font-weight: 800;
-          font-size: 0.75rem;
-          letter-spacing: 0.02em;
-          padding: 0.85rem;
-          border-radius: 0.5rem;
+          font-size: 9px;
+          letter-spacing: 0.05rem;
           cursor: pointer;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          transition: all 0.3s;
         }
 
-        .toggle-option.active {
-          background: rgba(255, 255, 255, 0.06);
+        .cancel-pro-btn:hover {
+          background: rgba(244, 63, 94, 0.06);
+          border-color: rgba(244, 63, 94, 0.4);
+          transform: translateY(-1px);
+        }
+
+        .pro-inactive-box {
+          display: flex;
+          flex-direction: column;
+          gap: 1.25rem;
+          padding: 1rem 0;
+        }
+
+        .pro-price-tag {
+          display: flex;
+          align-items: baseline;
+          justify-content: center;
+          gap: 0.25rem;
+        }
+
+        .pro-price-tag .price {
+          font-size: 2.25rem;
+          font-weight: 900;
           color: #fff;
+          font-family: 'JetBrains Mono', monospace;
         }
 
-        .toggle-option.premium.active {
+        .pro-price-tag .period {
+          font-size: 0.9rem;
+          color: #a855f7;
+          font-weight: 700;
+        }
+
+        .activate-pro-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          width: 100%;
+          padding: 0.95rem;
+          border-radius: 0.75rem;
+          border: none;
           background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
           color: #fff;
-          box-shadow: 0 4px 15px rgba(124, 58, 237, 0.3);
+          font-weight: 800;
+          font-size: 11px;
+          cursor: pointer;
+          box-shadow: 0 4px 20px rgba(124, 58, 237, 0.25);
+          transition: all 0.2s;
+        }
+
+        .activate-pro-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 24px rgba(124, 58, 237, 0.35);
         }
 
         /* Features List */
