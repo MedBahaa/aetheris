@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio';
+import { SymbolMapper } from '../symbol-mapper';
 
 export interface LiveStockData {
   symbol: string;
@@ -53,11 +54,13 @@ export class MarketListScraper {
 
     if (!this.cache) return null;
 
+    const resolvedQuery = SymbolMapper.resolve(query) || query;
+
     const normalize = (s: string) => s.toLowerCase()
       .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Enlever les accents
       .replace(/[^a-z0-9]/g, ''); // Garder seulement alpha-numérique
 
-    const normalizedQuery = normalize(query);
+    const normalizedQuery = normalize(resolvedQuery);
     
     // 1. Recherche par symbole exact (après normalisation)
     const bySymbol = this.cache.stocks.find((s: LiveStockData) => normalize(s.symbol) === normalizedQuery);

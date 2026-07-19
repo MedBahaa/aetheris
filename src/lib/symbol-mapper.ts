@@ -18,7 +18,7 @@ export const SYMBOL_ALIASES: Record<string, string> = {
   'BANQUE POPULAIRE': 'BCP',
   'CENTRALE POPULAIRE': 'BCP',
   'CREDIT DU MAROC': 'CDM',
-  'SOCIETE GENERALE': 'SGM', // If applicable
+  'SOCIETE GENERALE': 'SGM',
   
   // Healthcare
   'AKDITAL': 'AKT',
@@ -35,7 +35,9 @@ export const SYMBOL_ALIASES: Record<string, string> = {
   'ALLIANCES': 'ADI',
   'DOHA': 'ADH',
   'ADDOHA': 'ADH',
-  'TGCC': 'TGCC',
+  'TGCC': 'TGC',
+  'TGC': 'TGC',
+  'SGTM': 'TGC',
   'RESIDENCES DAR SAADA': 'RDS',
   'RESID DAR SAADA': 'RDS',
   'DAR SAADA': 'RDS',
@@ -44,10 +46,33 @@ export const SYMBOL_ALIASES: Record<string, string> = {
   
   // Retail & Services
   'LABEL VIE': 'LBV',
-  'MARSA MAROC': 'SOD',
-  'SODEP': 'SOD',
+  'MARSA MAROC': 'MSA',
+  'SODEP': 'MSA',
+  'SOD': 'MSA',
+  'MSA': 'MSA',
   'TOTALENERGIES': 'TQM',
-  'TOTAL': 'TQM'
+  'TOTAL': 'TQM',
+
+  // Agroalimentaire
+  'COSUMAR': 'CSR',
+  'CSM': 'CSR',
+  'CSR': 'CSR',
+
+  // Holdings & Divers
+  'DELTA HOLDING': 'DHO',
+  'DHO': 'DHO',
+  'CMGP GROUP': 'CMG',
+  'CMG': 'CMG',
+
+  // Assurances
+  'ATLANTASANAD': 'ATH',
+  'ASW': 'ATH',
+  'ATH': 'ATH',
+
+  // Gaz
+  'AFRIQUIA GAZ': 'AFI',
+  'AFG': 'AFI',
+  'AFI': 'AFI'
 };
 
 export class SymbolMapper {
