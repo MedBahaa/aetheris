@@ -27,53 +27,91 @@ export class IndexScraper {
     }
 
     try {
-      console.log(`[IndexScraper] Fetching MASI from BMCE...`);
-      const response = await fetch(BMCE_INDEX_URL, {
-        headers: {
-          'Accept': 'text/html',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
+      console.log(`[IndexScraper] Fetching MASI from Firebase...`);
+      const response = await fetch('https://coronavirus-tracker-m.firebaseio.com/live/indices.json', {
+        headers: { 'Accept': 'application/json' }
       });
 
-      if (!response.ok) throw new Error('Network response was not ok');
-      const html = await response.text();
-      const $ = cheerio.load(html);
-      
-      const table = $('#master-data-table');
-      if (!table.length) return null;
+      if (!response.ok) {
+        throw new Error(`Firebase indices HTTP ${response.status}`);
+      }
 
-      let price = '---';
-      let variation = '---';
-      let varValue = 0;
+      const parsed = await response.json();
+      if (!parsed || !parsed.MASI) {
+        throw new Error('Invalid JSON payload or missing MASI');
+      }
 
-      table.find('tr').each((_, row) => {
-        const th = $(row).find('th').text().trim();
-        const td = $(row).find('td').text().trim();
+      const masi = parsed.MASI;
+      const priceNum = masi.v || 0;
+      const varNum = masi.vp || 0;
 
-        if (th.includes('Cours')) {
-          price = td.replace(/\s/g, ' ').trim(); // Nettoyage espaces insécables
-        } else if (th.includes('Variation %')) {
-          // Format typique: "+2,66% (498,87)"
-          variation = td.split('(')[0].trim();
-          varValue = parseFloat(variation.replace(',', '.').replace('%', '').trim()) || 0;
-        }
-      });
+      // Format values matching the old format
+      const price = priceNum.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/\u202f/g, ' ');
+      const variation = (varNum >= 0 ? '+' : '') + varNum.toFixed(2).replace('.', ',') + '%';
 
       const result: IndexData = {
         symbol: 'MASI',
-        price: price || '---',
-        variation: variation || '---',
-        variationValue: varValue,
-        timestamp: new Date().toISOString()
+        price,
+        variation,
+        variationValue: varNum,
+        timestamp: new Date(masi.t || Date.now()).toISOString()
       };
 
       this.cache = result;
       this.lastFetchTime = now;
       return result;
 
-    } catch (error) {
-      console.error('[IndexScraper] Erreur:', error);
-      return null;
+    } catch (firebaseError: any) {
+      console.warn(`[IndexScraper] Firebase failed, falling back to BMCE:`, firebaseError.message);
+      
+      try {
+        console.log(`[IndexScraper] Fetching MASI from BMCE...`);
+        const response = await fetch(BMCE_INDEX_URL, {
+          headers: {
+            'Accept': 'text/html',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          }
+        });
+
+        if (!response.ok) throw new Error('Network response was not ok');
+        const html = await response.text();
+        const $ = cheerio.load(html);
+        
+        const table = $('#master-data-table');
+        if (!table.length) return null;
+
+        let price = '---';
+        let variation = '---';
+        let varValue = 0;
+
+        table.find('tr').each((_, row) => {
+          const th = $(row).find('th').text().trim();
+          const td = $(row).find('td').text().trim();
+
+          if (th.includes('Cours')) {
+            price = td.replace(/\s/g, ' ').trim();
+          } else if (th.includes('Variation %')) {
+            variation = td.split('(')[0].trim();
+            varValue = parseFloat(variation.replace(',', '.').replace('%', '').trim()) || 0;
+          }
+        });
+
+        const result: IndexData = {
+          symbol: 'MASI',
+          price: price || '---',
+          variation: variation || '---',
+          variationValue: varValue,
+          timestamp: new Date().toISOString()
+        };
+
+        this.cache = result;
+        this.lastFetchTime = now;
+        return result;
+
+      } catch (bmceError: any) {
+        console.error('[IndexScraper] Both Firebase and BMCE failed:', bmceError);
+        return null;
+      }
     }
   }
 }
