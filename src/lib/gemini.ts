@@ -277,6 +277,21 @@ STRUCTURE JSON OBLIGATOIRE :
 }
 `;
 
+const TECHNICAL_SYSTEM_PROMPT = `
+DIRECTIVES DE L'ANALYSTE QUANT :
+1. Rédige une synthèse de convergence technique ("marketSituation") d'environ 3-4 phrases en français pour la valeur boursière concernée. Le ton doit être professionnel, précis et axé sur les faits du marché.
+2. Base ton analyse sur le cours actuel et les indicateurs techniques fournis (RSI, MMS 20/50, MACD, supports et résistances, volumes).
+3. Détermine une recommandation claire ("finalAction") : "ACHETER" | "VENDRE" | "ATTENDRE".
+4. Justifie brièvement ton choix ("why").
+
+STRUCTURE JSON OBLIGATOIRE :
+{
+  "marketSituation": "Synthèse de convergence en français...",
+  "finalAction": "ACHETER" | "VENDRE" | "ATTENDRE",
+  "why": "Brève justification du choix..."
+}
+`;
+
 export class GeminiService {
   
   /**
@@ -473,6 +488,49 @@ export class GeminiService {
     } catch (e) {
       console.error("Gemini Resolve Ticker Error:", e);
       return { symbol: query.toUpperCase(), companyName: query.toUpperCase() };
+    }
+  }
+
+  /**
+   * Synthèse technique IA (Gemini Flash)
+   */
+  static async synthesizeTechnicalAnalysis(
+    company: string,
+    market: Partial<CompanyAnalysis>
+  ): Promise<{ marketSituation: string; finalAction: 'ACHETER' | 'VENDRE' | 'ATTENDRE'; why: string } | null> {
+    if (!process.env.GEMINI_API_KEY) return null;
+
+    company = InputSanitizer.sanitizeCompanyName(company);
+
+    try {
+      const dataBlock = `
+        Société: ${company}
+        Cours actuel: ${market.price}
+        RSI (14): ${typeof market.rsi === 'object' ? `${market.rsi.value} (${market.rsi.interpretation})` : market.rsi}
+        MMS 20: ${market.sma20 || 'N/A'}
+        MMS 50: ${market.sma50 || 'N/A'}
+        MACD: ${market.macd ? `Histogramme: ${market.macd.histogram}, Tendance: ${market.macd.trend}` : 'N/A'}
+        Support: ${market.support}
+        Pivot: ${market.pivot || 'N/A'}
+        Résistance: ${market.resistance}
+        Signaux techniques observés: ${market.signals?.join(' | ') || 'Aucun'}
+      `;
+
+      const prompt = `${dataBlock}\n\n${TECHNICAL_SYSTEM_PROMPT}`;
+
+      const text = await unifiedAICall(prompt, true, 'gemma-4-26b-a4b-it');
+      const parsed = safeJsonParse(text);
+      if (!parsed) return null;
+
+      // Sanitization
+      if (!['ACHETER', 'VENDRE', 'ATTENDRE'].includes(parsed.finalAction)) {
+        parsed.finalAction = 'ATTENDRE';
+      }
+
+      return parsed;
+    } catch (error) {
+      console.error("Gemini Technical Synthesis Error:", error);
+      return null;
     }
   }
 
