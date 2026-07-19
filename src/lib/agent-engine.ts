@@ -167,7 +167,8 @@ export class AetherisOrchestrator {
       } 
       else if (type === 'TECHNICAL') {
         const marketData = await MarketWorker.analyze(searchName);
-        result = { ...result, ...this.cleanMarketData(marketData) };
+        const cleanedMarket = this.cleanMarketData(marketData);
+        result = { ...result, ...cleanedMarket };
         dataQuality.sources.push('BMCE');
         
         // AUDIT FIX: Dégrader le score si données techniques insuffisantes
@@ -179,6 +180,29 @@ export class AetherisOrchestrator {
         if (marketData.signals?.some(s => s.includes('insuffisantes'))) {
           dataQuality.score -= 20;
           dataQuality.warnings.push('Historique limité — Indicateurs techniques dégradés');
+        }
+
+        // Appel à l'IA pour la synthèse de convergence technique
+        if (marketData.price !== 'INDISPONIBLE') {
+          console.log(`[Orchestrator] 🤖 Synthèse technique IA pour ${searchName}...`);
+          const aiTech = await GeminiService.synthesizeTechnicalAnalysis(searchName, cleanedMarket);
+          if (aiTech) {
+            result.marketSituation = aiTech.marketSituation;
+            result.recommendedAction = aiTech.finalAction;
+            result.globalSentiment = aiTech.finalAction === 'ACHETER' ? 'POSITIF' : aiTech.finalAction === 'VENDRE' ? 'NEGATIF' : 'NEUTRE';
+            result.probableImpact = aiTech.why;
+            
+            // Enrichir orchestratorResult pour correspondre aux attentes globales
+            result.orchestrator = {
+              finalAction: aiTech.finalAction,
+              why: aiTech.why,
+              currentSituation: aiTech.marketSituation,
+              keyPoints: marketData.signals || [],
+              opportunity: aiTech.finalAction === 'ACHETER' ? 'Oui' : aiTech.finalAction === 'VENDRE' ? 'Non' : 'À surveiller',
+              risk: aiTech.finalAction === 'VENDRE' ? 'Élevé' : aiTech.finalAction === 'ACHETER' ? 'Faible' : 'Moyen',
+              riskExplication: 'Risque technique lié à la configuration des indicateurs.'
+            };
+          }
         }
       } 
       else if (type === 'FUNDAMENTAL') {
