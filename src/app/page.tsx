@@ -173,7 +173,7 @@ function Home() {
     setError(null);
     setActiveId(undefined);
     setShowSuggestions(false);
-    setTerminalLogs([`> INITIALISATION DU MOTEUR POUR : ${finalQuery}`, `> ÉTABLISSEMENT DE LA CONNEXION SÉCURISÉE...`]);
+    setTerminalLogs([`INITIALISATION DU MOTEUR POUR : ${finalQuery}`, `ÉTABLISSEMENT DE LA CONNEXION SÉCURISÉE...`]);
     
     const steps = agentToUse === 'SENTIMENT' 
       ? ['RÉCUPÉRATION DES FLUX RSS', 'EXTRACTION DES NEWS BOURSIÈRES', 'TRAITEMENT DES SOURCES', 'ANALYSE SENTIMENTALE IA EN COURS']
@@ -185,7 +185,8 @@ function Home() {
     let stepIdx = 0;
     const interval = setInterval(() => {
       if (stepIdx < steps.length) {
-        setTerminalLogs(prev => [...prev, `> ${steps[stepIdx]}`]);
+        const currentStep = steps[stepIdx];
+        setTerminalLogs(prev => [...prev, currentStep]);
         stepIdx++;
       } else {
         clearInterval(interval);
@@ -198,7 +199,7 @@ function Home() {
         const result = await analyzeCompanyAction(finalQuery, agentToUse, forceRefresh);
         
         // Logs de fin
-        setTerminalLogs(prev => [...prev, `> VALIDATION DES DONNÉES TERMINÉE`, `> SYNTHÈSE CALCULÉE AVEC SUCCÈS`, `> GÉNÉRATION DU RAPPORT EN COURS...`]);
+        setTerminalLogs(prev => [...prev, `VALIDATION DES DONNÉES TERMINÉE`, `SYNTHÈSE CALCULÉE AVEC SUCCÈS`, `GÉNÉRATION DU RAPPORT EN COURS...`]);
         
         setTimeout(() => {
           clearInterval(interval);
@@ -353,25 +354,71 @@ function Home() {
               </div>
             )}
 
-            {loading && !analysis ? (
+             {loading && !analysis ? (
               <div className="terminal-system-loader glass-heavy animate-fade-in">
                 <div className="terminal-header">
                   <div className="term-circles">
-                    <div className="circle red"></div>
-                    <div className="circle yellow"></div>
-                    <div className="circle green"></div>
+                    <span className="circle-pulse"></span>
+                    <span className="mono text-[10px] font-bold text-emerald tracking-wider">SYSTEM ACTIVE</span>
                   </div>
-                  <span className="mono text-xs">MOTEUR AETHERIS CORE</span>
+                  <span className="mono text-[10px] font-black opacity-85 uppercase tracking-widest">{activeAgent} AGENT</span>
                 </div>
-                <div className="terminal-body" ref={logContainerRef}>
-                  {terminalLogs.map((log, i) => (
-                    <div key={i} className={`log-line mono ${i === terminalLogs.length - 1 ? 'current' : ''}`}>
-                      {log}
+                
+                <div className="terminal-content-grid">
+                  {/* Left Column: Terminal Logs */}
+                  <div className="terminal-logs-column">
+                    <div className="terminal-body" ref={logContainerRef}>
+                      {terminalLogs.map((log, i) => {
+                        const isLast = i === terminalLogs.length - 1;
+                        const isValidation = log.includes('VALIDATION') || log.includes('SYNTHÈSE') || log.includes('SUCCÈS') || log.includes('RAPPORT');
+                        return (
+                          <div key={i} className={`log-line mono ${isLast ? 'current' : ''} ${isValidation ? 'system-log' : ''}`}>
+                            <span className="log-icon">{isLast ? '✦' : '✓'}</span>
+                            <span className="log-text">{log}</span>
+                          </div>
+                        );
+                      })}
+                      {loading && (
+                        <div className="log-line current mono pending-line">
+                          <span className="log-icon loading-spin">⚡</span>
+                          <span className="log-text">SYNTHÈSE MULTI-SOURCES IA EN COURS...</span>
+                          <span className="terminal-cursor"></span>
+                        </div>
+                      )}
                     </div>
-                  ))}
-                  <div className="terminal-cursor"></div>
+                  </div>
+
+                  {/* Right Column: Engine stats & scanning animation */}
+                  <div className="engine-stats-panel">
+                    <div className="stat-row">
+                      <span className="stat-label">AGENT CORE</span>
+                      <span className="stat-val text-emerald uppercase font-bold">{activeAgent}</span>
+                    </div>
+                    <div className="stat-row">
+                      <span className="stat-label">LLM ENGINE</span>
+                      <span className="stat-val font-semibold text-slate-300">GEMINI FLASH</span>
+                    </div>
+                    <div className="stat-row">
+                      <span className="stat-label">ENGINE STATUS</span>
+                      <span className="stat-val badge-processing">COMPILING</span>
+                    </div>
+                    <div className="stat-row">
+                      <span className="stat-label">CONNECTION</span>
+                      <span className="stat-val text-cyan font-bold">SECURED SSL</span>
+                    </div>
+                    
+                    <div className="radar-animation-box">
+                      <div className="radar-sweep"></div>
+                      <span className="radar-text mono">SCANNING DATASTREAM</span>
+                    </div>
+                  </div>
                 </div>
+
                 <div className="loader-meta-group">
+                  <div className="progress-info-row">
+                    <span className="mono text-[9px] text-slate-500 font-bold uppercase tracking-wider">COMPILING STOCK REPORT</span>
+                    <span className="mono text-[9px] text-emerald font-bold animate-pulse tracking-wider">SECURE PROCESSING</span>
+                  </div>
                   <div className="progress-bar-container">
                     <div className={`p-bar-fill ${activeAgent.toLowerCase()}`}></div>
                   </div>
@@ -524,29 +571,53 @@ function Home() {
         /* Global Refresh Button */
         .global-refresh-btn { position: absolute; top: -1rem; right: 0; padding: 0.5rem 1rem; border-radius: 100px; border: 1px solid var(--border-glass); background: rgba(15, 23, 42, 0.4); display: flex; align-items: center; gap: 0.5rem; cursor: pointer; transition: all 0.3s var(--ease); z-index: 10;}
         .global-refresh-btn:hover { background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3); transform: translateY(-2px); }
-        .global-refresh-btn .mono { font-size: 9px; font-weight: 800; color: #fff; }
-
-        /* Terminal Loader Improved */
-        .terminal-system-loader { width: 100%; max-width: 600px; margin: 4rem auto; border-radius: 0.75rem; overflow: hidden; border: 1px solid var(--border-glass); box-shadow: 0 30px 60px rgba(0,0,0,0.5); }
-        .terminal-header { background: rgba(255,255,255,0.03); padding: 0.75rem 1rem; display: flex; align-items: center; gap: 1rem; border-bottom: 1px solid var(--border-glass); }
-        .term-circles { display: flex; gap: 0.4rem; }
-        .circle { width: 8px; height: 8px; border-radius: 50%; opacity: 0.6; }
-        .circle.red { background: #ff5f56; }
-        .circle.yellow { background: #ffbd2e; }
-        .circle.green { background: #27c93f; }
+        .global-refr        /* Terminal Loader Improved */
+        .terminal-system-loader { width: 100%; max-width: 760px; margin: 4rem auto; border-radius: 0.75rem; overflow: hidden; border: 1px solid var(--border-glass); box-shadow: 0 30px 60px rgba(0,0,0,0.5); background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(10px); }
+        .terminal-header { background: rgba(255,255,255,0.02); padding: 0.85rem 1.25rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-glass); }
+        .term-circles { display: flex; align-items: center; gap: 0.6rem; }
         
-        .terminal-body { padding: 1.5rem; height: 300px; overflow-y: auto; background: rgba(0,0,0,0.2); position: relative; scroll-behavior: smooth; }
+        /* Terminal Content Grid Layout */
+        .terminal-content-grid { display: grid; grid-template-columns: 1.8fr 1fr; border-bottom: 1px solid var(--border-glass); }
+        .terminal-logs-column { border-right: 1px solid var(--border-glass); background: rgba(0,0,0,0.15); }
+        
+        .engine-stats-panel { padding: 1.5rem; display: flex; flex-direction: column; gap: 0.85rem; background: rgba(0,0,0,0.25); }
+        .stat-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 0.6rem; }
+        .stat-label { font-family: 'JetBrains Mono', monospace; font-size: 8px; color: #475569; font-weight: 850; letter-spacing: 0.05rem; }
+        .stat-val { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #cbd5e1; }
+        .badge-processing { background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); color: var(--accent-emerald); font-size: 8px; font-weight: 900; padding: 0.15rem 0.5rem; border-radius: 4px; letter-spacing: 0.05rem; animation: blink 1.5s infinite; }
+        
+        /* Radar Scanning Animation */
+        .radar-animation-box { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(255,255,255,0.01); border: 1px solid var(--border-glass); border-radius: 0.5rem; margin-top: 0.5rem; min-height: 85px; position: relative; overflow: hidden; }
+        .radar-sweep { position: absolute; inset: 0; background: linear-gradient(180deg, transparent, rgba(16, 185, 129, 0.05) 50%, transparent); animation: sweep 2s linear infinite; }
+        .radar-text { z-index: 1; color: #475569; font-weight: 900; letter-spacing: 0.1rem; font-size: 8px; }
+        
+        @keyframes sweep { 0% { transform: translateY(-100%); } 100% { transform: translateY(100%); } }
+        
+        /* Terminal Body & Logs */
+        .terminal-body { padding: 1.5rem; height: 320px; overflow-y: auto; position: relative; scroll-behavior: smooth; }
         .terminal-body::-webkit-scrollbar { width: 4px; }
         .terminal-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 10px; }
         
-        .log-line { color: var(--text-dim); font-size: 11px; margin-bottom: 0.5rem; line-height: 1.4; opacity: 0.8; }
-        .log-line.current { color: var(--text-main); opacity: 1; border-left: 2px solid var(--accent-emerald); padding-left: 0.5rem; }
-
+        .log-line { display: flex; align-items: flex-start; gap: 0.75rem; color: #64748b; font-size: 10.5px; margin-bottom: 0.75rem; line-height: 1.5; }
+        .log-icon { color: var(--accent-emerald); font-weight: bold; width: 12px; flex-shrink: 0; }
+        .log-text { flex: 1; }
         
-        .terminal-cursor { width: 8px; height: 14px; background: var(--accent-emerald); display: inline-block; vertical-align: middle; animation: blink 1s step-end infinite; margin-left: 4px; }
+        .log-line.current { color: #f1f5f9; font-weight: 600; opacity: 1; }
+        .log-line.current .log-icon { color: var(--accent-emerald); }
+        .log-line.system-log { color: var(--accent-cyan); }
+        .log-line.system-log .log-icon { color: var(--accent-cyan); }
         
-        .loader-meta-group { padding: 1rem; background: rgba(255,255,255,0.01); }
-        .progress-bar-container { height: 2px; width: 100%; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden; }
+        .circle-pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-emerald); box-shadow: 0 0 8px var(--accent-emerald); animation: pulse-glow 1.5s infinite; }
+        @keyframes pulse-glow { 0%, 100% { opacity: 0.5; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.1); } }
+        
+        .loading-spin { display: inline-block; animation: spin 1s linear infinite; color: var(--accent-emerald) !important; }
+        .pending-line { margin-top: 1rem; border-top: 1px dashed rgba(255,255,255,0.05); padding-top: 1rem; }
+        
+        .terminal-cursor { width: 6px; height: 12px; background: var(--accent-emerald); display: inline-block; vertical-align: middle; animation: blink 1s step-end infinite; margin-left: 4px; }
+        
+        .loader-meta-group { padding: 1.25rem 1.5rem; background: rgba(255,255,255,0.01); }
+        .progress-info-row { display: flex; justify-content: space-between; margin-bottom: 0.6rem; }
+        .progress-bar-container { height: 3px; width: 100%; background: rgba(255,255,255,0.04); border-radius: 2px; overflow: hidden; }
         .p-bar-fill { height: 100%; transition: width 0.3s var(--ease); box-shadow: 0 0 10px currentColor; }
         .p-bar-fill.strategy { background: var(--accent-blue); width: 100%; animation: load-progress 15s linear; }
         .p-bar-fill.sentiment { background: var(--accent-emerald); width: 100%; animation: load-progress 10s linear; }
