@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   User, Activity, Bell, Sparkles, CheckCircle2, AlertTriangle, 
   RefreshCw, ArrowLeft, ShieldCheck, Mail, Send, Phone, Info,
-  ExternalLink, CreditCard, ChevronRight, HelpCircle, Zap
+  ExternalLink, CreditCard, ChevronRight, HelpCircle, Zap, X
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
@@ -31,6 +31,7 @@ export default function ProfilePage() {
   const [username, setUsername] = useState('');
   const [subscriptionTier, setSubscriptionTier] = useState('free');
   const [showPaywallModal, setShowPaywallModal] = useState(false);
+  const [showCancelConfirmModal, setShowCancelConfirmModal] = useState(false);
 
   // Client-only mounting guard to prevent SSR/Hydration errors in production
   useEffect(() => {
@@ -127,8 +128,7 @@ export default function ProfilePage() {
     }
   };
 
-  const handleDowngrade = async () => {
-    if (!window.confirm("Êtes-vous sûr de vouloir résilier votre abonnement AETHERIS PRO ? Vous perdrez l'accès au Robo-Advisor et aux analyses stratégiques de l'IA.")) return;
+  const confirmDowngrade = async () => {
     try {
       setSaving(true);
       const cap = parseFloat(newCapital) || 0;
@@ -141,6 +141,7 @@ export default function ProfilePage() {
         username: username
       });
       setSubscriptionTier('free');
+      setShowCancelConfirmModal(false);
       setSaveMessage({ type: 'success', text: 'Abonnement résilié avec succès.' });
       setTimeout(() => setSaveMessage(null), 4000);
       loadProfile();
@@ -421,7 +422,7 @@ export default function ProfilePage() {
                       
                       <button 
                         type="button" 
-                        onClick={handleDowngrade}
+                        onClick={() => setShowCancelConfirmModal(true)}
                         className="cancel-pro-btn mono"
                       >
                         RÉSILIER L'ABONNEMENT PRO
@@ -505,6 +506,65 @@ export default function ProfilePage() {
         onClose={() => setShowPaywallModal(false)}
         onUpgrade={handleUpgrade}
       />
+
+      {showCancelConfirmModal && (
+        <div className="modal-overlay glass-heavy animate-fade-in" onClick={() => setShowCancelConfirmModal(false)}>
+          <div className="modal-content glass-heavy cancel-modal-content animate-slide-up" onClick={e => e.stopPropagation()}>
+            <div className="modal-header-premium">
+              <div className="premium-title-group">
+                <AlertTriangle className="text-rose-500 animate-bounce" size={20} />
+                <h2 className="mono text-rose-500 font-bold tracking-widest text-sm">RÉSILIATION AETHERIS PRO</h2>
+              </div>
+              <button onClick={() => setShowCancelConfirmModal(false)} className="close-modal"><X size={18} /></button>
+            </div>
+            
+            <div className="premium-body">
+              <p className="premium-subtitle">
+                Êtes-vous sûr de vouloir résilier votre abonnement <strong className="text-white">AETHERIS PRO</strong> ? 
+                En confirmant la résiliation, vous perdrez instantanément l'accès aux privilèges suivants :
+              </p>
+              
+              <div className="premium-features-list">
+                <div className="feature-item">
+                  <span className="text-rose-500">✖</span>
+                  <div className="feature-text">
+                    <strong>Robo-Advisor d'Allocation :</strong> Plus d'optimisation automatisée de portefeuille.
+                  </div>
+                </div>
+                <div className="feature-item">
+                  <span className="text-rose-500">✖</span>
+                  <div className="feature-text">
+                    <strong>Synthèse Stratégique IA :</strong> Perte des rapports stratégiques et analyses multi-agents.
+                  </div>
+                </div>
+                <div className="feature-item">
+                  <span className="text-rose-500">✖</span>
+                  <div className="feature-text">
+                    <strong>Alertes Prix Illimitées :</strong> Désactivation des alertes en temps réel sur WhatsApp & Telegram.
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="premium-actions" style={{ marginTop: '1rem' }}>
+              <button 
+                type="button" 
+                onClick={confirmDowngrade} 
+                className="btn-danger-new mono"
+              >
+                RÉSILIER MON ACCÈS PRO
+              </button>
+              <button 
+                type="button" 
+                onClick={() => setShowCancelConfirmModal(false)} 
+                className="dismiss-btn mono"
+              >
+                CONSERVER MON ABONNEMENT
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         .app-container {
@@ -1008,6 +1068,35 @@ export default function ProfilePage() {
           border: 1px dashed rgba(168, 85, 247, 0.2);
           padding: 1.5rem;
           border-radius: 1rem;
+        }
+
+        .cancel-modal-content {
+          max-width: 440px;
+          border: 1px solid rgba(244, 63, 94, 0.3) !important;
+          box-shadow: 0 0 40px rgba(244, 63, 94, 0.15) !important;
+        }
+
+        .btn-danger-new {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          width: 100%;
+          padding: 0.85rem;
+          border-radius: 0.75rem;
+          border: none;
+          background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%);
+          color: #fff;
+          font-weight: 800;
+          font-size: 11px;
+          cursor: pointer;
+          box-shadow: 0 4px 20px rgba(244, 63, 94, 0.2);
+          transition: all 0.2s;
+        }
+
+        .btn-danger-new:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 24px rgba(244, 63, 94, 0.3);
         }
 
         .pro-details-row {
