@@ -1,6 +1,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { CompanyAnalysis, OrchestratorResult, Sentiment, Impact } from './schemas';
 import { InputSanitizer } from './input-sanitizer';
+import crypto from 'crypto';
+import { CacheService } from './cache-service';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -119,19 +121,45 @@ async function callMistral(prompt: string): Promise<string> {
 
 /** Orchestrateur d'IA avec Fallback automatique */
 async function unifiedAICall(prompt: string, isJson: boolean = true, preferredModel?: string): Promise<string> {
+  const hash = crypto.createHash('md5').update(prompt + isJson + (preferredModel || '')).digest('hex');
+  const cacheKey = `aetheris:prompt:${hash}`;
+
   try {
-    // 1. Essayer les modèles Google AI (Gemma 4 / Gemini)
-    return await callGoogleAI(prompt, isJson, preferredModel);
+    // 0. Vérification du cache de prompt
+    const cachedResult = await CacheService.getGeneric(cacheKey);
+    if (cachedResult) {
+      console.log(`[GeminiService] ⚡ PROMPT CACHE HIT: Réutilisation du résultat de génération (${hash})`);
+      return cachedResult;
+    }
+  } catch (cacheErr: any) {
+    console.warn("[GeminiService] Erreur lecture cache prompt:", cacheErr.message);
+  }
+
+  let resultText = '';
+  try {
+    // 1. Essayer les modèles Google AI
+    resultText = await callGoogleAI(prompt, isJson, preferredModel);
   } catch (e: any) {
     console.log(`🔄 [Fallback] Échec Google AI (${e.message || e}). Passage sur Mistral...`);
     try {
       // 2. Basculement sur Mistral
-      return await callMistral(prompt);
+      resultText = await callMistral(prompt);
     } catch (mistralError: any) {
       console.error("❌ [Fallback] Mistral a également échoué:", mistralError.message || mistralError);
       throw mistralError;
     }
   }
+
+  // Enregistrer le résultat dans le cache de prompts pour les appels futurs
+  if (resultText) {
+    try {
+      await CacheService.setGeneric(cacheKey, resultText);
+    } catch (cacheSetErr: any) {
+      console.warn("[GeminiService] Erreur écriture cache prompt:", cacheSetErr.message);
+    }
+  }
+
+  return resultText;
 }
 
 
