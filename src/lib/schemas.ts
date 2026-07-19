@@ -9,7 +9,7 @@ export const OpportunitySchema = z.enum(['Oui', 'Non', 'À surveiller']);
 /**
  * AUDIT FIX: Source tracking — chaque donnée doit être traçable
  */
-export const DataSourceSchema = z.enum(['BMCE', 'CASABOURSE', 'OFFICIAL_CASA', 'YAHOO', 'RSS', 'CALCULATED', 'UNKNOWN']);
+export const DataSourceSchema = z.enum(['BMCE', 'CASABOURSE', 'OFFICIAL_CASA', 'YAHOO', 'RSS', 'CALCULATED', 'TRADINGVIEW', 'UNKNOWN']);
 export type DataSource = z.infer<typeof DataSourceSchema>;
 
 export const DataQualitySchema = z.object({

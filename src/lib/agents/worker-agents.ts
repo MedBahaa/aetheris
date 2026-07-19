@@ -7,6 +7,7 @@ import { MarketListScraper } from '../scrapers/market-list-scraper';
 import { CasabourseScraper } from '../scrapers/casabourse-scraper';
 import { OfficialCasaScraper } from '../scrapers/official-casa-scraper';
 import { WafabourseScraper } from '../scrapers/wafabourse-scraper';
+import { TradingViewScraper } from '../scrapers/tradingview-scraper';
 
 /**
  * AGENT NEWS: Analyse de sentiment multi-sources
@@ -424,33 +425,53 @@ export const FundamentalWorker = {
         console.log(`[FundamentalWorker] Résolution DB: ${searchName} | Symbole: ${searchSymbol}`);
       }
 
-      // 2 & 3. Appels parallèles BMCE/Casabourse/OfficialCasa (Ultra-rapide)
-      const [bmcePromise, casaPromise, officialPromise] = await Promise.allSettled([
-        BMCEBourseScraper.getFundamentalData(searchName),
-        CasabourseScraper.getFundamentalData(searchName, searchSymbol),
-        OfficialCasaScraper.getFundamentalData(searchSymbol)
-      ]);
-      
-      const bmceData = bmcePromise.status === 'fulfilled' ? bmcePromise.value : { peRatio: 'N/A', dividendYield: 'N/A', marketCap: 'N/A', netProfit: 'N/A', roe: 'N/A', status: 'error' };
-      const casaData = casaPromise.status === 'fulfilled' ? casaPromise.value : { peRatio: 'N/A', dividendYield: 'N/A', margin: 'N/A', revenueGrowth: 'N/A', profitGrowth: 'N/A', status: 'error' };
-      const officialData = officialPromise.status === 'fulfilled' ? officialPromise.value : { netProfit: 'N/A', roe: 'N/A', status: 'error' };
+      // 1. Récupération des données TradingView en premier (rapide et geoblock-free)
+      const tvData = await TradingViewScraper.getFundamentalData(searchName, searchSymbol);
+
+      // 2. Si TradingView a échoué ou si les données clés manquent, on fait les autres scrapers en fallback
+      let bmceData: any = { peRatio: 'N/A', dividendYield: 'N/A', marketCap: 'N/A', netProfit: 'N/A', roe: 'N/A', status: 'error' };
+      let casaData: any = { peRatio: 'N/A', dividendYield: 'N/A', margin: 'N/A', revenueGrowth: 'N/A', profitGrowth: 'N/A', status: 'error' };
+      let officialData: any = { netProfit: 'N/A', roe: 'N/A', status: 'error' };
+
+      if (tvData.status === 'error' || tvData.peRatio === 'N/A' || tvData.marketCap === 'N/A') {
+        console.log(`[FundamentalWorker] ⚠️ Données TradingView incomplètes pour ${searchSymbol}. Lancement des fallbacks...`);
+        const [bmcePromise, casaPromise, officialPromise] = await Promise.allSettled([
+          BMCEBourseScraper.getFundamentalData(searchName),
+          CasabourseScraper.getFundamentalData(searchName, searchSymbol),
+          OfficialCasaScraper.getFundamentalData(searchSymbol)
+        ]);
+        if (bmcePromise.status === 'fulfilled') bmceData = bmcePromise.value;
+        if (casaPromise.status === 'fulfilled') casaData = casaPromise.value;
+        if (officialPromise.status === 'fulfilled') officialData = officialPromise.value;
+      }
 
       
       // AUDIT FIX: Source tracking — tracer l'origine de chaque donnée
       const dataSources: Record<string, DataSource> = {};
       
-      const pickBest = (field: string, casaVal: string | undefined, bmceVal: string | undefined, officialVal?: string | undefined): string => {
-        // Priorité 1: Source Officielle (Casablanca Bourse) pour ROE et Bénéfice
+      const pickBest = (
+        field: string, 
+        tvVal: string | undefined, 
+        casaVal: string | undefined, 
+        bmceVal: string | undefined, 
+        officialVal?: string | undefined
+      ): string => {
+        // Priorité 1: TradingView (Moderne, live et sans blocage)
+        if (tvData.status === 'success' && tvVal && tvVal !== 'N/A') {
+          dataSources[field] = 'TRADINGVIEW';
+          return tvVal;
+        }
+        // Priorité 2: Source Officielle (Bourse de Casablanca)
         if (officialData.status === 'success' && officialVal && officialVal !== 'N/A') {
           dataSources[field] = 'OFFICIAL_CASA';
           return officialVal;
         }
-        // Priorité 2: Casabourse.ma (Screener)
+        // Priorité 3: Casabourse.ma (Screener)
         if (casaData.status === 'success' && casaVal && casaVal !== 'N/A') {
           dataSources[field] = 'CASABOURSE';
           return casaVal;
         }
-        // Priorité 3: BMCE Capital
+        // Priorité 4: BMCE Capital
         if (bmceVal && bmceVal !== 'N/A') {
           dataSources[field] = 'BMCE';
           return bmceVal;
@@ -460,14 +481,14 @@ export const FundamentalWorker = {
       };
 
       const fundamentals = {
-        peRatio: pickBest('peRatio', casaData.peRatio, bmceData.peRatio),
-        dividendYield: pickBest('dividendYield', casaData.dividendYield, bmceData.dividendYield),
-        marketCap: pickBest('marketCap', undefined, (bmceData.marketCap && bmceData.marketCap !== 'N/A') ? bmceData.marketCap : undefined),
-        netProfit: pickBest('netProfit', undefined, (bmceData.netProfit && bmceData.netProfit !== 'N/A') ? bmceData.netProfit : undefined, officialData.netProfit),
-        roe: pickBest('roe', undefined, (bmceData.roe && bmceData.roe !== 'N/A') ? bmceData.roe : undefined, officialData.roe),
-        margin: pickBest('margin', casaData.margin, undefined),
-        revenueGrowth: pickBest('revenueGrowth', casaData.revenueGrowth, undefined),
-        profitGrowth: pickBest('profitGrowth', casaData.profitGrowth, undefined),
+        peRatio: pickBest('peRatio', tvData.peRatio, casaData.peRatio, bmceData.peRatio),
+        dividendYield: pickBest('dividendYield', tvData.dividendYield, casaData.dividendYield, bmceData.dividendYield),
+        marketCap: pickBest('marketCap', tvData.marketCap, undefined, (bmceData.marketCap && bmceData.marketCap !== 'N/A') ? bmceData.marketCap : undefined),
+        netProfit: pickBest('netProfit', tvData.netProfit, undefined, (bmceData.netProfit && bmceData.netProfit !== 'N/A') ? bmceData.netProfit : undefined, officialData.netProfit),
+        roe: pickBest('roe', tvData.roe, undefined, (bmceData.roe && bmceData.roe !== 'N/A') ? bmceData.roe : undefined, officialData.roe),
+        margin: pickBest('margin', tvData.margin, casaData.margin, undefined),
+        revenueGrowth: pickBest('revenueGrowth', tvData.revenueGrowth, casaData.revenueGrowth, undefined),
+        profitGrowth: pickBest('profitGrowth', tvData.profitGrowth, casaData.profitGrowth, undefined),
         sector: '', // Complété par l'orchestrateur
         dataSources, // AUDIT FIX: Traçabilité
       };
