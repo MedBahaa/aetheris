@@ -6,6 +6,7 @@ import { GeminiService } from '../gemini';
 import { MarketListScraper } from '../scrapers/market-list-scraper';
 import { CasabourseScraper } from '../scrapers/casabourse-scraper';
 import { OfficialCasaScraper } from '../scrapers/official-casa-scraper';
+import { WafabourseScraper } from '../scrapers/wafabourse-scraper';
 
 /**
  * AGENT NEWS: Analyse de sentiment multi-sources
@@ -115,10 +116,16 @@ export const MarketWorker = {
       console.log(`[MarketWorker] Analyse technique pour "${company}"...`);
       
       // 1 & 2. Récupérer le PRIX ACTUEL et l'HISTORIQUE en parallèle (Gain de temps)
-      const [liveData, history] = await Promise.all([
+      let [liveData, history] = await Promise.all([
         MarketListScraper.getLiveStock(company),
-        BMCEBourseScraper.getStockHistory(company)
+        WafabourseScraper.getStockHistory(company)
       ]);
+
+      // Fallback si l'historique Wafabourse est vide
+      if (history.length === 0) {
+        console.warn(`[MarketWorker] Historique Wafabourse vide pour ${company}. Fallback sur BMCE...`);
+        history = await BMCEBourseScraper.getStockHistory(company);
+      }
 
       console.log(`[MarketWorker] Live data match for "${company}": ${liveData ? 'OUI (' + liveData.symbol + ')' : 'NON (N/A)'}`);
       
