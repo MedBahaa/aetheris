@@ -69,10 +69,7 @@ export class AetherisOrchestrator {
     }
     companyName = InputSanitizer.sanitizeCompanyName(companyName);
 
-    // AUDIT FIX: Rate limiting hybride (Supabase-backed)
-    if (await this.checkRateLimit()) {
-      throw new Error('RATE_LIMIT: Trop de requêtes. Veuillez réessayer dans quelques secondes.');
-    }
+
 
     // 0. Smart Ticker Resolution (Ex: 'IAM' -> 'MAROC TELECOM')
     const queryTerm = companyName.toUpperCase().trim();
@@ -115,6 +112,11 @@ export class AetherisOrchestrator {
     if (cachedResult) {
       console.log(`[Orchestrator] 🧊 CACHE HIT : Chargement instantané pour ${searchTicker} (${type}).`);
       return cachedResult;
+    }
+
+    // AUDIT FIX: Rate limiting hybride (Supabase-backed) exécuté uniquement en cas de CACHE MISS !
+    if (await this.checkRateLimit()) {
+      throw new Error('RATE_LIMIT: Trop de requêtes. Veuillez réessayer dans quelques secondes.');
     }
 
     console.log(`[Orchestrator] 🚀 Launching Engine: Ticker="${searchTicker}", Nom="${searchName}"`);
