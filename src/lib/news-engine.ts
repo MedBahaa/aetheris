@@ -151,27 +151,16 @@ export class NewsEngine {
     
     console.log(`[NewsEngine] Recherche pour "${companyName}" avec termes: [${allTerms.join(', ')}]`);
 
-    // Ajouter des feeds Google News CIBLÉS avec nom exact entre guillemets
+    // Single ciblée boolean query on Google News to avoid multiple parallel requests
+    const termsGroup = [`"${companyName}"`, ...aliases.map(a => `"${a}"`)].join(' OR ');
+    const queryStr = `(${termsGroup}) AND (Bourse OR Casablanca OR Maroc OR Action OR "résultats" OR "dividende")`;
+    
     const companyFeeds = [
       {
         name: 'Google News',
-        url: `https://news.google.com/rss/search?q="${encodeURIComponent(companyName)}"&hl=fr-MA&gl=MA&ceid=MA:fr`
-      },
-      {
-        name: 'Google News Bourse',
-        url: `https://news.google.com/rss/search?q="${encodeURIComponent(companyName)}"+Bourse+Casablanca&hl=fr-MA&gl=MA&ceid=MA:fr`
+        url: `https://news.google.com/rss/search?q=${encodeURIComponent(queryStr)}&hl=fr-MA&gl=MA&ceid=MA:fr`
       }
     ];
-    
-    // Ajouter aussi les alias courts comme feeds spécifiques (ex: "IAM" pour Maroc Telecom)
-    for (const alias of aliases) {
-      if (alias.length <= 5) {
-        companyFeeds.push({
-          name: 'Google News',
-          url: `https://news.google.com/rss/search?q="${encodeURIComponent(alias)}"+Bourse+Maroc&hl=fr-MA&gl=MA&ceid=MA:fr`
-        });
-      }
-    }
     
     const allFeeds = [...FEEDS, ...companyFeeds];
 
@@ -312,26 +301,43 @@ export class NewsEngine {
   }
 
   /**
-   * Dédoublonnage sémantique basique
+   * Calcule la similarité de Jaccard entre deux chaînes de caractères (mots uniques)
+   */
+  private getJaccardSimilarity(str1: string, str2: string): number {
+    const cleanWords = (s: string) => s.toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '')
+      .split(/\s+/)
+      .filter(w => w.length > 2); // Exclure les mots trop courts comme "le", "de", "la"
+
+    const set1 = new Set(cleanWords(str1));
+    const set2 = new Set(cleanWords(str2));
+
+    if (set1.size === 0 || set2.size === 0) return 0;
+
+    const intersection = new Set([...set1].filter(x => set2.has(x)));
+    const union = new Set([...set1, ...set2]);
+
+    return intersection.size / union.size;
+  }
+
+  /**
+   * Dédoublonnage sémantique avancé par similarité de Jaccard
    */
   private deduplicateArticles(articles: NewsArticle[]): NewsArticle[] {
-    const seen: string[] = [];
-    return articles.filter(article => {
-      // Normaliser le titre pour la comparaison
-      const normalized = article.title.toLowerCase()
-        .replace(/[^a-zàâéèêëïîôùûüç0-9\s]/g, '')
-        .trim();
-      
-      // Heuristique : Si les 4 premiers mots sont identiques, c'est probablement un doublon
-      const words = normalized.split(/\s+/).slice(0, 5).join(' ');
-      
-      if (seen.some(s => s === words)) {
-        return false;
+    const uniqueList: NewsArticle[] = [];
+    
+    for (const article of articles) {
+      const isDuplicate = uniqueList.some(inserted => {
+        const similarity = this.getJaccardSimilarity(inserted.title, article.title);
+        return similarity > 0.55; // Seuil de similarité (55% de mots communs)
+      });
+
+      if (!isDuplicate) {
+        uniqueList.push(article);
       }
-      
-      seen.push(words);
-      return true;
-    });
+    }
+
+    return uniqueList;
   }
 }
 
