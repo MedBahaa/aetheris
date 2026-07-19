@@ -287,11 +287,7 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
                     className={`agent-btn-compact user-profile-btn ${pathname === '/profile' ? 'active' : ''} ${profile?.subscription_tier === 'premium' ? 'premium-active' : ''}`}
                   >
                     <div className="user-avatar-group">
-                      {profile?.subscription_tier === 'premium' ? (
-                        <span className="premium-crown-avatar">👑</span>
-                      ) : (
-                        <User size={16} />
-                      )}
+                      <User size={16} />
                     </div>
                     <span>Mon Profil & Abonnement</span>
                     {profile?.subscription_tier === 'premium' ? (
@@ -489,12 +485,7 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
             font-size: 10px;
             transition: all 0.2s;
           }
-          .user-profile-btn.premium-active .user-avatar-group {
-            background: rgba(245, 158, 11, 0.1);
-          }
-          .premium-crown-avatar {
-            font-size: 10px;
-          }
+
           .premium-badge-nav {
             margin-left: auto;
             background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
