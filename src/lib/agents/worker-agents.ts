@@ -1,5 +1,6 @@
 import { CompanyAnalysis, FundamentalDataSchema, DataSource } from '../schemas';
 import { BMCEBourseScraper } from '../scrapers/bmce-scraper';
+import { supabaseAdmin } from '../supabase';
 import { TechnicalEngine } from '../technical-engine';
 import { newsEngine } from '../news-engine';
 import { GeminiService } from '../gemini';
@@ -116,16 +117,56 @@ export const MarketWorker = {
     try {
       console.log(`[MarketWorker] Analyse technique pour "${company}"...`);
       
-      // 1 & 2. Récupérer le PRIX ACTUEL et l'HISTORIQUE en parallèle (Gain de temps)
-      let [liveData, history] = await Promise.all([
+      // 1 & 2. Récupérer le PRIX ACTUEL et l'HISTORIQUE détaillé en parallèle (Gain de temps)
+      let [liveData, detailedHistory] = await Promise.all([
         MarketListScraper.getLiveStock(company),
-        WafabourseScraper.getStockHistory(company)
+        WafabourseScraper.getStockHistoryDetailed(company)
       ]);
+
+      let history = detailedHistory.closes;
 
       // Fallback si l'historique Wafabourse est vide
       if (history.length === 0) {
         console.warn(`[MarketWorker] Historique Wafabourse vide pour ${company}. Fallback sur BMCE...`);
         history = await BMCEBourseScraper.getStockHistory(company);
+      } else {
+        // ✅ SYNCHRONISATION EN BULK DE L'HISTORIQUE BOURSIER DANS LA DB
+        // Élimine le message "Données historiques insuffisantes" du graphique
+        try {
+          const resolved = await BMCEBourseScraper.resolveStock(company);
+          if (resolved && resolved.uuid) {
+            // Vérifier s'il y a déjà assez de points historiques dans la DB
+            const { count, error: countErr } = await supabaseAdmin
+              .from('market_history')
+              .select('*', { count: 'exact', head: true })
+              .eq('company_id', resolved.uuid);
+              
+            if (!countErr && (count || 0) < 15) {
+              console.log(`[MarketWorker] ⏳ Synchro en cours de l'historique pour ${company} (${detailedHistory.historyPoints.length} points)...`);
+              const pointsToInsert = detailedHistory.historyPoints.map(pt => ({
+                company_id: resolved.uuid,
+                price: pt.price,
+                volume: pt.volume,
+                timestamp: pt.timestamp,
+                variation: '0.0%'
+              }));
+              
+              // Bulk insert les 120 derniers points (6 mois de trading) pour rester rapide
+              const chunk = pointsToInsert.slice(-120);
+              const { error: insertErr } = await supabaseAdmin
+                .from('market_history')
+                .insert(chunk);
+                
+              if (insertErr) {
+                console.error(`[MarketWorker] Erreur synchro historique db:`, insertErr.message);
+              } else {
+                console.log(`[MarketWorker] ✅ Synchro réussie de ${chunk.length} points historiques pour ${company}.`);
+              }
+            }
+          }
+        } catch (dbErr: any) {
+          console.error(`[MarketWorker] Exception synchro historique db:`, dbErr.message);
+        }
       }
 
       console.log(`[MarketWorker] Live data match for "${company}": ${liveData ? 'OUI (' + liveData.symbol + ')' : 'NON (N/A)'}`);
