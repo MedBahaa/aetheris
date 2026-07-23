@@ -96,7 +96,7 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
       ) : (
         <>
           {/* ────────────────── MOBILE CARDS VIEW (< 1024px) ────────────────── */}
-          <div className="mobile-cards-container lg:hidden flex flex-col gap-3 p-3">
+          <div className="mobile-only-container gap-3 p-3">
             {sortedHoldings.map((s) => {
               const isExpanded = expandedSymbol === s.symbol;
               const isSettingAlert = alertSymbol === s.symbol;
@@ -108,12 +108,12 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
               const perfPct = (( (s.pvNette ?? 0) / (s.totalCost || 1)) * 100).toFixed(2);
 
               return (
-                <div key={s.symbol} className={`glass-heavy p-4 rounded-xl flex flex-col gap-3 ${isSlTriggered ? 'border-red-500/50' : ''} ${isTpTriggered ? 'border-emerald-500/50' : ''}`}>
+                <div key={s.symbol} className={`glass-heavy p-4 rounded-xl flex flex-col gap-3 border border-white/10 ${isSlTriggered ? 'border-red-500/50' : ''} ${isTpTriggered ? 'border-emerald-500/50' : ''}`}>
                   {/* Header row */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2" onClick={() => onNavigateToStock(s.symbol)} role="button" tabIndex={0}>
-                      <span className="font-bold text-lg text-white">{s.symbol}</span>
-                      <span className="text-[10px] text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded">{s.sector}</span>
+                  <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
+                    <div className="flex items-center gap-2 cursor-pointer" onClick={() => onNavigateToStock(s.symbol)} role="button" tabIndex={0}>
+                      <span className="font-extrabold text-base text-white tracking-tight">{s.symbol}</span>
+                      <span className="text-[10px] text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono">{s.sector}</span>
                     </div>
                     <div className={`momentum-box ${(s.pvNette ?? 0) >= 0 ? 'bull' : 'bear'}`}>
                       <span className="m-abs mono font-bold text-xs">{(s.pvNette ?? 0) >= 0 ? '+' : ''}{(s.pvNette ?? 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD</span>
@@ -121,23 +121,23 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
                     </div>
                   </div>
 
-                  {/* Grid details */}
-                  <div className="grid grid-cols-2 gap-2 text-xs bg-slate-900/40 p-2.5 rounded-lg border border-white/5">
-                    <div>
-                      <span className="text-slate-400 text-[10px] block">Qté / PMP</span>
-                      <span className="mono font-semibold text-slate-200">{s.totalQuantity} pcs @ {s.weightedAveragePrice.toFixed(2)}</span>
+                  {/* Clean Flex Data rows */}
+                  <div className="flex flex-col gap-2 text-xs bg-slate-950/70 p-3 rounded-lg border border-white/5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-[11px] font-medium">Qté / PMP :</span>
+                      <span className="mono font-semibold text-slate-100">{s.totalQuantity} pcs @ {s.weightedAveragePrice.toFixed(2)} MAD</span>
                     </div>
-                    <div>
-                      <span className="text-slate-400 text-[10px] block">Cours Actuel</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-[11px] font-medium">Cours Actuel :</span>
                       <span className="mono font-bold text-white">{(s.curPrice ?? 0).toFixed(2)} MAD</span>
                     </div>
-                    <div>
-                      <span className="text-slate-400 text-[10px] block">Valeur Totale</span>
-                      <span className="mono font-bold text-emerald-400">{valuation.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD ({weightPct}%)</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-[11px] font-medium">Valeur Totale :</span>
+                      <span className="mono font-bold text-emerald-400">{valuation.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD <span className="text-[10px] text-slate-400">({weightPct}%)</span></span>
                     </div>
-                    <div>
-                      <span className="text-slate-400 text-[10px] block">Dividendes / YOC</span>
-                      <span className="mono font-semibold text-slate-200">{(s.totalDividends ?? 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD ({(s.yieldOnCost ?? 0).toFixed(1)}%)</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-[11px] font-medium">Dividendes / YOC :</span>
+                      <span className="mono font-semibold text-slate-200">{(s.totalDividends ?? 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD <span className="text-[10px] text-slate-400">({(s.yieldOnCost ?? 0).toFixed(1)}%)</span></span>
                     </div>
                   </div>
 
@@ -146,26 +146,26 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
                     <div className="flex gap-1.5 items-center">
                       {alert ? (
                         <div className="flex gap-1 text-[10px]">
-                          {alert.sl_price && <span className={`px-2 py-0.5 rounded ${isSlTriggered ? 'bg-red-500/20 text-red-400' : 'bg-slate-800 text-slate-400'}`}>SL {alert.sl_price}</span>}
-                          {alert.tp_price && <span className={`px-2 py-0.5 rounded ${isTpTriggered ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-400'}`}>TP {alert.tp_price}</span>}
+                          {alert.sl_price && <span className={`px-2 py-0.5 rounded font-mono ${isSlTriggered ? 'bg-red-500/20 text-red-400 border border-red-500/40' : 'bg-slate-800 text-slate-300'}`}>SL {alert.sl_price}</span>}
+                          {alert.tp_price && <span className={`px-2 py-0.5 rounded font-mono ${isTpTriggered ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-slate-800 text-slate-300'}`}>TP {alert.tp_price}</span>}
                         </div>
-                      ) : <span className="text-[10px] text-slate-500">Pas d'alerte</span>}
+                      ) : <span className="text-[11px] text-slate-500 font-mono">Pas d'alerte</span>}
                     </div>
 
                     <div className="flex gap-2">
                       <button 
                         onClick={() => { setAlertForm({ sl_price: alert?.sl_price?.toString() || '', tp_price: alert?.tp_price?.toString() || '' }); setAlertSymbol(isSettingAlert ? null : s.symbol); }} 
-                        className={`touch-target px-3 py-1.5 text-xs rounded-lg border border-white/10 flex items-center gap-1 ${isSettingAlert ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800/80 text-slate-300'}`}
+                        className={`touch-target px-3 py-1.5 text-xs rounded-lg border font-medium flex items-center gap-1.5 transition-all ${isSettingAlert ? 'bg-emerald-950 border-emerald-500 text-emerald-300' : 'bg-slate-900 border-white/10 text-slate-200 hover:bg-slate-800'}`}
                         aria-label="Alerte SL/TP"
                       >
-                        <Bell size={14} /> <span>Alerte</span>
+                        <Bell size={13} className="text-emerald-400" /> <span>Alerte</span>
                       </button>
                       <button 
                         onClick={() => setExpandedSymbol(isExpanded ? null : s.symbol)} 
-                        className={`touch-target px-3 py-1.5 text-xs rounded-lg border border-white/10 flex items-center gap-1 ${isExpanded ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-800/80 text-slate-300'}`}
+                        className={`touch-target px-3 py-1.5 text-xs rounded-lg border font-medium flex items-center gap-1.5 transition-all ${isExpanded ? 'bg-blue-950 border-blue-500 text-blue-300' : 'bg-slate-900 border-white/10 text-slate-200 hover:bg-slate-800'}`}
                         aria-label="Historique des transactions"
                       >
-                        <span>Tx</span> {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        <span>Tx</span> {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                       </button>
                     </div>
                   </div>
@@ -197,10 +197,10 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
                       <span className="text-[10px] font-bold text-slate-300">HISTORIQUE TRANSACTIONS</span>
                       <div className="flex flex-col gap-1.5">
                         {s.transactions.map((tx) => (
-                          <div key={tx.id} className="flex items-center justify-between text-xs bg-slate-950 p-2 rounded">
+                          <div key={tx.id} className="flex items-center justify-between text-xs bg-slate-950 p-2 rounded border border-white/5">
                             <div className="flex items-center gap-2">
                               <span className={`px-1.5 py-0.5 text-[9px] rounded font-bold ${tx.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>{tx.type}</span>
-                              <span className="text-slate-300">{tx.quantity} pcs @ {tx.buy_price.toFixed(2)}</span>
+                              <span className="text-slate-300">{tx.quantity} pcs @ {tx.buy_price.toFixed(2)} MAD</span>
                             </div>
                             <button className="text-red-400 p-1" onClick={() => { if (confirm('Supprimer ?')) deletePortfolioTransactionAction(tx.id).then(loadData); }} aria-label="Supprimer transaction">
                               <Trash2 size={14} />
@@ -216,7 +216,7 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
           </div>
 
           {/* ────────────────── DESKTOP TABLE VIEW (>= 1024px) ────────────────── */}
-          <div className="table-scroll hidden lg:block">
+          <div className="table-scroll desktop-only-container">
             <table className="institutional-table">
               <thead>
                 <tr className="glass-heavy">
