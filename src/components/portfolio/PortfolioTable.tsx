@@ -155,14 +155,14 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
                     <div className="flex gap-2">
                       <button 
                         onClick={() => { setAlertForm({ sl_price: alert?.sl_price?.toString() || '', tp_price: alert?.tp_price?.toString() || '' }); setAlertSymbol(isSettingAlert ? null : s.symbol); }} 
-                        className={`touch-target px-3 py-1.5 text-xs rounded-lg border font-medium flex items-center gap-1.5 transition-all ${isSettingAlert ? 'bg-emerald-950 border-emerald-500 text-emerald-300' : 'bg-slate-900 border-white/10 text-slate-200 hover:bg-slate-800'}`}
+                        className={`mobile-card-btn ${isSettingAlert ? 'active-alert' : ''}`}
                         aria-label="Alerte SL/TP"
                       >
                         <Bell size={13} className="text-emerald-400" /> <span>Alerte</span>
                       </button>
                       <button 
                         onClick={() => setExpandedSymbol(isExpanded ? null : s.symbol)} 
-                        className={`touch-target px-3 py-1.5 text-xs rounded-lg border font-medium flex items-center gap-1.5 transition-all ${isExpanded ? 'bg-blue-950 border-blue-500 text-blue-300' : 'bg-slate-900 border-white/10 text-slate-200 hover:bg-slate-800'}`}
+                        className={`mobile-card-btn ${isExpanded ? 'active-tx' : ''}`}
                         aria-label="Historique des transactions"
                       >
                         <span>Tx</span> {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}

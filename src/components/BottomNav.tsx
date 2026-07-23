@@ -42,18 +42,17 @@ export default function BottomNav() {
 
       <style jsx>{`
         .mobile-bottom-nav {
-          position: fixed;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          z-index: 950;
-          background: rgba(8, 12, 18, 0.88);
-          backdrop-filter: blur(20px) saturate(180%);
-          -webkit-backdrop-filter: blur(20px) saturate(180%);
-          border-top: 1px solid rgba(255, 255, 255, 0.08);
-          padding-bottom: env(safe-area-inset-bottom, 0px);
-          box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
-          transition: transform 0.3s ease;
+          position: fixed !important;
+          bottom: 0 !important;
+          left: 0 !important;
+          right: 0 !important;
+          z-index: 99999 !important;
+          background: #090d14 !important;
+          backdrop-filter: blur(24px) saturate(200%) !important;
+          -webkit-backdrop-filter: blur(24px) saturate(200%) !important;
+          border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
+          padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+          box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.9) !important;
         }
 
         @media (min-width: 1024px) {
@@ -72,7 +71,11 @@ export default function BottomNav() {
           padding: 0 0.5rem;
         }
 
-        .nav-tab-item {
+        :global(.nav-tab-item),
+        :global(.nav-tab-item:visited),
+        :global(.nav-tab-item:hover),
+        :global(.nav-tab-item:active),
+        :global(.nav-tab-item:focus) {
           flex: 1;
           display: flex;
           flex-direction: column;
@@ -81,20 +84,22 @@ export default function BottomNav() {
           gap: 3px;
           min-height: 48px;
           min-width: 48px;
-          color: #64748b;
-          text-decoration: none;
+          color: #94a3b8 !important;
+          text-decoration: none !important;
           transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
           position: relative;
           border-radius: 12px;
           -webkit-tap-highlight-color: transparent;
         }
 
-        .nav-tab-item:active {
-          transform: scale(0.94);
+        :global(.nav-tab-item:active) {
+          transform: scale(0.92);
         }
 
-        .nav-tab-item.is-active {
-          color: #10b981;
+        :global(.nav-tab-item.is-active),
+        :global(.nav-tab-item.is-active:visited) {
+          color: #10b981 !important;
+          text-decoration: none !important;
         }
 
         .icon-wrapper {
@@ -110,18 +115,19 @@ export default function BottomNav() {
           transition: transform 0.25s ease, color 0.25s ease;
         }
 
-        .nav-tab-item.is-active .tab-icon {
+        :global(.nav-tab-item.is-active) .tab-icon {
           transform: translateY(-1px);
+          color: #10b981 !important;
         }
 
         .active-glow-dot {
           position: absolute;
           bottom: -4px;
-          width: 4px;
-          height: 4px;
+          width: 5px;
+          height: 5px;
           background-color: #10b981;
           border-radius: 50%;
-          box-shadow: 0 0 8px #10b981, 0 0 12px #10b981;
+          box-shadow: 0 0 10px #10b981, 0 0 14px #10b981;
         }
 
         .tab-label {
@@ -129,11 +135,12 @@ export default function BottomNav() {
           font-weight: 700;
           letter-spacing: -0.01em;
           line-height: 1;
+          color: #94a3b8 !important;
           transition: color 0.25s ease;
         }
 
-        .nav-tab-item.is-active .tab-label {
-          color: #ffffff;
+        :global(.nav-tab-item.is-active) .tab-label {
+          color: #ffffff !important;
           font-weight: 800;
         }
       `}</style>
