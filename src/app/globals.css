@@ -603,6 +603,105 @@ body {
   border-color: rgba(59, 130, 246, 0.6) !important;
 }
 
+/* ==========================================================================
+   ULTRA-PREMIUM MARCHÉ LIVE MOBILE CARDS DESIGN (REVOLUT / TRADINGVIEW)
+   ========================================================================== */
+
+.live-market-mobile-card {
+  background: linear-gradient(165deg, rgba(21, 29, 43, 0.95) 0%, rgba(13, 19, 31, 0.95) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 20px !important;
+  padding: 16px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.price-hero-block {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+  gap: 4px !important;
+}
+
+.hero-price {
+  font-family: 'JetBrains Mono', monospace !important;
+  font-weight: 900 !important;
+  font-size: 1.15rem !important;
+  color: #ffffff !important;
+  line-height: 1 !important;
+}
+
+.hero-price .currency {
+  font-size: 10px !important;
+  color: #94a3b8 !important;
+  font-weight: 600 !important;
+}
+
+.live-metrics-3col {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 6px !important;
+}
+
+.market-card-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  overflow-x: auto !important;
+  padding-top: 4px !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+.market-card-actions::-webkit-scrollbar {
+  display: none !important;
+}
+
+.card-action-chip {
+  flex: 1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  padding: 7px 10px !important;
+  border-radius: 10px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  font-family: 'Inter', sans-serif !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: #e2e8f0 !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  transition: all 0.2s ease !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+.card-action-chip.strategy {
+  background: rgba(168, 85, 247, 0.15) !important;
+  color: #c084fc !important;
+  border-color: rgba(168, 85, 247, 0.35) !important;
+}
+
+.card-action-chip.technical {
+  background: rgba(56, 189, 248, 0.15) !important;
+  color: #38bdf8 !important;
+  border-color: rgba(56, 189, 248, 0.35) !important;
+}
+
+.card-action-chip.fundamental {
+  background: rgba(129, 140, 248, 0.15) !important;
+  color: #818cf8 !important;
+  border-color: rgba(129, 140, 248, 0.35) !important;
+}
+
+.card-action-chip:hover, .card-action-chip:active {
+  transform: scale(0.97) !important;
+}
+
 @media (max-width: 639px) {
   .section-header {
     display: flex !important;
