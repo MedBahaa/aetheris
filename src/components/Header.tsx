@@ -13,7 +13,7 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
     <header className="fixed-header glass-heavy">
       <div className="header-inner">
         {/* Logo à GAUCHE */}
-        <Link href="/" style={{ textDecoration: 'none' }}>
+        <Link href="/" style={{ textDecoration: 'none' }} aria-label="Aetheris AI Accueil">
           <div className="header-logo">
             <div className="logo-icon-box">
               <Zap size={18} fill="currentColor" />
@@ -28,7 +28,12 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
         </div>
 
         {/* Menu Burger à DROITE */}
-        <button onClick={onOpenSidebar} className="menu-toggle-btn" aria-label="Open Menu">
+        <button 
+          onClick={onOpenSidebar} 
+          className="menu-toggle-btn touch-target" 
+          aria-label="Ouvrir le menu principal"
+          aria-expanded={false}
+        >
           <Menu size={24} />
           <span className="menu-dot"></span>
         </button>
@@ -40,7 +45,8 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
           top: 0;
           left: 0;
           right: 0;
-          height: var(--header-height);
+          height: calc(var(--header-height) + var(--sat));
+          padding-top: var(--sat);
           z-index: 900;
           border-bottom: 1px solid var(--border-glass);
           display: flex;
@@ -51,7 +57,7 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
           width: 100%;
           max-width: var(--max-width);
           margin: 0 auto;
-          padding: 0 1.5rem;
+          padding: 0 1rem;
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -67,14 +73,14 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
           flex: 1;
           display: flex;
           justify-content: center;
-          margin: 0 1.5rem;
+          margin: 0 0.75rem;
           min-width: 0;
         }
 
         .header-logo {
           display: flex;
           align-items: center;
-          gap: 0.75rem;
+          gap: 0.5rem;
           cursor: pointer;
           transition: transform 0.3s var(--ease);
         }
@@ -98,7 +104,7 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
         .logo-text {
           font-family: 'Outfit', sans-serif;
           font-weight: 900;
-          font-size: 1.4rem;
+          font-size: clamp(1.1rem, 4vw, 1.4rem);
           color: #fff;
           letter-spacing: -0.04em;
         }
@@ -107,8 +113,8 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
           background: rgba(255, 255, 255, 0.03);
           border: 1px solid var(--border-glass);
           color: #fff;
-          width: 3rem;
-          height: 3rem;
+          width: 48px;
+          height: 48px;
           border-radius: 0.75rem;
           display: flex;
           align-items: center;

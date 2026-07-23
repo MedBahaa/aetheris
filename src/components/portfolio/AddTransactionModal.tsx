@@ -76,18 +76,21 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   }
 
   return (
-    <div className="modal-overlay glass-heavy animate-fade-in" onClick={() => setShowAddModal(false)}>
+    <div className="modal-overlay glass-heavy animate-fade-in" onClick={() => setShowAddModal(false)} aria-modal="true" role="dialog">
       <div className="modal-content glass-heavy animate-slide-up" onClick={e => e.stopPropagation()}>
+        {/* Mobile Drag Indicator Handle */}
+        <div className="w-12 h-1.5 bg-slate-700/60 rounded-full mx-auto mb-3 md:hidden" />
+
         <div className="modal-header">
           <h2 className="mono">ENREGISTRER UN ORDRE</h2>
-          <button onClick={() => setShowAddModal(false)} className="close-modal"><X size={20} /></button>
+          <button onClick={() => setShowAddModal(false)} className="close-modal touch-target" aria-label="Fermer la fenêtre"><X size={22} /></button>
         </div>
         <form onSubmit={handleAddTransaction} className="modal-form">
           <div className="tx-type-toggle">
-            <button type="button" className={`type-btn buy ${newTx.type === 'BUY' ? 'active' : ''}`} onClick={() => setNewTx({ ...newTx, type: 'BUY' })}>
+            <button type="button" className={`type-btn buy touch-target ${newTx.type === 'BUY' ? 'active' : ''}`} onClick={() => setNewTx({ ...newTx, type: 'BUY' })}>
               <ArrowUpRight size={14} /> ACHAT
             </button>
-            <button type="button" className={`type-btn sell ${newTx.type === 'SELL' ? 'active' : ''}`} onClick={() => setNewTx({ ...newTx, type: 'SELL' })}>
+            <button type="button" className={`type-btn sell touch-target ${newTx.type === 'SELL' ? 'active' : ''}`} onClick={() => setNewTx({ ...newTx, type: 'SELL' })}>
               <ArrowDownLeft size={14} /> VENTE
             </button>
           </div>
@@ -96,7 +99,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             <div className="form-group" ref={searchRef}>
               <label className="mono">SYMBOLE ACTION</label>
               <div className="input-with-suggestions">
-                <input type="text" value={newTx.symbol} onChange={e => setNewTx({ ...newTx, symbol: e.target.value.toUpperCase() })} onFocus={() => newTx.symbol.length >= 2 && setShowSuggestions(true)} placeholder="EX: IAM, BCP..." className="terminal-input-field" required autoComplete="off" />
+                <input type="text" value={newTx.symbol} onChange={e => setNewTx({ ...newTx, symbol: e.target.value.toUpperCase() })} onFocus={() => newTx.symbol.length >= 2 && setShowSuggestions(true)} placeholder="EX: IAM, BCP..." className="terminal-input-field" required autoComplete="off" inputMode="text" autoCapitalize="characters" />
                 {showSuggestions && suggestions.length > 0 && (
                   <div className="modal-suggestions glass-heavy animate-slide-up">
                     {suggestions.map((item, idx) => (
@@ -111,11 +114,11 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             </div>
             <div className="form-group">
               <label className="mono">QUANTITÉ</label>
-              <input type="number" value={newTx.quantity} onChange={e => setNewTx({ ...newTx, quantity: e.target.value })} placeholder="0" className="terminal-input-field" required />
+              <input type="number" inputMode="numeric" value={newTx.quantity} onChange={e => setNewTx({ ...newTx, quantity: e.target.value })} placeholder="0" className="terminal-input-field" required />
             </div>
             <div className="form-group">
               <label className="mono">{newTx.type === 'BUY' ? "PRIX D'ACHAT" : "PRIX DE VENTE"} (MAD)</label>
-              <input type="number" step="0.01" value={newTx.buy_price} onChange={e => setNewTx({ ...newTx, buy_price: e.target.value })} placeholder="0.00" className="terminal-input-field" required />
+              <input type="number" step="0.01" inputMode="decimal" value={newTx.buy_price} onChange={e => setNewTx({ ...newTx, buy_price: e.target.value })} placeholder="0.00" className="terminal-input-field" required />
             </div>
             <div className="form-group">
               <label className="mono">DATE D'EXÉCUTION</label>
@@ -148,10 +151,10 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             </div>
           )}
 
-          <button type="submit" className={`action-btn-terminal ${newTx.type === 'SELL' ? 'sell-btn' : 'strategy'} full-width`}>
-            {newTx.type === 'BUY' ? <ArrowUpRight size={16} /> : <ArrowDownLeft size={16} />}
-            <span>{newTx.type === 'BUY' ? "CONFIRMER L'ACHAT" : "CONFIRMER LA VENTE"}</span>
-          </button>
+          <div className="modal-actions">
+            <button type="button" onClick={() => setShowAddModal(false)} className="action-btn-terminal touch-target">ANNULER</button>
+            <button type="submit" className="action-btn-terminal strategy touch-target" disabled={!!warningMessage}>CONFIRMER L'ORDRE</button>
+          </div>
         </form>
       </div>
     </div>
