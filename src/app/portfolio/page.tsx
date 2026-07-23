@@ -110,15 +110,41 @@ export default function PortfolioPage() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [txs, divs, als, profile] = await Promise.all([
+
+      // Launch ALL Supabase actions AND API endpoints in ONE SINGLE PARALLEL BATCH 🚀
+      const [
+        txsRes,
+        divsRes,
+        alsRes,
+        profileRes,
+        pricesRes,
+        sectorsRes,
+        masiRes,
+        macroRes
+      ] = await Promise.allSettled([
         getPortfolioTransactionsAction(isVirtualMode),
         getDividendsAction(isVirtualMode).catch(() => []),
         getAlertsAction().catch(() => []),
         getUserProfileAction().then(res => (res && res.success) ? res.data : null).catch(() => null),
+        fetch('/api/market-live').then(r => r.json()).catch(() => null),
+        fetch('/api/companies/sectors').then(r => r.json()).catch(() => ({})),
+        fetch('/api/market-index').then(r => r.json()).catch(() => null),
+        fetch('/api/macro').then(r => r.json()).catch(() => null)
       ]);
+
+      const txs = txsRes.status === 'fulfilled' ? txsRes.value : [];
+      const divs = divsRes.status === 'fulfilled' ? divsRes.value : [];
+      const als = alsRes.status === 'fulfilled' ? alsRes.value : [];
+      const profile = profileRes.status === 'fulfilled' ? profileRes.value : null;
+      const pricesData = pricesRes.status === 'fulfilled' ? pricesRes.value : null;
+      const sectorMap = sectorsRes.status === 'fulfilled' ? (sectorsRes.value || {}) : {};
+      const masiData = masiRes.status === 'fulfilled' ? masiRes.value : null;
+      const macroD = macroRes.status === 'fulfilled' ? macroRes.value : null;
+
       setTransactions(txs);
       setDividends(divs);
       setAlerts(als);
+
       if (profile) {
         if (isVirtualMode) {
           setInitialCapital(profile.virtual_initial_capital ?? 100000);
@@ -135,22 +161,9 @@ export default function PortfolioPage() {
       }
 
       const calculatedHoldings = PortfolioService.calculateHoldings(txs);
-      
-      // Fetch prices and sectors in parallel
-      const [pricesRes, sectorsRes] = await Promise.all([
-        fetch('/api/market-live'),
-        fetch('/api/companies/sectors').catch(() => null)
-      ]);
-      
-      const [pricesData, sectorMap]: [any, Record<string, string>] = await Promise.all([
-        pricesRes.json(),
-        sectorsRes ? sectorsRes.json() : {}
-      ]);
-      
-      const liveData = (pricesData.status === 'success' && pricesData.stocks) ? pricesData.stocks : [];
-      
+      const liveData = (pricesData && pricesData.status === 'success' && pricesData.stocks) ? pricesData.stocks : [];
+
       const holdingsWithPrice = calculatedHoldings.map(h => {
-        // Find match using SymbolMapper for normalization
         const live = liveData.find((l: { symbol: string; price: any; sector?: string }) => {
           const normalizedLive = SymbolMapper.resolve(l.symbol);
           const normalizedHolding = SymbolMapper.resolve(h.symbol);
@@ -166,14 +179,7 @@ export default function PortfolioPage() {
 
       setHoldings(holdingsWithPrice);
 
-      // Fetch MASI for benchmark
-      const masiRes = await fetch('/api/market-index');
-      const masiData = await masiRes.json();
-      if (masiData.status === 'success') setMasiBenchmark(masiData.data);
-
-      // Fetch Macro for inflation
-      const macroRes = await fetch('/api/macro');
-      const macroD = await macroRes.json();
+      if (masiData && masiData.status === 'success') setMasiBenchmark(masiData.data);
       if (macroD && !macroD.error) setMacroData(macroD);
 
     } catch (err) {
@@ -560,6 +566,7 @@ export default function PortfolioPage() {
           </header>
 
           <PortfolioStats 
+            loading={loading}
             totalInvestedNet={totalInvestedNet}
             totalMarketValue={totalMarketValue}
             totalPvNette={totalPvNette}
