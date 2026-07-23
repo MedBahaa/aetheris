@@ -496,14 +496,49 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
         }
 
         @media (max-width: 640px) {
-          .chart-legend {
-            gap: 0.75rem;
-            flex-direction: column;
-            align-items: flex-start;
+          .portfolio-widget {
+            padding: 1rem !important;
+            border-radius: 1.25rem !important;
+          }
+          .widget-header-row {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 0.75rem !important;
+          }
+          .widget-title {
+            font-size: 1.15rem !important;
+            line-height: 1.2 !important;
+          }
+          .time-ranges {
+            width: 100% !important;
+            justify-content: space-between !important;
+          }
+          .range-btn {
+            padding: 0.35rem 0.5rem !important;
+            font-size: 10px !important;
+            flex: 1 !important;
+            text-align: center !important;
+          }
+          .chart-hud-overlay {
+            padding: 0.5rem !important;
+          }
+          .hud-content {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 0.35rem !important;
           }
           .hud-metrics {
-            flex-wrap: wrap;
-            gap: 0.5rem;
+            flex-wrap: wrap !important;
+            gap: 0.4rem 0.8rem !important;
+            font-size: 11px !important;
+          }
+          .chart-container {
+            height: 240px !important;
+          }
+          .chart-legend {
+            gap: 0.5rem !important;
+            flex-direction: column !important;
+            align-items: flex-start !important;
           }
         }
       `}</style>

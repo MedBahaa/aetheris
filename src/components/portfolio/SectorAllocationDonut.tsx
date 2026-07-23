@@ -274,13 +274,38 @@ export const SectorAllocationDonut: React.FC<SectorAllocationDonutProps> = ({
         }
 
         @media (max-width: 768px) {
+          .portfolio-widget {
+            padding: 1rem !important;
+            border-radius: 1.25rem !important;
+          }
+          .widget-header {
+            margin-bottom: 1rem !important;
+          }
+          .widget-title {
+            font-size: 1.15rem !important;
+          }
           .donut-container {
-            flex-direction: column;
-            gap: 1.5rem;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 1rem !important;
+          }
+          .donut-chart-wrapper {
+            margin-left: 0 !important;
+            margin: 0 auto !important;
           }
           .donut-legend {
-            max-width: 100%;
-            width: 100%;
+            max-width: 100% !important;
+            width: 100% !important;
+            display: grid !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 0.5rem 0.75rem !important;
+          }
+          .legend-item {
+            background: rgba(255, 255, 255, 0.03) !important;
+            border: 1px solid rgba(255, 255, 255, 0.05) !important;
+            border-radius: 8px !important;
+            padding: 6px 8px !important;
           }
         }
       `}</style>
