@@ -161,6 +161,7 @@ const tooltips = {
 // Props
 // ─────────────────────────────────────────────
 interface PortfolioStatsProps {
+  loading?: boolean;
   totalInvestedNet: number;
   totalMarketValue: number;
   totalPvNette: number;
@@ -181,6 +182,7 @@ interface PortfolioStatsProps {
 }
 
 export const PortfolioStats: React.FC<PortfolioStatsProps> = ({
+  loading = false,
   totalInvestedNet,
   totalMarketValue,
   totalPvNette,
@@ -202,6 +204,13 @@ export const PortfolioStats: React.FC<PortfolioStatsProps> = ({
   const realReturn = totalPerformance - inflationRate;
   const alpha = totalPerformance - masiReturn;
   
+  const renderVal = (formattedVal: React.ReactNode) => {
+    if (loading) {
+      return <div className="h-5 w-28 bg-slate-800/90 animate-pulse rounded my-1" />;
+    }
+    return formattedVal;
+  };
+
   return (
     <div className="stats-grid animate-fade-in" style={{ animationDelay: '0.1s' }}>
 
@@ -209,7 +218,9 @@ export const PortfolioStats: React.FC<PortfolioStatsProps> = ({
         <div className="stat-icon-box"><Briefcase size={18} /></div>
         <div className="stat-info">
           <span className="stat-label mono"><span className="stat-label-text">CAPITAL INVESTI (NET)</span> <KpiTooltip content={tooltips.capitalInvesti} /></span>
-          <div className="stat-value">{totalInvestedNet.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} <span className="currency">MAD</span></div>
+          <div className="stat-value">
+            {renderVal(<>{totalInvestedNet.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} <span className="currency">MAD</span></>)}
+          </div>
         </div>
       </div>
 
@@ -218,7 +229,7 @@ export const PortfolioStats: React.FC<PortfolioStatsProps> = ({
         <div className="stat-icon-box white"><PieChart size={18} /></div>
         <div className="stat-info">
           <span className="stat-label mono white opacity-70"><span className="stat-label-text">VALEUR LIQUIDATIVE</span> <KpiTooltip content={tooltips.valeurLiquidative} /></span>
-          <div className="stat-value white">{totalMarketValue.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} <span className="currency white">MAD</span></div>
+          <div className="stat-value white">{renderVal(<>{totalMarketValue.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} <span className="currency white">MAD</span></>)}</div>
         </div>
       </div>
 
@@ -226,7 +237,7 @@ export const PortfolioStats: React.FC<PortfolioStatsProps> = ({
         <div className="stat-icon-box">{totalPvNette >= 0 ? <TrendingUp size={18} /> : <TrendingDown size={18} />}</div>
         <div className="stat-info">
           <span className="stat-label mono"><span className="stat-label-text">PV NETTE LATENTE</span> <KpiTooltip content={tooltips.pvLatente} /></span>
-          <div className="stat-value">{totalPvNette >= 0 ? '+' : ''}{totalPvNette.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}</div>
+          <div className="stat-value">{renderVal(<>{totalPvNette >= 0 ? '+' : ''}{totalPvNette.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}</>)}</div>
         </div>
       </div>
 
@@ -234,7 +245,7 @@ export const PortfolioStats: React.FC<PortfolioStatsProps> = ({
         <div className="stat-icon-box"><ShieldCheck size={18} /></div>
         <div className="stat-info">
           <span className="stat-label mono"><span className="stat-label-text">PV RÉALISÉE (NET)</span> <KpiTooltip content={tooltips.pvRealisee} /></span>
-          <div className="stat-value">{realizedPnL >= 0 ? '+' : ''}{realizedPnL.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}</div>
+          <div className="stat-value">{renderVal(<>{realizedPnL >= 0 ? '+' : ''}{realizedPnL.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}</>)}</div>
         </div>
       </div>
 
@@ -242,7 +253,7 @@ export const PortfolioStats: React.FC<PortfolioStatsProps> = ({
         <div className="stat-icon-box"><Percent size={18} /></div>
         <div className="stat-info">
           <span className="stat-label mono"><span className="stat-label-text">PERFORMANCE NETTE</span> <KpiTooltip content={tooltips.performance} /></span>
-          <div className="stat-value">{totalPerformance >= 0 ? '+' : ''}{totalPerformance.toFixed(2)}<span className="pct">%</span></div>
+          <div className="stat-value">{renderVal(<>{totalPerformance >= 0 ? '+' : ''}{totalPerformance.toFixed(2)}<span className="pct">%</span></>)}</div>
         </div>
       </div>
 
@@ -250,7 +261,7 @@ export const PortfolioStats: React.FC<PortfolioStatsProps> = ({
         <div className="stat-icon-box" style={{ color: '#10b981', background: 'rgba(16, 185, 129, 0.1)' }}><Gift size={18} /></div>
         <div className="stat-info">
           <span className="stat-label mono"><span className="stat-label-text">DIVIDENDES REÇUS (NET)</span> <KpiTooltip content={tooltips.dividendes} /></span>
-          <div className="stat-value text-emerald-400">{totalDividends.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} <span className="currency">MAD</span></div>
+          <div className="stat-value text-emerald-400">{renderVal(<>{totalDividends.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} <span className="currency">MAD</span></>)}</div>
         </div>
       </div>
 
@@ -266,7 +277,7 @@ export const PortfolioStats: React.FC<PortfolioStatsProps> = ({
               <button onClick={handleSaveCapital} className="capital-save-btn">OK</button>
             </div>
           ) : (
-            <div className="stat-value">{liquidites !== null ? liquidites.toLocaleString('fr-FR', { minimumFractionDigits: 2 }) : '— Définir →'} <span className="currency">MAD</span></div>
+            <div className="stat-value">{renderVal(<>{liquidites !== null ? liquidites.toLocaleString('fr-FR', { minimumFractionDigits: 2 }) : '— Définir →'} <span className="currency">MAD</span></>)}</div>
           )}
         </div>
       </div>
@@ -275,7 +286,7 @@ export const PortfolioStats: React.FC<PortfolioStatsProps> = ({
         <div className="stat-icon-box" style={{ color: riskScore.color }}><AlertTriangle size={18} /></div>
         <div className="stat-info">
           <span className="stat-label mono"><span className="stat-label-text">RISQUE CONCENTRATION</span> <KpiTooltip content={tooltips.risque} /></span>
-          <div className="stat-value" style={{ color: riskScore.color, fontSize: '1.2rem' }}>{riskScore.label}</div>
+          <div className="stat-value" style={{ color: riskScore.color, fontSize: '1.2rem' }}>{renderVal(riskScore.label)}</div>
           <div className="risk-gauge-bar">
             <div className="risk-gauge-fill" style={{ width: `${riskScore.score}%`, background: riskScore.color }}></div>
           </div>
@@ -286,7 +297,7 @@ export const PortfolioStats: React.FC<PortfolioStatsProps> = ({
         <div className="stat-icon-box"><Zap size={18} /></div>
         <div className="stat-info">
           <span className="stat-label mono"><span className="stat-label-text">ALPHA VS MASI</span> <KpiTooltip content={tooltips.alpha} /></span>
-          <div className="stat-value">{alpha >= 0 ? '+' : ''}{alpha.toFixed(2)}<span className="pct">%</span></div>
+          <div className="stat-value">{renderVal(<>{alpha >= 0 ? '+' : ''}{alpha.toFixed(2)}<span className="pct">%</span></>)}</div>
           <span className="m-sub">Vs Marché {masiReturn.toFixed(2)}%</span>
         </div>
       </div>
@@ -295,7 +306,7 @@ export const PortfolioStats: React.FC<PortfolioStatsProps> = ({
         <div className="stat-icon-box"><TrendingUp size={18} /></div>
         <div className="stat-info">
           <span className="stat-label mono"><span className="stat-label-text">RENDEMENT RÉEL (NET)</span> <KpiTooltip content={tooltips.rendementReel} /></span>
-          <div className="stat-value">{realReturn >= 0 ? '+' : ''}{realReturn.toFixed(2)}<span className="pct">%</span></div>
+          <div className="stat-value">{renderVal(<>{realReturn >= 0 ? '+' : ''}{realReturn.toFixed(2)}<span className="pct">%</span></>)}</div>
           <span className="m-sub">Vs Inflation {inflationRate}%</span>
         </div>
       </div>
