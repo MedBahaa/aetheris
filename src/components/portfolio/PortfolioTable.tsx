@@ -96,6 +96,7 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
       ) : (
         <>
           {/* ────────────────── MOBILE CARDS VIEW (< 1024px) ────────────────── */}
+          {/* ────────────────── MOBILE CARDS VIEW (< 1024px) ────────────────── */}
           <div className="mobile-only-container gap-3 p-3">
             {sortedHoldings.map((s) => {
               const isExpanded = expandedSymbol === s.symbol;
@@ -105,64 +106,96 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
               const isTpTriggered = alert?.tp_price && (s.curPrice ?? 0) >= alert.tp_price;
               const valuation = s.totalQuantity * (s.curPrice ?? 0);
               const weightPct = totalMarketValue > 0 ? (valuation / totalMarketValue * 100).toFixed(1) : '0.0';
-              const perfPct = (( (s.pvNette ?? 0) / (s.totalCost || 1)) * 100).toFixed(2);
+              const perfPct = (((s.pvNette ?? 0) / (s.totalCost || 1)) * 100).toFixed(2);
+              const isPositive = (s.pvNette ?? 0) >= 0;
 
               return (
-                <div key={s.symbol} className={`glass-heavy p-4 rounded-xl flex flex-col gap-3 border border-white/10 ${isSlTriggered ? 'border-red-500/50' : ''} ${isTpTriggered ? 'border-emerald-500/50' : ''}`}>
-                  {/* Header row */}
-                  <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
-                    <div className="flex items-center gap-2 cursor-pointer" onClick={() => onNavigateToStock(s.symbol)} role="button" tabIndex={0}>
-                      <span className="font-extrabold text-base text-white tracking-tight">{s.symbol}</span>
-                      <span className="text-[10px] text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono">{s.sector}</span>
+                <div 
+                  key={s.symbol} 
+                  className={`portfolio-mobile-card ${isSlTriggered ? 'border-red-500/60' : ''} ${isTpTriggered ? 'border-emerald-500/60' : ''}`}
+                >
+                  {/* CARD TOP HEADER: Avatar Badge + Symbol/Name + P&L Hero Pill */}
+                  <div className="card-top-row">
+                    <div className="card-identity" onClick={() => onNavigateToStock(s.symbol)} role="button" tabIndex={0}>
+                      <div className="stock-avatar-badge">
+                        {s.symbol.substring(0, 3)}
+                      </div>
+                      <div className="stock-titles">
+                        <span className="stock-symbol-title">{s.symbol}</span>
+                        <span className="stock-sector-pill">{s.sector}</span>
+                      </div>
                     </div>
-                    <div className={`momentum-box ${(s.pvNette ?? 0) >= 0 ? 'bull' : 'bear'}`}>
-                      <span className="m-abs mono font-bold text-xs">{(s.pvNette ?? 0) >= 0 ? '+' : ''}{(s.pvNette ?? 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD</span>
-                      <span className="mono-tiny opacity-70">({(s.pvNette ?? 0) >= 0 ? '+' : ''}{perfPct}%)</span>
+
+                    <div className={`pnl-hero-pill ${isPositive ? 'bull' : 'bear'}`}>
+                      <span className="pnl-amount">
+                        {isPositive ? '+' : ''}{(s.pvNette ?? 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD
+                      </span>
+                      <span className="pnl-percentage">
+                        {isPositive ? '▲ +' : '▼ '}{perfPct}%
+                      </span>
                     </div>
                   </div>
 
-                  {/* Clean Flex Data rows */}
-                  <div className="flex flex-col gap-2 text-xs bg-slate-950/70 p-3 rounded-lg border border-white/5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400 text-[11px] font-medium">Qté / PMP :</span>
-                      <span className="mono font-semibold text-slate-100">{s.totalQuantity} pcs @ {s.weightedAveragePrice.toFixed(2)} MAD</span>
+                  {/* 2x2 METRIC GRID BOXES */}
+                  <div className="metrics-2x2-grid">
+                    <div className="metric-box">
+                      <span className="metric-label">POSITION / PMP</span>
+                      <span className="metric-primary-val">{s.totalQuantity.toLocaleString('fr-FR')} <span className="unit">pcs</span></span>
+                      <span className="metric-sub-val">PMP: {s.weightedAveragePrice.toFixed(2)} MAD</span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400 text-[11px] font-medium">Cours Actuel :</span>
-                      <span className="mono font-bold text-white">{(s.curPrice ?? 0).toFixed(2)} MAD</span>
+
+                    <div className="metric-box">
+                      <span className="metric-label">COURS ACTUEL</span>
+                      <span className="metric-primary-val">{(s.curPrice ?? 0).toFixed(2)} <span className="unit">MAD</span></span>
+                      <span className="metric-sub-val text-emerald-400">Temps réel</span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400 text-[11px] font-medium">Valeur Totale :</span>
-                      <span className="mono font-bold text-emerald-400">{valuation.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD <span className="text-[10px] text-slate-400">({weightPct}%)</span></span>
+
+                    <div className="metric-box">
+                      <span className="metric-label">VALEUR TOTALE</span>
+                      <span className="metric-primary-val text-emerald-400">{valuation.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} <span className="unit">MAD</span></span>
+                      <span className="metric-sub-val">Poids: {weightPct}%</span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400 text-[11px] font-medium">Dividendes / YOC :</span>
-                      <span className="mono font-semibold text-slate-200">{(s.totalDividends ?? 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD <span className="text-[10px] text-slate-400">({(s.yieldOnCost ?? 0).toFixed(1)}%)</span></span>
+
+                    <div className="metric-box">
+                      <span className="metric-label">DIVIDENDES</span>
+                      <span className="metric-primary-val">{(s.totalDividends ?? 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} <span className="unit">MAD</span></span>
+                      <span className="metric-sub-val">YOC: {(s.yieldOnCost ?? 0).toFixed(1)}%</span>
                     </div>
                   </div>
 
-                  {/* Action buttons */}
-                  <div className="flex items-center justify-between pt-1">
-                    <div className="flex gap-1.5 items-center">
+                  {/* CARD FOOTER: Alert Status & Action Buttons */}
+                  <div className="card-footer-row">
+                    <div className="alert-status-area">
                       {alert ? (
-                        <div className="flex gap-1 text-[10px]">
-                          {alert.sl_price && <span className={`px-2 py-0.5 rounded font-mono ${isSlTriggered ? 'bg-red-500/20 text-red-400 border border-red-500/40' : 'bg-slate-800 text-slate-300'}`}>SL {alert.sl_price}</span>}
-                          {alert.tp_price && <span className={`px-2 py-0.5 rounded font-mono ${isTpTriggered ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-slate-800 text-slate-300'}`}>TP {alert.tp_price}</span>}
+                        <div className="flex gap-1.5 text-[10px]">
+                          {alert.sl_price && (
+                            <span className={`alert-badge sl ${isSlTriggered ? 'triggered' : ''}`}>
+                              SL: {alert.sl_price}
+                            </span>
+                          )}
+                          {alert.tp_price && (
+                            <span className={`alert-badge tp ${isTpTriggered ? 'triggered' : ''}`}>
+                              TP: {alert.tp_price}
+                            </span>
+                          )}
                         </div>
-                      ) : <span className="text-[11px] text-slate-500 font-mono">Pas d'alerte</span>}
+                      ) : (
+                        <span className="no-alert-label">Pas d'alerte</span>
+                      )}
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="card-actions-group">
                       <button 
                         onClick={() => { setAlertForm({ sl_price: alert?.sl_price?.toString() || '', tp_price: alert?.tp_price?.toString() || '' }); setAlertSymbol(isSettingAlert ? null : s.symbol); }} 
-                        className={`mobile-card-btn ${isSettingAlert ? 'active-alert' : ''}`}
+                        className={`action-btn-pill ${isSettingAlert ? 'active-alert' : ''}`}
                         aria-label="Alerte SL/TP"
                       >
                         <Bell size={13} className="text-emerald-400" /> <span>Alerte</span>
                       </button>
+
                       <button 
                         onClick={() => setExpandedSymbol(isExpanded ? null : s.symbol)} 
-                        className={`mobile-card-btn ${isExpanded ? 'active-tx' : ''}`}
+                        className={`action-btn-pill ${isExpanded ? 'active-tx' : ''}`}
                         aria-label="Historique des transactions"
                       >
                         <span>Tx</span> {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
@@ -172,37 +205,37 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
 
                   {/* Alert form row for mobile */}
                   {isSettingAlert && (
-                    <div className="p-3 bg-slate-900/90 rounded-lg border border-emerald-500/30 flex flex-col gap-2 mt-1">
-                      <span className="text-[10px] font-bold text-slate-300">ALERTES PRIX {s.symbol}</span>
+                    <div className="p-3.5 bg-slate-950/95 rounded-xl border border-emerald-500/40 flex flex-col gap-2 mt-1 shadow-xl">
+                      <span className="text-[10px] font-bold text-slate-200 tracking-wider">ALERTES PRIX {s.symbol}</span>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="text-[9px] text-red-400 font-bold block mb-1">🔴 STOP-LOSS</label>
-                          <input type="number" step="0.01" value={alertForm.sl_price} onChange={e => setAlertForm(f => ({ ...f, sl_price: e.target.value }))} placeholder={`< ${(s.curPrice ?? 0).toFixed(2)}`} className="w-full bg-black/60 border border-white/10 text-white rounded p-1.5 text-xs" />
+                          <input type="number" step="0.01" value={alertForm.sl_price} onChange={e => setAlertForm(f => ({ ...f, sl_price: e.target.value }))} placeholder={`< ${(s.curPrice ?? 0).toFixed(2)}`} className="w-full bg-black/80 border border-white/15 text-white rounded-lg p-2 text-xs font-mono" />
                         </div>
                         <div>
                           <label className="text-[9px] text-emerald-400 font-bold block mb-1">🟢 TAKE-PROFIT</label>
-                          <input type="number" step="0.01" value={alertForm.tp_price} onChange={e => setAlertForm(f => ({ ...f, tp_price: e.target.value }))} placeholder={`> ${(s.curPrice ?? 0).toFixed(2)}`} className="w-full bg-black/60 border border-white/10 text-white rounded p-1.5 text-xs" />
+                          <input type="number" step="0.01" value={alertForm.tp_price} onChange={e => setAlertForm(f => ({ ...f, tp_price: e.target.value }))} placeholder={`> ${(s.curPrice ?? 0).toFixed(2)}`} className="w-full bg-black/80 border border-white/15 text-white rounded-lg p-2 text-xs font-mono" />
                         </div>
                       </div>
                       <div className="flex justify-end gap-2 mt-1">
-                        <button onClick={() => setAlertSymbol(null)} className="px-3 py-1 text-xs text-slate-400">Annuler</button>
-                        <button onClick={() => handleSaveAlert(s.symbol)} className="px-3 py-1 bg-emerald-500 text-black font-bold rounded text-xs">Sauvegarder</button>
+                        <button onClick={() => setAlertSymbol(null)} className="px-3 py-1.5 text-xs text-slate-400 hover:text-white">Annuler</button>
+                        <button onClick={() => handleSaveAlert(s.symbol)} className="px-4 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold rounded-lg text-xs shadow-md">Sauvegarder</button>
                       </div>
                     </div>
                   )}
 
                   {/* Expanded history for mobile */}
                   {isExpanded && (
-                    <div className="p-3 bg-slate-900/90 rounded-lg border border-white/10 flex flex-col gap-2 mt-1">
-                      <span className="text-[10px] font-bold text-slate-300">HISTORIQUE TRANSACTIONS</span>
+                    <div className="p-3.5 bg-slate-950/95 rounded-xl border border-white/15 flex flex-col gap-2 mt-1 shadow-xl">
+                      <span className="text-[10px] font-bold text-slate-200 tracking-wider">HISTORIQUE TRANSACTIONS</span>
                       <div className="flex flex-col gap-1.5">
                         {s.transactions.map((tx) => (
-                          <div key={tx.id} className="flex items-center justify-between text-xs bg-slate-950 p-2 rounded border border-white/5">
+                          <div key={tx.id} className="flex items-center justify-between text-xs bg-slate-900/80 p-2.5 rounded-lg border border-white/5">
                             <div className="flex items-center gap-2">
-                              <span className={`px-1.5 py-0.5 text-[9px] rounded font-bold ${tx.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>{tx.type}</span>
-                              <span className="text-slate-300">{tx.quantity} pcs @ {tx.buy_price.toFixed(2)} MAD</span>
+                              <span className={`px-2 py-0.5 text-[9px] rounded-full font-extrabold ${tx.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>{tx.type}</span>
+                              <span className="text-slate-200 font-mono">{tx.quantity} pcs @ {tx.buy_price.toFixed(2)} MAD</span>
                             </div>
-                            <button className="text-red-400 p-1" onClick={() => { if (confirm('Supprimer ?')) deletePortfolioTransactionAction(tx.id).then(loadData); }} aria-label="Supprimer transaction">
+                            <button className="text-red-400 hover:bg-red-500/10 p-1.5 rounded-lg" onClick={() => { if (confirm('Supprimer ?')) deletePortfolioTransactionAction(tx.id).then(loadData); }} aria-label="Supprimer transaction">
                               <Trash2 size={14} />
                             </button>
                           </div>
