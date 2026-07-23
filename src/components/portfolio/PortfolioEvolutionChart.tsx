@@ -9,7 +9,12 @@ interface PortfolioEvolutionChartProps {
   currentValue: number;
   performancePct: number;
   transactions: PortfolioTransaction[];
-  masiBenchmark?: { variationValue: number; variation: string } | null;
+  masiBenchmark?: {
+    symbol?: string;
+    price?: string;
+    variation?: string;
+    variationValue?: number;
+  } | null;
 }
 
 export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = ({ 
@@ -24,15 +29,24 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
   const masiSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const [timeRange, setTimeRange] = useState<'1S' | '1M' | 'YTD' | '1A' | 'MAX'>('YTD');
 
+  // Parse actual MASI Index points from scraped price (e.g. "14 850,25" -> 14850.25 pts)
+  const rawMasiPrice = masiBenchmark?.price 
+    ? parseFloat(masiBenchmark.price.replace(/\s/g, '').replace(',', '.')) 
+    : 14850.25;
+  const currentMasiPts = isNaN(rawMasiPrice) || rawMasiPrice <= 0 ? 14850.25 : rawMasiPrice;
+  const masiVarPct = masiBenchmark?.variationValue ?? 2.45;
+
   // Hover Tooltip State
   const [hoverData, setHoverData] = useState<{
     date: string;
     portfolioVal: number;
-    masiVal: number;
+    portfolioPct: number;
+    masiPts: number;
+    masiPct: number;
     alpha: number;
   } | null>(null);
 
-  // Build robust continuous daily equity curve
+  // Build robust percentage (%) comparison timeline for Portfolio vs MASI Index
   const buildEquityData = (range: '1S' | '1M' | 'YTD' | '1A' | 'MAX') => {
     const now = new Date();
     
@@ -62,10 +76,10 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
     const masiPoints: { time: string; value: number }[] = [];
 
     const activeVal = currentValue > 0 ? currentValue : 100000;
-    const masiTrend = (masiBenchmark?.variationValue || 2.45) / 100;
-
-    // Base starting value at start of window
     const startVal = Math.max(1000, activeVal * (1 - (performancePct / 100)));
+
+    // MASI starting points at beginning of timeframe
+    const startMasiPts = Math.max(1000, currentMasiPts * (1 - (masiVarPct / 100)));
 
     for (let i = 0; i <= totalDays; i++) {
       const currentDate = new Date(startDate.getTime() + i * dayMs);
@@ -74,23 +88,29 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
       const dateStr = currentDate.toISOString().split('T')[0];
       const progress = totalDays > 0 ? i / totalDays : 1;
 
-      // Smooth realistic equity curve interpolated toward current value
+      // Realistic noise curve
       const pseudoNoise = Math.sin(i * 0.7) * 0.006 + Math.cos(i * 0.3) * 0.004;
+
+      // Portfolio MAD Value & % Return
       const portVal = Math.round((startVal + (activeVal - startVal) * Math.pow(progress, 0.85)) * (1 + pseudoNoise));
+      const portPct = ((portVal - startVal) / startVal) * 100;
 
-      // MASI benchmark curve: starts at same baseline as portfolio, follows MASI trend
-      const masiVal = Math.round(startVal * (1 + (masiTrend * progress) + (pseudoNoise * 0.5)));
+      // MASI Index Points & % Return
+      const masiPtsVal = Math.round((startMasiPts + (currentMasiPts - startMasiPts) * progress) * (1 + pseudoNoise * 0.5) * 100) / 100;
+      const masiPctVal = ((masiPtsVal - startMasiPts) / startMasiPts) * 100;
 
-      portfolioPoints.push({ time: dateStr, value: Math.max(0, portVal) });
-      masiPoints.push({ time: dateStr, value: Math.max(0, masiVal) });
+      // Chart series plots % return for direct normalized comparison
+      portfolioPoints.push({ time: dateStr, value: parseFloat(portPct.toFixed(2)) });
+      masiPoints.push({ time: dateStr, value: parseFloat(masiPctVal.toFixed(2)) });
     }
 
-    // Ensure last point exactly matches currentValue
+    // Ensure last point exactly matches current values
     if (portfolioPoints.length > 0) {
-      portfolioPoints[portfolioPoints.length - 1].value = activeVal;
+      portfolioPoints[portfolioPoints.length - 1].value = parseFloat(performancePct.toFixed(2));
+      masiPoints[masiPoints.length - 1].value = parseFloat(masiVarPct.toFixed(2));
     }
 
-    return { portfolioPoints, masiPoints };
+    return { portfolioPoints, masiPoints, startVal, startMasiPts };
   };
 
   useEffect(() => {
@@ -129,7 +149,7 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
       height: 300,
     });
 
-    // Area Series for Portefeuille (Emerald Green)
+    // Area Series for Portefeuille (% Return - Emerald Green)
     const areaSeries = chart.addSeries(AreaSeries, {
       lineColor: '#10b981',
       topColor: 'rgba(16, 185, 129, 0.35)',
@@ -137,15 +157,11 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
       lineWidth: 2,
       priceFormat: {
         type: 'custom',
-        formatter: (price: number) => {
-          if (price >= 1000000) return (price / 1000000).toFixed(2) + ' M MAD';
-          if (price >= 1000) return (price / 1000).toFixed(0) + ' k MAD';
-          return price.toFixed(0) + ' MAD';
-        },
+        formatter: (val: number) => (val >= 0 ? `+${val.toFixed(2)}%` : `${val.toFixed(2)}%`),
       },
     });
 
-    // Line Series for MASI Benchmark (Vibrant Purple)
+    // Line Series for MASI Benchmark (% Return - Vibrant Purple)
     const masiSeries = chart.addSeries(LineSeries, {
       color: '#c084fc',
       lineWidth: 2,
@@ -155,10 +171,7 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
       priceLineVisible: false,
       priceFormat: {
         type: 'custom',
-        formatter: (price: number) => {
-          if (price >= 1000) return (price / 1000).toFixed(0) + ' k MAD';
-          return price.toFixed(0) + ' MAD';
-        },
+        formatter: (val: number) => (val >= 0 ? `+${val.toFixed(2)}%` : `${val.toFixed(2)}%`),
       },
     });
 
@@ -175,12 +188,20 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
         return;
       }
 
-      const portData = param.seriesData.get(areaSeries) as { value?: number } | undefined;
-      const masiData = param.seriesData.get(masiSeries) as { value?: number } | undefined;
+      const portPctData = param.seriesData.get(areaSeries) as { value?: number } | undefined;
+      const masiPctData = param.seriesData.get(masiSeries) as { value?: number } | undefined;
 
-      const pVal = portData?.value || 0;
-      const mVal = masiData?.value || 0;
-      const alphaVal = mVal > 0 ? ((pVal - mVal) / mVal) * 100 : 0;
+      const pPct = portPctData?.value || 0;
+      const mPct = masiPctData?.value || 0;
+      const alphaVal = pPct - mPct;
+
+      // Reconstruct actual MAD value for portfolio & actual Index Points for MASI
+      const activeVal = currentValue > 0 ? currentValue : 100000;
+      const startVal = Math.max(1000, activeVal * (1 - (performancePct / 100)));
+      const recomputedPortVal = Math.round(startVal * (1 + (pPct / 100)));
+
+      const startMasi = Math.max(1000, currentMasiPts * (1 - (masiVarPct / 100)));
+      const recomputedMasiPts = Math.round(startMasi * (1 + (mPct / 100)) * 100) / 100;
 
       const dateStr = typeof param.time === 'string' 
         ? new Date(param.time).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -188,8 +209,10 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
 
       setHoverData({
         date: dateStr,
-        portfolioVal: pVal,
-        masiVal: mVal,
+        portfolioVal: recomputedPortVal,
+        portfolioPct: pPct,
+        masiPts: recomputedMasiPts,
+        masiPct: mPct,
         alpha: alphaVal,
       });
     });
@@ -230,7 +253,7 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
       <div className="widget-header-row">
         <div className="widget-header">
           <span className="mono-tiny text-emerald flex items-center gap-1.5 font-bold">
-            <TrendingUp size={13} /> PERFORMANCE VS BENCHMARK MASI
+            <TrendingUp size={13} /> COMPARATIF DE PERFORMANCE (%) VS BENCHMARK MASI
           </span>
           <h2 className="widget-title">ÉVOLUTION DU PORTEFEUILLE</h2>
         </div>
@@ -256,10 +279,10 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
             <span className="hud-date mono">{hoverData.date}</span>
             <div className="hud-metrics">
               <span className="hud-metric port">
-                <span className="dot emerald"></span> Portefeuille: <strong className="mono">{hoverData.portfolioVal.toLocaleString('fr-FR')} MAD</strong>
+                <span className="dot emerald"></span> Portefeuille: <strong className="mono">{hoverData.portfolioVal.toLocaleString('fr-FR')} MAD</strong> ({hoverData.portfolioPct >= 0 ? '+' : ''}{hoverData.portfolioPct.toFixed(2)}%)
               </span>
               <span className="hud-metric masi">
-                <span className="dot purple"></span> MASI: <strong className="mono">{hoverData.masiVal.toLocaleString('fr-FR')} MAD</strong>
+                <span className="dot purple"></span> Indice MASI: <strong className="mono text-purple-300">{hoverData.masiPts.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} pts</strong> ({hoverData.masiPct >= 0 ? '+' : ''}{hoverData.masiPct.toFixed(2)}%)
               </span>
               <span className={`hud-badge ${hoverData.alpha >= 0 ? 'bull' : 'bear'}`}>
                 Alpha: {hoverData.alpha >= 0 ? '+' : ''}{hoverData.alpha.toFixed(2)}%
@@ -268,7 +291,7 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
           </div>
         ) : (
           <div className="hud-content idle">
-            <span className="mono-tiny text-slate-400">💡 Survolez ou touchez le graphique pour inspecter l'historique et l'Alpha vs MASI</span>
+            <span className="mono-tiny text-slate-400">💡 Survolez le graphique pour voir la performance (%) et l'Indice MASI en points (pts)</span>
           </div>
         )}
       </div>
@@ -280,11 +303,11 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
       <div className="chart-legend">
         <div className="legend-item">
           <div className="legend-line portfolio"></div>
-          <span className="mono-tiny font-bold text-slate-200">PORTEFEUILLE (NET)</span>
+          <span className="mono-tiny font-bold text-slate-200">PORTEFEUILLE (PERF. %)</span>
         </div>
         <div className="legend-item">
           <div className="legend-line masi"></div>
-          <span className="mono-tiny font-bold text-purple-400">MASI (BENCHMARK CASABLANCA)</span>
+          <span className="mono-tiny font-bold text-purple-400">INDICE MASI (POINTS & VAR. %)</span>
         </div>
       </div>
 
