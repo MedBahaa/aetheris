@@ -1332,11 +1332,18 @@ body {
 }
 
 .stat-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   font-size: 10px;
   font-weight: 800;
   color: #94a3b8;
-  opacity: 0.8;
-  letter-spacing: 0.08em;
+  opacity: 0.85;
+  letter-spacing: 0.06em;
+  max-width: 100%;
+}
+
+.stat-label-text {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
