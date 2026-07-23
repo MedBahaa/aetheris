@@ -3,6 +3,7 @@
 import React from 'react';
 import { Gift, Plus, Trash2 } from 'lucide-react';
 import { DividendTransaction, PortfolioHolding } from '@/lib/schemas';
+import { DIVIDEND_TOTAL_TAX_RATE, DIVIDEND_NET_RATIO } from '@/lib/portfolio-constants';
 
 interface DividendTableProps {
   dividends: DividendTransaction[];
@@ -22,12 +23,13 @@ export const DividendTable: React.FC<DividendTableProps> = ({
       <div className="section-header">
         <div className="header-labels">
           <h3 className="mono">HISTORIQUE DES DIVIDENDES</h3>
-          <div className="header-subtitle mono-tiny opacity-40">REVENUS PERÇUS SUR POSITIONS</div>
+          <div className="header-subtitle mono-tiny opacity-40">REVENUS PERÇUS NETS (DÉDUCTIONS 13,45 % INCLUSES)</div>
         </div>
         <button onClick={() => setShowDivModal(true)} className="action-btn-terminal strategy">
           <Plus size={14} /> <span>ENREGISTRER DIVIDENDE</span>
         </button>
       </div>
+
       {dividends.length === 0 ? (
         <div className="empty-state"><Gift size={40} className="opacity-20" /><p className="mono-small">AUCUN DIVIDENDE ENREGISTRÉ.</p></div>
       ) : (
@@ -37,7 +39,10 @@ export const DividendTable: React.FC<DividendTableProps> = ({
             {dividends.map((div, i) => {
               const holding = holdings.find((h: PortfolioHolding) => h.symbol === div.symbol);
               const qty = holding?.totalQuantity || 0;
-              const revenue = qty * div.amount_per_share;
+              const grossRevenue = qty * div.amount_per_share;
+              const totalTax = grossRevenue * DIVIDEND_TOTAL_TAX_RATE; // 13.45%
+              const netRevenue = grossRevenue * DIVIDEND_NET_RATIO; // 86.55%
+
               return (
                 <div key={i} className="glass-heavy p-3.5 rounded-xl flex flex-col gap-2 border border-white/10">
                   <div className="flex items-center justify-between">
@@ -49,18 +54,23 @@ export const DividendTable: React.FC<DividendTableProps> = ({
                       <Trash2 size={16} />
                     </button>
                   </div>
+
                   <div className="flex flex-col gap-1.5 text-xs bg-slate-950/70 p-2.5 rounded-lg border border-white/5">
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-400 text-[11px]">Montant / Titre :</span>
-                      <span className="mono font-semibold text-emerald-400">{div.amount_per_share.toFixed(2)} MAD</span>
+                      <span className="text-slate-400 text-[11px]">Brut / Titre :</span>
+                      <span className="mono font-semibold text-slate-200">{div.amount_per_share.toFixed(2)} MAD</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400 text-[11px]">Quantité Détenue :</span>
                       <span className="mono font-semibold text-slate-200">{qty} pcs</span>
                     </div>
+                    <div className="flex items-center justify-between text-rose-400 text-[11px]">
+                      <span>Retenue (13,45 % = 11,25% TPA + 2,20% Wafa) :</span>
+                      <span className="mono font-semibold">-{totalTax.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} MAD</span>
+                    </div>
                     <div className="flex items-center justify-between border-t border-white/5 pt-1.5 mt-0.5">
-                      <span className="text-slate-300 text-[11px] font-bold">Revenu Total Encaissé :</span>
-                      <span className="mono font-bold text-emerald-400">+{revenue.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD</span>
+                      <span className="text-slate-100 text-[11px] font-bold">🟢 Revenu Net Encaissé (86,55 %) :</span>
+                      <span className="mono font-bold text-emerald-400">+{netRevenue.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD</span>
                     </div>
                   </div>
                 </div>
@@ -75,8 +85,10 @@ export const DividendTable: React.FC<DividendTableProps> = ({
                 <tr className="glass-heavy">
                   <th>SYMBOLE</th>
                   <th>DATE</th>
-                  <th>MAD / TITRE</th>
-                  <th>REVENUS TOTAUX</th>
+                  <th>BRUT / TITRE</th>
+                  <th>REVENUS BRUTS</th>
+                  <th>RETENUES (13,45%)</th>
+                  <th>NET EN COMPTE (86,55%)</th>
                   <th style={{ textAlign: 'right' }}>ACTION</th>
                 </tr>
               </thead>
@@ -84,7 +96,10 @@ export const DividendTable: React.FC<DividendTableProps> = ({
                 {dividends.map((div, i) => {
                   const holding = holdings.find((h: PortfolioHolding) => h.symbol === div.symbol);
                   const qty = holding?.totalQuantity || 0;
-                  const revenue = qty * div.amount_per_share;
+                  const grossRevenue = qty * div.amount_per_share;
+                  const totalTax = grossRevenue * DIVIDEND_TOTAL_TAX_RATE; // 13.45%
+                  const netRevenue = grossRevenue * DIVIDEND_NET_RATIO; // 86.55%
+
                   return (
                     <tr key={i} className="inst-row">
                       <td>
@@ -94,10 +109,12 @@ export const DividendTable: React.FC<DividendTableProps> = ({
                         </div>
                       </td>
                       <td className="mono">{new Date(div.dividend_date).toLocaleDateString('fr-FR')}</td>
-                      <td className="mono text-emerald">{div.amount_per_share.toFixed(2)} MAD</td>
+                      <td className="mono text-slate-300">{div.amount_per_share.toFixed(2)} MAD</td>
+                      <td className="mono text-slate-300">{grossRevenue.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD</td>
+                      <td className="mono text-rose-400">-{totalTax.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD</td>
                       <td>
                         <div className="momentum-box bull">
-                          <span className="m-abs mono">+{revenue.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD</span>
+                          <span className="m-abs mono text-emerald font-bold">+{netRevenue.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD</span>
                         </div>
                       </td>
                       <td style={{ textAlign: 'right' }}>

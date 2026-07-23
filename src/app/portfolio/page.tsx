@@ -864,6 +864,7 @@ export default function PortfolioPage() {
         newDiv={newDiv}
         setNewDiv={setNewDiv}
         handleAddDividend={handleAddDividend}
+        holdings={holdings}
       />
 
       <PremiumPaywallModal 

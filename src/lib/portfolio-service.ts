@@ -1,6 +1,6 @@
 import { PortfolioTransaction, PortfolioHolding, DividendTransaction, PriceAlert, PortfolioTransactionSchema, DividendTransactionSchema } from './schemas';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { BROKERAGE_FEE, TAX_ON_PROFIT } from './portfolio-constants';
+import { BROKERAGE_FEE, TAX_ON_PROFIT, DIVIDEND_NET_RATIO } from './portfolio-constants';
 import { MarketListScraper } from './scrapers/market-list-scraper';
 
 export class PortfolioService {
@@ -225,7 +225,9 @@ export class PortfolioService {
       }
 
       if (quantityAtDivDate > 0) {
-        income[div.symbol] = (income[div.symbol] || 0) + (div.amount_per_share * quantityAtDivDate);
+        const grossAmount = div.amount_per_share * quantityAtDivDate;
+        const netAmount = grossAmount * DIVIDEND_NET_RATIO; // 86.55% Net (13.45% retenue globale)
+        income[div.symbol] = (income[div.symbol] || 0) + netAmount;
       }
     });
     return income;
