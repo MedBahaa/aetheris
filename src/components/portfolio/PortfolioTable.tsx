@@ -94,189 +94,312 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
           <p className="mono-small">AUCUNE POSITION OUVERTE.</p>
         </div>
       ) : (
-        <div className="table-scroll">
-          <table className="institutional-table">
-            <thead>
-              <tr className="glass-heavy">
-                <th style={{ width: '250px', cursor: 'pointer' }} onClick={() => handleSort('symbol')}>
-                  <span className="th-sort">SYMBOLE <SortIcon col="symbol" /></span>
-                </th>
-                <th style={{ width: '80px', cursor: 'pointer' }} onClick={() => handleSort('totalQuantity')}>
-                  <span className="th-sort">QTÉ <SortIcon col="totalQuantity" /></span>
-                </th>
-                <th style={{ width: '120px', cursor: 'pointer' }} onClick={() => handleSort('weightedAveragePrice')}>
-                  <span className="th-sort">PMP (NET) <SortIcon col="weightedAveragePrice" /></span>
-                </th>
-                <th style={{ width: '120px', cursor: 'pointer' }} onClick={() => handleSort('curPrice')}>
-                  <span className="th-sort">COURS <SortIcon col="curPrice" /></span>
-                </th>
-                <th style={{ width: '120px', cursor: 'pointer' }} onClick={() => handleSort('valuation')}>
-                  <span className="th-sort">VALEUR <SortIcon col="valuation" /></span>
-                </th>
-                <th style={{ width: '80px', cursor: 'pointer' }} onClick={() => handleSort('poids')}>
-                  <span className="th-sort">POIDS <SortIcon col="poids" /></span>
-                </th>
-                <th style={{ width: '120px', cursor: 'pointer' }} onClick={() => handleSort('pvNette')}>
-                  <span className="th-sort">PL LAT. / PERF. <SortIcon col="pvNette" /></span>
-                </th>
-                <th style={{ width: '100px', cursor: 'pointer' }} onClick={() => handleSort('yoc')}>
-                  <span className="th-sort">DIV. / YOC <SortIcon col="yoc" /></span>
-                </th>
-                <th>ALERTES</th>
-                <th style={{ textAlign: 'right', width: '120px' }}>ACTION</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedHoldings.map((s) => {
-                const isExpanded = expandedSymbol === s.symbol;
-                const isSettingAlert = alertSymbol === s.symbol;
-                const alert = alerts.find((a: PriceAlert) => a.symbol === s.symbol);
-                const isSlTriggered = alert?.sl_price && (s.curPrice ?? 0) <= alert.sl_price;
-                const isTpTriggered = alert?.tp_price && (s.curPrice ?? 0) >= alert.tp_price;
+        <>
+          {/* ────────────────── MOBILE CARDS VIEW (< 768px) ────────────────── */}
+          <div className="mobile-cards-container md:hidden flex flex-col gap-3 p-3">
+            {sortedHoldings.map((s) => {
+              const isExpanded = expandedSymbol === s.symbol;
+              const isSettingAlert = alertSymbol === s.symbol;
+              const alert = alerts.find((a: PriceAlert) => a.symbol === s.symbol);
+              const isSlTriggered = alert?.sl_price && (s.curPrice ?? 0) <= alert.sl_price;
+              const isTpTriggered = alert?.tp_price && (s.curPrice ?? 0) >= alert.tp_price;
+              const valuation = s.totalQuantity * (s.curPrice ?? 0);
+              const weightPct = totalMarketValue > 0 ? (valuation / totalMarketValue * 100).toFixed(1) : '0.0';
+              const perfPct = (( (s.pvNette ?? 0) / (s.totalCost || 1)) * 100).toFixed(2);
 
-                return (
-                  <React.Fragment key={s.symbol}>
-                    <tr className={`inst-row ${isSlTriggered ? 'sl-alert' : ''} ${isTpTriggered ? 'tp-alert' : ''}`}>
-                      <td onClick={() => onNavigateToStock(s.symbol)} style={{ cursor: 'pointer' }}>
-                        <div className="symbol-cell">
-                          <div className="s-status"></div>
-                          <div className="flex flex-col">
-                            <span className="s-name">{s.symbol}</span>
-                            <span className="mono-tiny opacity-40">{s.sector}</span>
-                          </div>
+              return (
+                <div key={s.symbol} className={`glass-heavy p-4 rounded-xl flex flex-col gap-3 ${isSlTriggered ? 'border-red-500/50' : ''} ${isTpTriggered ? 'border-emerald-500/50' : ''}`}>
+                  {/* Header row */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2" onClick={() => onNavigateToStock(s.symbol)} role="button" tabIndex={0}>
+                      <span className="font-bold text-lg text-white">{s.symbol}</span>
+                      <span className="text-[10px] text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded">{s.sector}</span>
+                    </div>
+                    <div className={`momentum-box ${(s.pvNette ?? 0) >= 0 ? 'bull' : 'bear'}`}>
+                      <span className="m-abs mono font-bold text-xs">{(s.pvNette ?? 0) >= 0 ? '+' : ''}{(s.pvNette ?? 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD</span>
+                      <span className="mono-tiny opacity-70">({(s.pvNette ?? 0) >= 0 ? '+' : ''}{perfPct}%)</span>
+                    </div>
+                  </div>
+
+                  {/* Grid details */}
+                  <div className="grid grid-cols-2 gap-2 text-xs bg-slate-900/40 p-2.5 rounded-lg border border-white/5">
+                    <div>
+                      <span className="text-slate-400 text-[10px] block">Qté / PMP</span>
+                      <span className="mono font-semibold text-slate-200">{s.totalQuantity} pcs @ {s.weightedAveragePrice.toFixed(2)}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 text-[10px] block">Cours Actuel</span>
+                      <span className="mono font-bold text-white">{(s.curPrice ?? 0).toFixed(2)} MAD</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 text-[10px] block">Valeur Totale</span>
+                      <span className="mono font-bold text-emerald-400">{valuation.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD ({weightPct}%)</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 text-[10px] block">Dividendes / YOC</span>
+                      <span className="mono font-semibold text-slate-200">{(s.totalDividends ?? 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD ({(s.yieldOnCost ?? 0).toFixed(1)}%)</span>
+                    </div>
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex items-center justify-between pt-1">
+                    <div className="flex gap-1.5 items-center">
+                      {alert ? (
+                        <div className="flex gap-1 text-[10px]">
+                          {alert.sl_price && <span className={`px-2 py-0.5 rounded ${isSlTriggered ? 'bg-red-500/20 text-red-400' : 'bg-slate-800 text-slate-400'}`}>SL {alert.sl_price}</span>}
+                          {alert.tp_price && <span className={`px-2 py-0.5 rounded ${isTpTriggered ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-400'}`}>TP {alert.tp_price}</span>}
                         </div>
-                      </td>
-                      <td className="mono">{s.totalQuantity}</td>
-                      <td className="mono">{s.weightedAveragePrice.toFixed(2)}</td>
-                      <td className="mono font-bold">{(s.curPrice ?? 0).toFixed(2)}</td>
-                      <td className="mono">{(s.totalQuantity * (s.curPrice ?? 0)).toLocaleString('fr-FR', { maximumFractionDigits: 0 })}</td>
-                      <td className="mono">
-                        <span className="poids-badge">
-                          {totalMarketValue > 0 ? ((s.totalQuantity * (s.curPrice ?? 0)) / totalMarketValue * 100).toFixed(1) : '0.0'}%
-                        </span>
-                      </td>
+                      ) : <span className="text-[10px] text-slate-500">Pas d'alerte</span>}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => { setAlertForm({ sl_price: alert?.sl_price?.toString() || '', tp_price: alert?.tp_price?.toString() || '' }); setAlertSymbol(isSettingAlert ? null : s.symbol); }} 
+                        className={`touch-target px-3 py-1.5 text-xs rounded-lg border border-white/10 flex items-center gap-1 ${isSettingAlert ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800/80 text-slate-300'}`}
+                        aria-label="Alerte SL/TP"
+                      >
+                        <Bell size={14} /> <span>Alerte</span>
+                      </button>
+                      <button 
+                        onClick={() => setExpandedSymbol(isExpanded ? null : s.symbol)} 
+                        className={`touch-target px-3 py-1.5 text-xs rounded-lg border border-white/10 flex items-center gap-1 ${isExpanded ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-800/80 text-slate-300'}`}
+                        aria-label="Historique des transactions"
+                      >
+                        <span>Tx</span> {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Alert form row for mobile */}
+                  {isSettingAlert && (
+                    <div className="p-3 bg-slate-900/90 rounded-lg border border-emerald-500/30 flex flex-col gap-2 mt-1">
+                      <span className="text-[10px] font-bold text-slate-300">ALERTES PRIX {s.symbol}</span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[9px] text-red-400 font-bold block mb-1">🔴 STOP-LOSS</label>
+                          <input type="number" step="0.01" value={alertForm.sl_price} onChange={e => setAlertForm(f => ({ ...f, sl_price: e.target.value }))} placeholder={`< ${(s.curPrice ?? 0).toFixed(2)}`} className="w-full bg-black/60 border border-white/10 text-white rounded p-1.5 text-xs" />
+                        </div>
+                        <div>
+                          <label className="text-[9px] text-emerald-400 font-bold block mb-1">🟢 TAKE-PROFIT</label>
+                          <input type="number" step="0.01" value={alertForm.tp_price} onChange={e => setAlertForm(f => ({ ...f, tp_price: e.target.value }))} placeholder={`> ${(s.curPrice ?? 0).toFixed(2)}`} className="w-full bg-black/60 border border-white/10 text-white rounded p-1.5 text-xs" />
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2 mt-1">
+                        <button onClick={() => setAlertSymbol(null)} className="px-3 py-1 text-xs text-slate-400">Annuler</button>
+                        <button onClick={() => handleSaveAlert(s.symbol)} className="px-3 py-1 bg-emerald-500 text-black font-bold rounded text-xs">Sauvegarder</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Expanded history for mobile */}
+                  {isExpanded && (
+                    <div className="p-3 bg-slate-900/90 rounded-lg border border-white/10 flex flex-col gap-2 mt-1">
+                      <span className="text-[10px] font-bold text-slate-300">HISTORIQUE TRANSACTIONS</span>
+                      <div className="flex flex-col gap-1.5">
+                        {s.transactions.map((tx) => (
+                          <div key={tx.id} className="flex items-center justify-between text-xs bg-slate-950 p-2 rounded">
+                            <div className="flex items-center gap-2">
+                              <span className={`px-1.5 py-0.5 text-[9px] rounded font-bold ${tx.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>{tx.type}</span>
+                              <span className="text-slate-300">{tx.quantity} pcs @ {tx.buy_price.toFixed(2)}</span>
+                            </div>
+                            <button className="text-red-400 p-1" onClick={() => { if (confirm('Supprimer ?')) deletePortfolioTransactionAction(tx.id).then(loadData); }} aria-label="Supprimer transaction">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* ────────────────── DESKTOP TABLE VIEW (>= 768px) ────────────────── */}
+          <div className="table-scroll hidden md:block">
+            <table className="institutional-table">
+              <thead>
+                <tr className="glass-heavy">
+                  <th style={{ width: '250px', cursor: 'pointer' }} onClick={() => handleSort('symbol')}>
+                    <span className="th-sort">SYMBOLE <SortIcon col="symbol" /></span>
+                  </th>
+                  <th style={{ width: '80px', cursor: 'pointer' }} onClick={() => handleSort('totalQuantity')}>
+                    <span className="th-sort">QTÉ <SortIcon col="totalQuantity" /></span>
+                  </th>
+                  <th style={{ width: '120px', cursor: 'pointer' }} onClick={() => handleSort('weightedAveragePrice')}>
+                    <span className="th-sort">PMP (NET) <SortIcon col="weightedAveragePrice" /></span>
+                  </th>
+                  <th style={{ width: '120px', cursor: 'pointer' }} onClick={() => handleSort('curPrice')}>
+                    <span className="th-sort">COURS <SortIcon col="curPrice" /></span>
+                  </th>
+                  <th style={{ width: '120px', cursor: 'pointer' }} onClick={() => handleSort('valuation')}>
+                    <span className="th-sort">VALEUR <SortIcon col="valuation" /></span>
+                  </th>
+                  <th style={{ width: '80px', cursor: 'pointer' }} onClick={() => handleSort('poids')}>
+                    <span className="th-sort">POIDS <SortIcon col="poids" /></span>
+                  </th>
+                  <th style={{ width: '120px', cursor: 'pointer' }} onClick={() => handleSort('pvNette')}>
+                    <span className="th-sort">PL LAT. / PERF. <SortIcon col="pvNette" /></span>
+                  </th>
+                  <th style={{ width: '100px', cursor: 'pointer' }} onClick={() => handleSort('yoc')}>
+                    <span className="th-sort">DIV. / YOC <SortIcon col="yoc" /></span>
+                  </th>
+                  <th>ALERTES</th>
+                  <th style={{ textAlign: 'right', width: '120px' }}>ACTION</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedHoldings.map((s) => {
+                  const isExpanded = expandedSymbol === s.symbol;
+                  const isSettingAlert = alertSymbol === s.symbol;
+                  const alert = alerts.find((a: PriceAlert) => a.symbol === s.symbol);
+                  const isSlTriggered = alert?.sl_price && (s.curPrice ?? 0) <= alert.sl_price;
+                  const isTpTriggered = alert?.tp_price && (s.curPrice ?? 0) >= alert.tp_price;
+
+                  return (
+                    <React.Fragment key={s.symbol}>
+                      <tr className={`inst-row ${isSlTriggered ? 'sl-alert' : ''} ${isTpTriggered ? 'tp-alert' : ''}`}>
+                        <td onClick={() => onNavigateToStock(s.symbol)} style={{ cursor: 'pointer' }}>
+                          <div className="symbol-cell">
+                            <div className="s-status"></div>
+                            <div className="flex flex-col">
+                              <span className="s-name">{s.symbol}</span>
+                              <span className="mono-tiny opacity-40">{s.sector}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="mono">{s.totalQuantity}</td>
+                        <td className="mono">{s.weightedAveragePrice.toFixed(2)}</td>
+                        <td className="mono font-bold">{(s.curPrice ?? 0).toFixed(2)}</td>
+                        <td className="mono">{(s.totalQuantity * (s.curPrice ?? 0)).toLocaleString('fr-FR', { maximumFractionDigits: 0 })}</td>
+                        <td className="mono">
+                          <span className="poids-badge">
+                            {totalMarketValue > 0 ? ((s.totalQuantity * (s.curPrice ?? 0)) / totalMarketValue * 100).toFixed(1) : '0.0'}%
+                          </span>
+                        </td>
+                        <td>
+                          <div className={`momentum-box ${(s.pvNette ?? 0) >= 0 ? 'bull' : 'bear'}`}>
+                            <span className="m-abs mono">{(s.pvNette ?? 0) >= 0 ? '+' : ''}{(s.pvNette ?? 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })}</span>
+                            <span className="mono-tiny opacity-70">
+                              {(s.pvNette ?? 0) >= 0 ? '+' : ''}{(( (s.pvNette ?? 0) / s.totalCost) * 100).toFixed(2)}%
+                            </span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="flex flex-col">
+                            <span className="mono text-emerald font-bold">{(s.totalDividends ?? 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} <span className="text-[9px]">MAD</span></span>
+                            <span className="mono-tiny opacity-50">YOC: {(s.yieldOnCost ?? 0).toFixed(2)}%</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="flex gap-2">
+                            {alert ? (
+                              <div className="flex gap-1">
+                                {alert.sl_price && <span className={`alert-badge ${isSlTriggered ? 'bear' : 'opacity-40'}`}>SL {alert.sl_price}</span>}
+                                {alert.tp_price && <span className={`alert-badge ${isTpTriggered ? 'bull' : 'opacity-40'}`}>TP {alert.tp_price}</span>}
+                              </div>
+                            ) : <span className="mono-tiny opacity-20">AUCUNE</span>}
+                          </div>
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <div className="flex justify-end gap-1">
+                            <button onClick={() => { setAlertForm({ sl_price: alert?.sl_price?.toString() || '', tp_price: alert?.tp_price?.toString() || '' }); setAlertSymbol(isSettingAlert ? null : s.symbol); }} className={`terminal-btn-sm ${isSettingAlert ? 'active' : ''}`} title="Alertes (SL/TP)" aria-label="Alerte"><Bell size={12} /></button>
+                            <button onClick={() => setExpandedSymbol(isExpanded ? null : s.symbol)} className={`terminal-btn-sm ${isExpanded ? 'active' : ''}`} title="Historique" aria-label="Historique">{isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}</button>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* ── ALERT FORM ROW ── */}
+                      {isSettingAlert && (
+                        <tr className="expansion-row">
+                          <td colSpan={10}>
+                            <div className="alert-form-row glass animate-slide-up">
+                              <div className="alert-form-inner">
+                                <span className="mono-tiny" style={{ color: '#ef4444' }}>🔴 STOP-LOSS</span>
+                                <input type="number" step="0.01" value={alertForm.sl_price} onChange={e => setAlertForm(f => ({ ...f, sl_price: e.target.value }))} placeholder={`< ${(s.curPrice ?? 0).toFixed(2)}`} className="alert-input bear" />
+                                <span className="mono-tiny" style={{ color: '#10b981' }}>🟢 TAKE-PROFIT</span>
+                                <input type="number" step="0.01" value={alertForm.tp_price} onChange={e => setAlertForm(f => ({ ...f, tp_price: e.target.value }))} placeholder={`> ${(s.curPrice ?? 0).toFixed(2)}`} className="alert-input bull" />
+                                <button onClick={() => handleSaveAlert(s.symbol)} className="alert-save-btn"><ShieldCheck size={12} /> SAUVEGARDER</button>
+                                <button onClick={() => setAlertSymbol(null)} className="alert-cancel-btn"><X size={12} /></button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* ── HISTORY ROW ── */}
+                      {isExpanded && (
+                        <tr className="expansion-row">
+                          <td colSpan={10}>
+                            <div className="expansion-content glass-heavy animate-slide-up">
+                              <div className="expansion-header">
+                                <span className="mono">HISTORIQUE DES TRANSACTIONS : {s.symbol}</span>
+                              </div>
+                              <div className="tx-list">
+                                {s.transactions.map((tx) => (
+                                  <div key={tx.id} className="tx-item glass">
+                                    <div className="tx-meta">
+                                      <div className={`tx-type-badge ${(tx.type || 'BUY') === 'BUY' ? 'buy' : 'sell'}`}>
+                                        {(tx.type || 'BUY') === 'BUY' ? <ArrowUpRight size={11}/> : <ArrowDownLeft size={11}/>}
+                                        {tx.type || 'BUY'}
+                                      </div>
+                                      <span className="mono">{new Date(tx.buy_date).toLocaleDateString('fr-FR')}</span>
+                                    </div>
+                                    <div className="tx-data mono">
+                                      <span>{tx.quantity} pcs</span>
+                                      <span>@ {tx.buy_price.toFixed(2)} MAD</span>
+                                      <span className="opacity-40">= {(tx.quantity * tx.buy_price).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD</span>
+                                    </div>
+                                    <button className="delete-tx-btn" onClick={() => { if (confirm('Supprimer ?')) deletePortfolioTransactionAction(tx.id).then(loadData); }} aria-label="Supprimer transaction">
+                                      <Trash2 size={12} />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+
+              {/* ── TOTAL ROW ── */}
+              {holdings.length > 0 && (() => {
+                const totalVal = holdings.reduce((s, h) => s + h.totalQuantity * (h.curPrice ?? 0), 0);
+                const totalCost = holdings.reduce((s, h) => s + h.totalCost, 0);
+                const totalPvNette = holdings.reduce((s, h) => {
+                  const pv = h.totalQuantity * (h.curPrice ?? 0) - h.totalCost;
+                  return s + (pv > 0 ? pv * (1 - 0.15) : pv);
+                }, 0);
+                const totalPerfPct = totalCost > 0 ? (totalPvNette / totalCost) * 100 : 0;
+                return (
+                  <tfoot>
+                    <tr className="total-row">
+                      <td><span className="mono font-bold opacity-60">TOTAL PORTEFEUILLE</span></td>
+                      <td></td>
+                      <td></td>
+                      <td></td>
+                      <td className="mono font-bold">{totalVal.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD</td>
+                      <td className="mono font-bold">100%</td>
                       <td>
-                        <div className={`momentum-box ${(s.pvNette ?? 0) >= 0 ? 'bull' : 'bear'}`}>
-                          <span className="m-abs mono">{(s.pvNette ?? 0) >= 0 ? '+' : ''}{(s.pvNette ?? 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })}</span>
+                        <div className={`momentum-box ${totalPvNette >= 0 ? 'bull' : 'bear'}`}>
+                          <span className="m-abs mono">{totalPvNette >= 0 ? '+' : ''}{totalPvNette.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}</span>
                           <span className="mono-tiny opacity-70">
-                            {(s.pvNette ?? 0) >= 0 ? '+' : ''}{(( (s.pvNette ?? 0) / s.totalCost) * 100).toFixed(2)}%
+                            {totalPerfPct >= 0 ? '+' : ''}{totalPerfPct.toFixed(2)}%
                           </span>
                         </div>
                       </td>
-                      <td>
-                        <div className="flex flex-col">
-                          <span className="mono text-emerald font-bold">{(s.totalDividends ?? 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} <span className="text-[9px]">MAD</span></span>
-                          <span className="mono-tiny opacity-50">YOC: {(s.yieldOnCost ?? 0).toFixed(2)}%</span>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="flex gap-2">
-                          {alert ? (
-                            <div className="flex gap-1">
-                              {alert.sl_price && <span className={`alert-badge ${isSlTriggered ? 'bear' : 'opacity-40'}`}>SL {alert.sl_price}</span>}
-                              {alert.tp_price && <span className={`alert-badge ${isTpTriggered ? 'bull' : 'opacity-40'}`}>TP {alert.tp_price}</span>}
-                            </div>
-                          ) : <span className="mono-tiny opacity-20">AUCUNE</span>}
-                        </div>
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div className="flex justify-end gap-1">
-                          <button onClick={() => { setAlertForm({ sl_price: alert?.sl_price?.toString() || '', tp_price: alert?.tp_price?.toString() || '' }); setAlertSymbol(isSettingAlert ? null : s.symbol); }} className={`terminal-btn-sm ${isSettingAlert ? 'active' : ''}`} title="Alertes (SL/TP)"><Bell size={12} /></button>
-                          <button onClick={() => setExpandedSymbol(isExpanded ? null : s.symbol)} className={`terminal-btn-sm ${isExpanded ? 'active' : ''}`} title="Historique">{isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}</button>
-                        </div>
-                      </td>
+                      <td></td>
+                      <td></td>
                     </tr>
-
-                    {/* ── ALERT FORM ROW ── */}
-                    {isSettingAlert && (
-                      <tr className="expansion-row">
-                        <td colSpan={10}>
-                          <div className="alert-form-row glass animate-slide-up">
-                            <div className="alert-form-inner">
-                              <span className="mono-tiny" style={{ color: '#ef4444' }}>🔴 STOP-LOSS</span>
-                              <input type="number" step="0.01" value={alertForm.sl_price} onChange={e => setAlertForm(f => ({ ...f, sl_price: e.target.value }))} placeholder={`< ${(s.curPrice ?? 0).toFixed(2)}`} className="alert-input bear" />
-                              <span className="mono-tiny" style={{ color: '#10b981' }}>🟢 TAKE-PROFIT</span>
-                              <input type="number" step="0.01" value={alertForm.tp_price} onChange={e => setAlertForm(f => ({ ...f, tp_price: e.target.value }))} placeholder={`> ${(s.curPrice ?? 0).toFixed(2)}`} className="alert-input bull" />
-                              <button onClick={() => handleSaveAlert(s.symbol)} className="alert-save-btn"><ShieldCheck size={12} /> SAUVEGARDER</button>
-                              <button onClick={() => setAlertSymbol(null)} className="alert-cancel-btn"><X size={12} /></button>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-
-                    {/* ── HISTORY ROW ── */}
-                    {isExpanded && (
-                      <tr className="expansion-row">
-                      <td colSpan={10}>
-                          <div className="expansion-content glass-heavy animate-slide-up">
-                            <div className="expansion-header">
-                              <span className="mono">HISTORIQUE DES TRANSACTIONS : {s.symbol}</span>
-                            </div>
-                            <div className="tx-list">
-                              {s.transactions.map((tx) => (
-                                <div key={tx.id} className="tx-item glass">
-                                  <div className="tx-meta">
-                                    <div className={`tx-type-badge ${(tx.type || 'BUY') === 'BUY' ? 'buy' : 'sell'}`}>
-                                      {(tx.type || 'BUY') === 'BUY' ? <ArrowUpRight size={11}/> : <ArrowDownLeft size={11}/>}
-                                      {tx.type || 'BUY'}
-                                    </div>
-                                    <span className="mono">{new Date(tx.buy_date).toLocaleDateString('fr-FR')}</span>
-                                  </div>
-                                  <div className="tx-data mono">
-                                    <span>{tx.quantity} pcs</span>
-                                    <span>@ {tx.buy_price.toFixed(2)} MAD</span>
-                                    <span className="opacity-40">= {(tx.quantity * tx.buy_price).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD</span>
-                                  </div>
-                                  <button className="delete-tx-btn" onClick={() => { if (confirm('Supprimer ?')) deletePortfolioTransactionAction(tx.id).then(loadData); }}>
-                                    <Trash2 size={12} />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
+                  </tfoot>
                 );
-              })}
-            </tbody>
-
-            {/* ── TOTAL ROW ── */}
-            {holdings.length > 0 && (() => {
-              const totalVal = holdings.reduce((s, h) => s + h.totalQuantity * (h.curPrice ?? 0), 0);
-              const totalCost = holdings.reduce((s, h) => s + h.totalCost, 0);
-              const totalPvNette = holdings.reduce((s, h) => {
-                const pv = h.totalQuantity * (h.curPrice ?? 0) - h.totalCost;
-                return s + (pv > 0 ? pv * (1 - 0.15) : pv);
-              }, 0);
-              const totalPerfPct = totalCost > 0 ? (totalPvNette / totalCost) * 100 : 0;
-              return (
-                <tfoot>
-                  <tr className="total-row">
-                    <td><span className="mono font-bold opacity-60">TOTAL PORTEFEUILLE</span></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td className="mono font-bold">{totalVal.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD</td>
-                    <td className="mono font-bold">100%</td>
-                    <td>
-                      <div className={`momentum-box ${totalPvNette >= 0 ? 'bull' : 'bear'}`}>
-                        <span className="m-abs mono">{totalPvNette >= 0 ? '+' : ''}{totalPvNette.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}</span>
-                        <span className="mono-tiny opacity-70">
-                          {totalPerfPct >= 0 ? '+' : ''}{totalPerfPct.toFixed(2)}%
-                        </span>
-                      </div>
-                    </td>
-                    <td></td>
-                    <td></td>
-                  </tr>
-                </tfoot>
-              );
-            })()}
-          </table>
-        </div>
+              })()}
+            </table>
+          </div>
+        </>
       )}
     </div>
   );

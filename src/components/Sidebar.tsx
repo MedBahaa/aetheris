@@ -127,13 +127,24 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
        <div 
         className={`sidebar-overlay ${isOpen ? 'is-active' : ''}`}
         onClick={onClose}
+        aria-hidden="true"
       />
 
-      <aside className={`sidebar glass-heavy ${isOpen ? 'is-open' : ''}`}>
+      <aside 
+        className={`sidebar glass-heavy ${isOpen ? 'is-open' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Navigation principale Aetheris"
+      >
         <div className="sidebar-header">
           <div className="nav-label-top">CONTRÔLE ALPHA</div>
-          <button onClick={onClose} className="close-btn-drawer">
-             <X size={18} />
+          <button 
+            onClick={onClose} 
+            className="close-btn-drawer touch-target"
+            aria-label="Fermer le menu"
+            style={{ width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+             <X size={20} />
           </button>
         </div>
 

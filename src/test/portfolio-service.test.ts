@@ -13,6 +13,7 @@ describe('PortfolioService', () => {
           buy_price: 100,
           buy_date: '2024-01-01',
           type: 'BUY',
+          is_virtual: false,
           user_id: 'u1',
           created_at: ''
         },
@@ -23,6 +24,7 @@ describe('PortfolioService', () => {
           buy_price: 110,
           buy_date: '2024-03-01', // After dividend date
           type: 'BUY',
+          is_virtual: false,
           user_id: 'u1',
           created_at: ''
         }
@@ -34,6 +36,7 @@ describe('PortfolioService', () => {
           symbol: 'IAM',
           amount_per_share: 5,
           dividend_date: '2024-02-01',
+          is_virtual: false,
           user_id: 'u1',
           created_at: ''
         }
@@ -54,6 +57,7 @@ describe('PortfolioService', () => {
           buy_price: 100,
           buy_date: '2024-01-01',
           type: 'BUY',
+          is_virtual: false,
           user_id: 'u1',
           created_at: ''
         },
@@ -64,6 +68,7 @@ describe('PortfolioService', () => {
           buy_price: 110,
           buy_date: '2024-01-15',
           type: 'SELL',
+          is_virtual: false,
           user_id: 'u1',
           created_at: ''
         }
@@ -75,6 +80,7 @@ describe('PortfolioService', () => {
           symbol: 'BCP',
           amount_per_share: 10,
           dividend_date: '2024-02-01',
+          is_virtual: false,
           user_id: 'u1',
           created_at: ''
         }
@@ -97,6 +103,7 @@ describe('PortfolioService', () => {
           buy_price: 100,
           buy_date: '2024-01-01',
           type: 'BUY',
+          is_virtual: false,
           user_id: 'u1',
           created_at: ''
         },
@@ -107,6 +114,7 @@ describe('PortfolioService', () => {
           buy_price: 120,
           buy_date: '2024-02-01',
           type: 'BUY',
+          is_virtual: false,
           user_id: 'u1',
           created_at: ''
         }
