@@ -27,10 +27,10 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
           <MacroWidget />
         </div>
 
-        {/* Menu Burger à DROITE */}
+        {/* Menu Burger à DROITE (masqué sur desktop) */}
         <button 
           onClick={onOpenSidebar} 
-          className="menu-toggle-btn touch-target" 
+          className="menu-toggle-btn touch-target lg:hidden" 
           aria-label="Ouvrir le menu principal"
           aria-expanded={false}
         >

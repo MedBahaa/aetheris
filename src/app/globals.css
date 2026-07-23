@@ -111,7 +111,7 @@ body {
 .opacity-70 { opacity: 0.7; }
 
 
-/* Layout System - CORE FIXED */
+/* Layout System - DUAL ARCHITECTURE (MOBILE / DESKTOP) */
 .app-container {
   display: block;
   min-height: 100vh;
@@ -136,13 +136,14 @@ body {
 
 @media (min-width: 1024px) {
   .main-content {
+    margin-left: var(--sidebar-width);
+    width: calc(100% - var(--sidebar-width));
     padding: 2rem;
     padding-top: calc(var(--header-height) + 2rem);
     padding-bottom: 2rem;
     padding-right: 2.5rem;
   }
 }
-
 
 .max-container {
   max-width: var(--max-width);
@@ -181,18 +182,9 @@ body {
   }
 }
 
-/* Sidebar Component - Always a Drawer */
-.sidebar {
-  position: fixed;
-  top: 0;
-  left: 100%; /* Default hidden on right? Wait, user said burger on right, logo on left. Sidebar can still come from left or right. Usually if burger is on right, drawer comes from right. Let's make it from left for now as per current logic unless user specified. User didn't specify drawer side. Let's stick to left for consistency with previous sidebar but hidden by default. */
-  height: 100vh;
-  width: var(--sidebar-width);
-  z-index: 1000;
-  transform: translateX(0); /* We use left: -100% or translateX? */
-}
+/* ────────────────── SIDEBAR & HEADER DUAL BEHAVIOR ────────────────── */
 
-/* Let's redefine sidebar positioning for drawer. */
+/* Mobile Sidebar Drawer (< 1024px) */
 .sidebar {
   position: fixed;
   top: 0;
@@ -206,18 +198,60 @@ body {
   flex-direction: column;
   overflow-y: auto;
   overflow-x: hidden;
-  background-color: var(--bg-dark); /* Ensure a base color since it's a drawer */
+  background-color: var(--bg-dark);
   border-right: 1px solid var(--border-glass);
 }
-
 
 .sidebar.is-open {
   transform: translateX(0);
 }
 
-
 .sidebar-overlay {
   position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  z-index: 999;
+  display: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.sidebar-overlay.is-active {
+  display: block;
+  opacity: 1;
+}
+
+/* Desktop Permanent Sidebar & Header Offset (>= 1024px) */
+@media (min-width: 1024px) {
+  .sidebar {
+    transform: translateX(0) !important;
+    z-index: 800;
+    border-right: 1px solid var(--border-glass);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+  }
+
+  .sidebar-overlay {
+    display: none !important;
+  }
+
+  .close-btn-drawer {
+    display: none !important;
+  }
+
+  .fixed-header {
+    left: var(--sidebar-width) !important;
+    width: calc(100% - var(--sidebar-width)) !important;
+  }
+
+  .menu-toggle-btn {
+    display: none !important;
+  }
+
+  .mobile-bottom-nav {
+    display: none !important;
+  }
+}
   inset: 0;
   background: rgba(0,0,0,0.6);
   backdrop-filter: blur(8px);

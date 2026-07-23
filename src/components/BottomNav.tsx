@@ -17,7 +17,7 @@ export default function BottomNav() {
   ];
 
   return (
-    <nav className="mobile-bottom-nav md:hidden" aria-label="Navigation mobile principale">
+    <nav className="mobile-bottom-nav lg:hidden" aria-label="Navigation mobile principale">
       <div className="bottom-nav-inner">
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -54,6 +54,12 @@ export default function BottomNav() {
           padding-bottom: env(safe-area-inset-bottom, 0px);
           box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
           transition: transform 0.3s ease;
+        }
+
+        @media (min-width: 1024px) {
+          .mobile-bottom-nav {
+            display: none !important;
+          }
         }
 
         .bottom-nav-inner {
