@@ -788,19 +788,42 @@ body {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1.5rem;
-  margin-bottom: 3rem;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+@media (min-width: 640px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .stats-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+  }
 }
 
 .stat-card {
-  padding: 1.5rem;
+  padding: 1rem 1.25rem;
   display: flex;
   align-items: center;
-  gap: 1.25rem;
+  gap: 1rem;
   transition: all 0.3s var(--ease);
   position: relative;
   overflow: hidden;
+  border-radius: 16px;
+}
+
+@media (min-width: 1024px) {
+  .stat-card {
+    padding: 1.5rem;
+    gap: 1.25rem;
+  }
 }
 
 .stat-card:hover {
@@ -809,8 +832,8 @@ body {
 }
 
 .stat-icon-box {
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   border-radius: 12px;
   display: flex;
   align-items: center;
@@ -820,29 +843,39 @@ body {
   flex-shrink: 0;
 }
 
+@media (min-width: 1024px) {
+  .stat-icon-box {
+    width: 48px;
+    height: 48px;
+  }
+}
+
 .stat-card.white .stat-icon-box { color: #fff; background: rgba(255,255,255,0.1); }
 
 .stat-info {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  min-width: 0;
+  flex: 1;
 }
 
 .stat-label {
   font-size: 10px;
   font-weight: 800;
-  color: var(--text-dim); /* Brightened from text-muted to text-dim or similar? Wait, text-dim is actually darker in my root? */
-  /* Let's check root: --text-muted: #94a3b8; --text-dim: #64748b; */
-  /* So text-muted is brighter. I'll use a custom color or opacity. */
   color: #94a3b8;
   opacity: 0.8;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .stat-value {
-  font-size: 1.4rem;
+  font-size: clamp(1.1rem, 3.5vw, 1.4rem);
   font-weight: 900;
   font-family: 'JetBrains Mono', monospace;
+  white-space: nowrap;
 }
 
 .stat-card.bull .stat-icon-box { color: var(--accent-emerald); background: rgba(16, 185, 129, 0.1); }
@@ -865,16 +898,24 @@ body {
 
 /* Sector Panel Restored */
 .sector-panel {
-  padding: 2rem;
-  margin-bottom: 3rem;
-  border-radius: 24px;
+  padding: 1.25rem;
+  margin-bottom: 2rem;
+  border-radius: 20px;
+}
+
+@media (min-width: 1024px) {
+  .sector-panel {
+    padding: 2rem;
+    margin-bottom: 3rem;
+    border-radius: 24px;
+  }
 }
 
 .sector-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
 .concentration-alert {
@@ -890,8 +931,15 @@ body {
 
 .sector-bars {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1.5rem 3rem;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .sector-bars {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem 3rem;
+  }
 }
 
 .sector-bar-row {
