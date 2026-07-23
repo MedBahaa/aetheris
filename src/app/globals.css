@@ -252,19 +252,6 @@ body {
     display: none !important;
   }
 }
-  inset: 0;
-  background: rgba(0,0,0,0.6);
-  backdrop-filter: blur(8px);
-  z-index: 999;
-  display: none;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.sidebar-overlay.is-active {
-  display: block;
-  opacity: 1;
-}
 
 /* Removal of desktop sidebar override */
 
