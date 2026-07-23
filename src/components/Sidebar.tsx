@@ -45,9 +45,9 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
   }, [pathname]);
 
   const [marketIndex, setMarketIndex] = useState<{ price: string, variation: string, value: number }>({
-    price: '14 250,42',
-    variation: '+0,85%',
-    value: 0.85
+    price: '17 667,10',
+    variation: '-0,29%',
+    value: -0.29
   });
 
   useEffect(() => {

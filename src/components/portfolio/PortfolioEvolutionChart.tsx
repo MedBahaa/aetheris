@@ -29,11 +29,11 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
   const masiSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const [timeRange, setTimeRange] = useState<'1S' | '1M' | 'YTD' | '1A' | 'MAX'>('YTD');
 
-  // Parse actual MASI Index points from scraped price (e.g. "14 850,25" -> 14850.25 pts)
+  // Parse actual MASI Index points from scraped price (e.g. "17 667,10" -> 17667.10 pts)
   const rawMasiPrice = masiBenchmark?.price 
     ? parseFloat(masiBenchmark.price.replace(/\s/g, '').replace(',', '.')) 
-    : 14850.25;
-  const currentMasiPts = isNaN(rawMasiPrice) || rawMasiPrice <= 0 ? 14850.25 : rawMasiPrice;
+    : 17667.10;
+  const currentMasiPts = isNaN(rawMasiPrice) || rawMasiPrice <= 0 ? 17667.10 : rawMasiPrice;
   const masiVarPct = masiBenchmark?.variationValue ?? 2.45;
 
   // Hover Tooltip State
