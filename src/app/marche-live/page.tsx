@@ -230,78 +230,155 @@ export default function MarcheLive() {
                 <p className="mono-small opacity-40">LIAISON AU FLUX DE DONNÉES EN COURS...</p>
               </div>
             ) : (
-              <div className="table-scroll">
-                <table className="institutional-table">
-                  <thead>
-                    <tr className="glass-heavy">
-                      <th onClick={() => requestSort('symbol')} className="sortable">VALEUR {renderSortIcon('symbol')}</th>
-                      <th onClick={() => requestSort('price')} className="sortable">DERNIER COURS {renderSortIcon('price')}</th>
-                      <th onClick={() => requestSort('variationValue')} className="sortable">VARIATION {renderSortIcon('variationValue')}</th>
-                      <th onClick={() => requestSort('opening')} className="sortable">OUV. {renderSortIcon('opening')}</th>
-                      <th onClick={() => requestSort('high')} className="sortable">PLUS HAUT {renderSortIcon('high')}</th>
-                      <th onClick={() => requestSort('low')} className="sortable">PLUS BAS {renderSortIcon('low')}</th>
-                      <th style={{ textAlign: 'right' }}>ACTION</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredStocks.map((stock, i) => (
-                      <tr key={i} className="inst-row">
-                        <td data-label="VALEUR">
-                          <div className="symbol-cell">
-                            <div className="s-status"></div>
-                            <span className="s-name">{stock.symbol}</span>
-                          </div>
-                        </td>
-                        <td className="price-cell-inst" data-label="DERNIER COURS">
-                          <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-                             <span className="p-val mono">{stock.price}</span>
-                             <span className="p-cur">MAD</span>
-                          </div>
-                        </td>
-                        <td data-label="MOMENTUM">
-                          <div className={`momentum-box ${stock.variationValue >= 0 ? 'bull' : 'bear'}`}>
-                            <div className="m-main">
-                               <span className="m-abs mono">{stock.variationAbs}</span>
-                               <span className="m-pct mono">{stock.variation}</span>
+              <>
+                {/* ────────────────── MOBILE LIVE MARKET CARDS (< 1024px) ────────────────── */}
+                <div className="mobile-only-container gap-3 p-3">
+                  {filteredStocks.map((stock) => {
+                    const isPositive = stock.variationValue >= 0;
+
+                    return (
+                      <div key={stock.symbol} className="live-market-mobile-card">
+                        {/* TOP ROW: Avatar Badge + Symbol + Price & Variation Hero Pill */}
+                        <div className="card-top-row">
+                          <div className="card-identity" onClick={() => handleAnalyze(stock.symbol, 'STRATEGY')} role="button" tabIndex={0}>
+                            <div className="stock-avatar-badge">
+                              {stock.symbol.substring(0, 3)}
                             </div>
-                            <div className="m-bar">
-                               <div className="m-fill" style={{ width: `${Math.min(Math.abs(stock.variationValue) * 15, 100)}%` }}></div>
+                            <div className="stock-titles">
+                              <span className="stock-symbol-title">{stock.symbol}</span>
+                              <span className="stock-sector-pill">CASABLANCA LIVE</span>
                             </div>
                           </div>
-                        </td>
-                        <td className="data-cell mono" data-label="OUVERTURE">{stock.opening}</td>
-                        <td className="data-cell high mono" data-label="PLUS HAUT">{stock.high}</td>
-                        <td className="data-cell low mono" data-label="PLUS BAS">{stock.low}</td>
-                        <td style={{ textAlign: 'right' }}>
-                          <div className="action-dropdown-container" ref={openMenuSymbol === stock.symbol ? menuRef : undefined}>
-                            <button 
-                              className="terminal-btn-sm glass"
-                              onClick={() => setOpenMenuSymbol(prev => prev === stock.symbol ? null : stock.symbol)}
-                            >
-                              <Zap size={12} />
-                              <span>ANALYSER</span>
-                            </button>
-                            {openMenuSymbol === stock.symbol && (
-                              <div className="action-dropdown-menu">
-                                {ANALYSIS_OPTIONS.map(opt => (
-                                  <button
-                                    key={opt.key}
-                                    className={`dropdown-item ${opt.className}`}
-                                    onClick={() => handleAnalyze(stock.symbol, opt.key)}
-                                  >
-                                    <opt.icon size={14} />
-                                    <span>{opt.label}</span>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
+
+                          <div className="price-hero-block">
+                            <div className="hero-price">
+                              {stock.price} <span className="currency">MAD</span>
+                            </div>
+                            <div className={`pnl-hero-pill ${isPositive ? 'bull' : 'bear'}`}>
+                              <span className="pnl-amount">{stock.variationAbs}</span>
+                              <span className="pnl-percentage">{isPositive ? '▲' : '▼'} {stock.variation}</span>
+                            </div>
                           </div>
-                        </td>
+                        </div>
+
+                        {/* 3-COLUMN METRIC GRID */}
+                        <div className="live-metrics-3col">
+                          <div className="metric-box">
+                            <span className="metric-label">OUVERTURE</span>
+                            <span className="metric-primary-val">{stock.opening} <span className="unit">MAD</span></span>
+                          </div>
+
+                          <div className="metric-box">
+                            <span className="metric-label">PLUS HAUT</span>
+                            <span className="metric-primary-val text-emerald-400">{stock.high} <span className="unit">MAD</span></span>
+                          </div>
+
+                          <div className="metric-box">
+                            <span className="metric-label">PLUS BAS</span>
+                            <span className="metric-primary-val text-rose-400">{stock.low} <span className="unit">MAD</span></span>
+                          </div>
+                        </div>
+
+                        {/* QUICK AGENT ACTION BAR */}
+                        <div className="market-card-actions">
+                          <button 
+                            className="card-action-chip strategy"
+                            onClick={() => handleAnalyze(stock.symbol, 'STRATEGY')}
+                          >
+                            <Sparkles size={13} /> <span>Stratégie</span>
+                          </button>
+                          <button 
+                            className="card-action-chip technical"
+                            onClick={() => handleAnalyze(stock.symbol, 'TECHNICAL')}
+                          >
+                            <BarChart3 size={13} /> <span>Technique</span>
+                          </button>
+                          <button 
+                            className="card-action-chip fundamental"
+                            onClick={() => handleAnalyze(stock.symbol, 'FUNDAMENTAL')}
+                          >
+                            <Building2 size={13} /> <span>Fondamentaux</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* ────────────────── DESKTOP LIVE MARKET TABLE (>= 1024px) ────────────────── */}
+                <div className="table-scroll desktop-only-container">
+                  <table className="institutional-table">
+                    <thead>
+                      <tr className="glass-heavy">
+                        <th onClick={() => requestSort('symbol')} className="sortable">VALEUR {renderSortIcon('symbol')}</th>
+                        <th onClick={() => requestSort('price')} className="sortable">DERNIER COURS {renderSortIcon('price')}</th>
+                        <th onClick={() => requestSort('variationValue')} className="sortable">VARIATION {renderSortIcon('variationValue')}</th>
+                        <th onClick={() => requestSort('opening')} className="sortable">OUV. {renderSortIcon('opening')}</th>
+                        <th onClick={() => requestSort('high')} className="sortable">PLUS HAUT {renderSortIcon('high')}</th>
+                        <th onClick={() => requestSort('low')} className="sortable">PLUS BAS {renderSortIcon('low')}</th>
+                        <th style={{ textAlign: 'right' }}>ACTION</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {filteredStocks.map((stock, i) => (
+                        <tr key={i} className="inst-row">
+                          <td data-label="VALEUR">
+                            <div className="symbol-cell">
+                              <div className="s-status"></div>
+                              <span className="s-name">{stock.symbol}</span>
+                            </div>
+                          </td>
+                          <td className="price-cell-inst" data-label="DERNIER COURS">
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                               <span className="p-val mono">{stock.price}</span>
+                               <span className="p-cur">MAD</span>
+                            </div>
+                          </td>
+                          <td data-label="MOMENTUM">
+                            <div className={`momentum-box ${stock.variationValue >= 0 ? 'bull' : 'bear'}`}>
+                              <div className="m-main">
+                                 <span className="m-abs mono">{stock.variationAbs}</span>
+                                 <span className="m-pct mono">{stock.variation}</span>
+                              </div>
+                              <div className="m-bar">
+                                 <div className="m-fill" style={{ width: `${Math.min(Math.abs(stock.variationValue) * 15, 100)}%` }}></div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="data-cell mono" data-label="OUVERTURE">{stock.opening}</td>
+                          <td className="data-cell high mono" data-label="PLUS HAUT">{stock.high}</td>
+                          <td className="data-cell low mono" data-label="PLUS BAS">{stock.low}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <div className="action-dropdown-container" ref={openMenuSymbol === stock.symbol ? menuRef : undefined}>
+                              <button 
+                                className="terminal-btn-sm glass"
+                                onClick={() => setOpenMenuSymbol(prev => prev === stock.symbol ? null : stock.symbol)}
+                              >
+                                <Zap size={12} />
+                                <span>ANALYSER</span>
+                              </button>
+                              {openMenuSymbol === stock.symbol && (
+                                <div className="action-dropdown-menu">
+                                  {ANALYSIS_OPTIONS.map(opt => (
+                                    <button
+                                      key={opt.key}
+                                      className={`dropdown-item ${opt.className}`}
+                                      onClick={() => handleAnalyze(stock.symbol, opt.key)}
+                                    >
+                                      <opt.icon size={14} />
+                                      <span>{opt.label}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         </div>
