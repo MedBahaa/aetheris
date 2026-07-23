@@ -47,14 +47,15 @@ const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gem
  * AUDIT FIX: Retry sur les erreurs transitoires (timeout, 500, réseau),
  * pas seulement les erreurs 429 quota.
  */
-async function callGoogleAI(prompt: string, isJson: boolean = false, preferredModel?: string): Promise<string> {
+async function callGoogleAI(prompt: string, isJson: boolean = false, preferredModel?: string, customApiKey?: string): Promise<string> {
   const modelsToTry = preferredModel ? [preferredModel, ...MODELS.filter(m => m !== preferredModel)] : MODELS;
   const MAX_RETRIES_PER_MODEL = 2;
+  const aiInstance = customApiKey ? new GoogleGenerativeAI(customApiKey) : genAI;
   
   for (const modelName of modelsToTry) {
     for (let attempt = 1; attempt <= MAX_RETRIES_PER_MODEL; attempt++) {
       try {
-        const model = genAI.getGenerativeModel({ 
+        const model = aiInstance.getGenerativeModel({ 
           model: modelName,
           generationConfig: isJson ? { responseMimeType: 'application/json' } : undefined
         });
@@ -120,8 +121,8 @@ async function callMistral(prompt: string): Promise<string> {
 }
 
 /** Orchestrateur d'IA avec Fallback automatique */
-async function unifiedAICall(prompt: string, isJson: boolean = true, preferredModel?: string): Promise<string> {
-  const hash = crypto.createHash('md5').update(prompt + isJson + (preferredModel || '')).digest('hex');
+async function unifiedAICall(prompt: string, isJson: boolean = true, preferredModel?: string, customApiKey?: string): Promise<string> {
+  const hash = crypto.createHash('md5').update(prompt + isJson + (preferredModel || '') + (customApiKey || '')).digest('hex');
   const cacheKey = `aetheris:prompt:${hash}`;
 
   try {
@@ -138,7 +139,7 @@ async function unifiedAICall(prompt: string, isJson: boolean = true, preferredMo
   let resultText = '';
   try {
     // 1. Essayer les modèles Google AI
-    resultText = await callGoogleAI(prompt, isJson, preferredModel);
+    resultText = await callGoogleAI(prompt, isJson, preferredModel, customApiKey);
   } catch (e: any) {
     console.log(`🔄 [Fallback] Échec Google AI (${e.message || e}). Passage sur Mistral...`);
     try {
@@ -633,6 +634,64 @@ export class GeminiService {
         ],
         rationale: "Optimisation de secours exécutée localement. Votre portefeuille présente des concentrations sectorielles qui mériteraient d'être lissées sous la barre des 25% par ligne."
       };
+    }
+  }
+
+  /**
+   * Analyse de Conformité Sharia & Taux de Purification des Dividendes (Normes AAOIFI 2026)
+   */
+  static async analyzeShariaCompliance(query: string, customApiKey?: string) {
+    query = InputSanitizer.sanitizeCompanyName(query);
+
+    const prompt = `
+Tu es un analyste financier expert en Sharia Screener et finance islamique (normes AAOIFI 2026). 
+Recherche sur Internet les derniers états financiers annuels et rapports officiels publiés pour la société ou l'action : "${query}".
+
+1. Extrais les données financières suivantes (dans la devise officielle du rapport, ex: MAD, USD, EUR) :
+   - Chiffre d'affaires total (ou Produits d'exploitation / Chiffre d'affaires hors taxes)
+   - Produits financiers issus d'intérêts (Riba / placements à intérêts / revenus financiers non conformes)
+   - Total des dettes portant intérêt (Emprunts bancaires / obligataires / dettes financières)
+   - Trésorerie et placements portant intérêt (Dépôts à terme / placements rémunérés)
+
+2. Effectue les calculs AAOIFI stricts suivants :
+   - Taux de purification (%) = (Produits d'intérêts ÷ Chiffre d'affaires total) * 100
+   - Ratio d'endettement (%) = (Dettes d'intérêts ÷ Capitalisation boursière ou Total Actif) * 100
+   - Ratio de liquidité placée (%) = (Trésorerie avec intérêt ÷ Capitalisation boursière ou Total Actif) * 100
+
+3. Détermine le statut de conformité Sharia selon les normes AAOIFI :
+   - Si Revenus d'intérêts <= 5.0% ET Ratio d'endettement <= 33.0% ET Ratio de liquidité <= 33.0% -> Status: CONFORME (isCompliant = true)
+   - Sinon -> Status: NON CONFORME (isCompliant = false)
+
+4. Retourne la réponse EXCLUSIVEMENT au format JSON strict avec la structure suivante (aucun texte autour, pas de markdown) :
+{
+  "companyName": "Nom officiel de l'entreprise",
+  "ticker": "Ticker ou Symbole boursier",
+  "fiscalYear": "Année du rapport (ex: 2024/2025)",
+  "isCompliant": true,
+  "purificationRate": 1.45,
+  "debtRatio": 14.2,
+  "cashRatio": 8.5,
+  "financialData": {
+    "totalRevenue": "2 850 000 000 MAD",
+    "interestIncome": "41 325 000 MAD",
+    "interestDebt": "404 700 000 MAD",
+    "interestCash": "242 250 000 MAD"
+  },
+  "summary": "Résumé explicatif en 2-3 phrases sur l'origine des produits financiers et la décision de conformité Sharia.",
+  "sources": ["https://www.leboursier.ma", "https://www.cdvm.gov.ma"]
+}
+`;
+
+    try {
+      const text = await unifiedAICall(prompt, true, 'gemini-2.5-flash', customApiKey);
+      const parsed = safeJsonParse(text);
+      if (parsed && typeof parsed.isCompliant === 'boolean') {
+        return parsed;
+      }
+      throw new Error("Format JSON invalide retourné par l'IA");
+    } catch (e: any) {
+      console.error("Gemini Sharia Screener Error:", e);
+      throw e;
     }
   }
 }

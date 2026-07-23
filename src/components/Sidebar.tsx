@@ -2,7 +2,7 @@
 
 import { 
   History, Search, ArrowRight, BrainCircuit, Activity, 
-  ShieldCheck, X, Globe, Zap, LayoutGrid, 
+  ShieldCheck, X, Globe, Zap, LayoutGrid, Scale,
   Landmark, Briefcase, ChevronDown, ChevronRight,
   User, AlertTriangle, CheckCircle2, Bell, MessageSquare
 } from 'lucide-react';
@@ -290,6 +290,14 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
                   <button className={`agent-btn-compact ${pathname === '/portfolio' ? 'active' : ''}`}>
                     <Briefcase size={16} />
                     <span>Portefeuille</span>
+                  </button>
+                </Link>
+
+                <Link href="/purification" style={{ textDecoration: 'none' }} onClick={onClose}>
+                  <button className={`agent-btn-compact ${pathname === '/purification' ? 'active' : ''}`}>
+                    <Scale size={16} />
+                    <span>Purification Dividendes</span>
+                    <span className="live-badge-glow" style={{ fontSize: '8px', color: '#10b981', marginLeft: 'auto' }}>AAOIFI</span>
                   </button>
                 </Link>
 
