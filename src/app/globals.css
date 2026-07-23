@@ -251,6 +251,25 @@ body {
   .mobile-bottom-nav {
     display: none !important;
   }
+
+  .mobile-only-container {
+    display: none !important;
+  }
+
+  .desktop-only-container {
+    display: block !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  .mobile-only-container {
+    display: flex !important;
+    flex-direction: column;
+  }
+
+  .desktop-only-container {
+    display: none !important;
+  }
 }
 
 /* Removal of desktop sidebar override */
