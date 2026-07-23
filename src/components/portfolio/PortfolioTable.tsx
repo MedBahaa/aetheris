@@ -95,8 +95,8 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
         </div>
       ) : (
         <>
-          {/* ────────────────── MOBILE CARDS VIEW (< 768px) ────────────────── */}
-          <div className="mobile-cards-container md:hidden flex flex-col gap-3 p-3">
+          {/* ────────────────── MOBILE CARDS VIEW (< 1024px) ────────────────── */}
+          <div className="mobile-cards-container lg:hidden flex flex-col gap-3 p-3">
             {sortedHoldings.map((s) => {
               const isExpanded = expandedSymbol === s.symbol;
               const isSettingAlert = alertSymbol === s.symbol;
@@ -215,8 +215,8 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
             })}
           </div>
 
-          {/* ────────────────── DESKTOP TABLE VIEW (>= 768px) ────────────────── */}
-          <div className="table-scroll hidden md:block">
+          {/* ────────────────── DESKTOP TABLE VIEW (>= 1024px) ────────────────── */}
+          <div className="table-scroll hidden lg:block">
             <table className="institutional-table">
               <thead>
                 <tr className="glass-heavy">
