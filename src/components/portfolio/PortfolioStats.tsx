@@ -115,10 +115,11 @@ const tooltips = {
   dividendes: (
     <>
       <strong>Dividendes Reçus (NET)</strong>
-      <p>Montant des dividendes réellement perçus sur votre compte après la déduction globale légale de 13,45 %.</p>
+      <p>Montant net réellement encaissé en compte après la déduction globale de 13,45 %.</p>
       <code>🔴 Impôt État (TPA 2026) : 11,25 %</code>
       <code>🏦 Frais Wafa Bourse : 2,20 % TTC</code>
-      <code>🟢 Net Encaissé : 86,55 % du brut</code>
+      <code>🟢 Net en compte : 86,55 % du brut</code>
+      <p className="tt-note">💡 Calculé automatiquement sur chaque dividende versé.</p>
     </>
   ),
   liquidites: (
@@ -250,7 +251,6 @@ export const PortfolioStats: React.FC<PortfolioStatsProps> = ({
         <div className="stat-info">
           <span className="stat-label mono">DIVIDENDES REÇUS (NET) <KpiTooltip content={tooltips.dividendes} /></span>
           <div className="stat-value text-emerald-400">{totalDividends.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} <span className="currency">MAD</span></div>
-          <span className="m-sub">Net en compte (86,55%) · Retenues: 13,45%</span>
         </div>
       </div>
 
