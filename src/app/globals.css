@@ -356,6 +356,72 @@ body {
   box-shadow: 0 4px 15px rgba(16, 185, 129, 0.15);
 }
 
+/* Mobile Position Cards High-Priority Scoped Dark Buttons */
+.mobile-card-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.35rem !important;
+  background: rgba(30, 41, 59, 0.9) !important;
+  color: #f1f5f9 !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 10px !important;
+  padding: 0.45rem 0.85rem !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  font-family: 'Inter', sans-serif !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  -webkit-tap-highlight-color: transparent !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+.mobile-card-btn:hover, .mobile-card-btn:active {
+  background: rgba(51, 65, 85, 0.95) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.mobile-card-btn.active-alert {
+  background: rgba(6, 78, 59, 0.8) !important;
+  color: #34d399 !important;
+  border-color: rgba(16, 185, 129, 0.5) !important;
+}
+
+.mobile-card-btn.active-tx {
+  background: rgba(30, 58, 138, 0.8) !important;
+  color: #60a5fa !important;
+  border-color: rgba(59, 130, 246, 0.5) !important;
+}
+
+@media (max-width: 639px) {
+  .section-header {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 0.5rem !important;
+    padding-bottom: 0.75rem !important;
+    margin-bottom: 1rem !important;
+  }
+
+  .section-header h3 {
+    font-size: 0.9rem !important;
+    letter-spacing: 0em !important;
+  }
+
+  .action-btn-terminal.strategy {
+    padding: 0.45rem 0.75rem !important;
+    font-size: 10px !important;
+    border-radius: 10px !important;
+    white-space: nowrap !important;
+  }
+
+  .main-content {
+    padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
 /* Removal of desktop sidebar override */
 
 
