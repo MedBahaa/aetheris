@@ -19,9 +19,24 @@ export default function LoginPage() {
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
 
-  // For nice hydration handling
+  // For nice hydration handling & automatic session check
   useEffect(() => {
     setMounted(true);
+
+    // Auto-redirect if already authenticated
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        window.location.href = '/portfolio';
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
+        window.location.href = '/portfolio';
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -30,39 +45,52 @@ export default function LoginPage() {
     setError(null);
     setSuccess(null);
 
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
+
+    if (!cleanEmail || !cleanPassword) {
+      setError("VEUILLEZ SAISIR VOTRE EMAIL ET VOTRE MOT DE PASSE.");
+      setLoading(false);
+      return;
+    }
+
     if (mode === 'signup') {
       const { error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
+        email: cleanEmail,
+        password: cleanPassword,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
       if (signUpError) {
-        setError(signUpError.message);
+        setError(signUpError.message || "ÉCHEC DE L'INSCRIPTION.");
         setLoading(false);
       } else {
-        setSuccess("ACCÈS RÉSERVÉ. Vérifiez votre uplink (email) pour validation.");
+        setSuccess("ACCÈS RÉSERVÉ. Vérifiez votre boîte mail (uplink) pour valider votre compte.");
         setLoading(false);
       }
     } else {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+        email: cleanEmail,
+        password: cleanPassword,
       });
 
       if (signInError) {
-        setError("IDENTIFIANTS INVALIDES. ÉCHEC DE L'AUTHENTIFICATION.");
+        let msg = signInError.message;
+        if (msg.includes('Invalid login credentials')) {
+          msg = "IDENTIFIANTS INVALIDES. VÉRIFIEZ VOTRE EMAIL ET MOT DE PASSE.";
+        } else if (msg.includes('Email not confirmed')) {
+          msg = "EMAIL NON CONFIRMÉ. VÉRIFIEZ VOTRE BOÎTE MAIL DE VALIDATION.";
+        }
+        setError(msg);
         setLoading(false);
-      } else if (data.session) {
-        // Session confirmée : redirection immédiate vers le portfolio
-        router.push('/portfolio');
-        // Timeout de sécurité : si la navigation bloque plus de 3s, on débloque le bouton
-        setTimeout(() => setLoading(false), 3000);
+      } else if (data?.session) {
+        setSuccess("LIAISON ÉTABLIE. REDIRECTION...");
+        // Redirection ferme compatible mobile
+        window.location.href = '/portfolio';
       } else {
-        // Cas rare : pas d'erreur mais pas de session (email non confirmé par exemple)
-        setError("VÉRIFIEZ VOTRE EMAIL POUR CONFIRMER VOTRE COMPTE.");
+        setError("SESSION NON ÉTABLIE. VÉRIFIEZ VOS IDENTIFIANTS.");
         setLoading(false);
       }
     }
@@ -124,6 +152,9 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="NOM UTILISATEUR@AETHERIS.SEC"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   required 
                 />
               </div>
@@ -141,6 +172,9 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   required 
                 />
               </div>
