@@ -170,10 +170,13 @@ export default function PortfolioPage() {
           return normalizedLive === normalizedHolding || l.symbol === h.symbol;
         });
 
+        const rawSector = (live ? live.sector : undefined) || sectorMap[h.symbol] || sectorMap[SymbolMapper.resolve(h.symbol)];
+        const sector = SymbolMapper.getSector(h.symbol, rawSector);
+
         return {
           ...h,
           curPrice: live ? (typeof live.price === 'string' ? parseFloat(live.price.replace(/\s/g, '').replace(',', '.')) : live.price) : 0,
-          sector: sectorMap[h.symbol] || (live ? live.sector : 'Inconnu')
+          sector
         };
       });
 
@@ -425,7 +428,7 @@ export default function PortfolioPage() {
   });
 
   const filteredHoldings = selectedSector
-    ? holdingsWithDividends.filter(h => h.sector === selectedSector)
+    ? holdingsWithDividends.filter(h => (h.sector || 'Autres Secteurs') === selectedSector)
     : holdingsWithDividends;
 
   const totalPerformance = totalInvestedNet > 0 ? (totalPvNette / totalInvestedNet) * 100 : 0;
@@ -436,11 +439,20 @@ export default function PortfolioPage() {
 
   const sectorBreakdown: Record<string, number> = {};
   holdingsStats.forEach(h => {
-    const sName = h.sector || 'Inconnu';
-    sectorBreakdown[sName] = (sectorBreakdown[sName] || 0) + (h.valuation ?? 0);
+    const sName = h.sector || 'Autres Secteurs';
+    const effectiveValuation = (h.valuation > 0 ? h.valuation : h.totalCost) || 0;
+    sectorBreakdown[sName] = (sectorBreakdown[sName] || 0) + effectiveValuation;
   });
+
+  const totalSectorValuation = Object.values(sectorBreakdown).reduce((s, v) => s + v, 0);
+
   const sectors = Object.entries(sectorBreakdown)
-    .map(([name, val], i) => ({ name, val, pct: totalMarketValue > 0 ? (val / totalMarketValue) * 100 : 0, color: COLORS[i % COLORS.length] }))
+    .map(([name, val], i) => ({ 
+      name, 
+      val, 
+      pct: totalSectorValuation > 0 ? (val / totalSectorValuation) * 100 : 0, 
+      color: COLORS[i % COLORS.length] 
+    }))
     .sort((a, b) => b.val - a.val);
 
   const calcRiskScore = (stats: any[]) => {
