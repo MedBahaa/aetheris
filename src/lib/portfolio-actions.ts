@@ -192,7 +192,10 @@ export async function sendTestAlertAction(): Promise<{ success: boolean; message
           });
           if (error) {
             console.error('[sendTestAlertAction] Resend error:', error);
-            errors.push(`Email: ${error.message}`);
+            const msg = error.message?.toLowerCase().includes('api key') 
+              ? 'Clé RESEND_API_KEY invalide ou expirée dans vos variables .env.local' 
+              : error.message;
+            errors.push(`Email: ${msg}`);
           } else {
             dispatched.push(`Email (${targetEmail})`);
           }
