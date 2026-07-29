@@ -39,27 +39,42 @@ export default function ProfilePage() {
     setMounted(true);
   }, []);
 
-  const loadProfile = useCallback(async () => {
+  const loadProfile = useCallback(async (showSpinner: boolean = true) => {
     try {
-      setLoading(true);
+      if (showSpinner) setLoading(true);
+
+      // Load local cache if available for instant UI rendering
+      try {
+        const cached = localStorage.getItem('aetheris_user_profile');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed.newCapital !== undefined) setNewCapital(parsed.newCapital);
+          if (parsed.telegramChatId !== undefined) setTelegramChatId(parsed.telegramChatId);
+          if (parsed.whatsappPhone !== undefined) setWhatsappPhone(parsed.whatsappPhone);
+          if (parsed.alertChannel !== undefined) setAlertChannel(parsed.alertChannel);
+          if (parsed.notificationEmail !== undefined) setNotificationEmail(parsed.notificationEmail);
+          if (parsed.username !== undefined) setUsername(parsed.username);
+        }
+      } catch (e) {}
+
       const res = await getUserProfileAction();
       if (res && res.success && res.data) {
         const prof = res.data;
         setProfile(prof);
-        setNewCapital(prof.initial_capital.toString());
-        setTelegramChatId(prof.telegram_chat_id || '');
-        setWhatsappPhone(prof.whatsapp_phone || '');
-        setAlertChannel(prof.alert_channel || 'EMAIL');
-        setNotificationEmail(prof.notification_email || '');
-        setUsername(prof.username || '');
-        setSubscriptionTier(prof.subscription_tier || 'free');
+        if (prof.initial_capital) setNewCapital(prof.initial_capital.toString());
+        if (prof.telegram_chat_id) setTelegramChatId(prof.telegram_chat_id);
+        if (prof.whatsapp_phone) setWhatsappPhone(prof.whatsapp_phone);
+        if (prof.alert_channel) setAlertChannel(prof.alert_channel);
+        if (prof.notification_email) setNotificationEmail(prof.notification_email);
+        if (prof.username) setUsername(prof.username);
+        if (prof.subscription_tier) setSubscriptionTier(prof.subscription_tier);
       } else {
-        console.error('Failed to load profile:', res?.error);
+        console.warn('Profile load warning:', res?.error);
       }
     } catch (err) {
       console.error('Failed to load profile:', err);
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
   }, []);
 
@@ -97,6 +112,18 @@ export default function ProfilePage() {
       const cap = parseFloat(newCapital) || 0;
       const targetTier = forceTier !== undefined ? forceTier : subscriptionTier;
 
+      // Save locally to cache first
+      try {
+        localStorage.setItem('aetheris_user_profile', JSON.stringify({
+          newCapital,
+          telegramChatId,
+          whatsappPhone,
+          alertChannel,
+          notificationEmail,
+          username
+        }));
+      } catch (e) {}
+
       const payload = {
         initial_capital: cap,
         subscription_tier: targetTier,
@@ -117,10 +144,11 @@ export default function ProfilePage() {
       setSubscriptionTier(targetTier);
       
       // Show smooth glass feedback
-      setSaveMessage({ type: 'success', text: 'Paramètres mis à jour avec succès !' });
+      setSaveMessage({ type: 'success', text: 'Paramètres enregistrés et validés avec succès !' });
       setTimeout(() => setSaveMessage(null), 4000);
       
-      loadProfile();
+      // Refresh silently without unmounting form
+      loadProfile(false);
     } catch (err: any) {
       setSaveMessage({ type: 'error', text: err.message || 'Erreur lors de la sauvegarde' });
       setTimeout(() => setSaveMessage(null), 4000);

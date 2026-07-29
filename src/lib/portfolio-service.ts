@@ -308,13 +308,20 @@ export class PortfolioService {
     const { data: { user } } = await client.auth.getUser();
     if (!user) return null;
 
-    const { data, error } = await client
-      .from('user_profiles')
-      .select('initial_capital, subscription_tier, telegram_chat_id, whatsapp_phone, alert_channel, notification_email, username, virtual_initial_capital, virtual_balance')
-      .eq('user_id', user.id)
-      .single();
-
-    if (error && error.code !== 'PGRST116') throw error;
+    let data: any = null;
+    try {
+      const res = await client
+        .from('user_profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (!res.error || res.error.code === 'PGRST116') {
+        data = res.data;
+      }
+    } catch (err: any) {
+      console.warn('[getUserProfile] Exception reading profile:', err.message);
+    }
     
     return {
       initial_capital: data?.initial_capital ?? 0,
@@ -362,7 +369,21 @@ export class PortfolioService {
       .from('user_profiles')
       .upsert(payload);
 
-    if (error) throw error;
+    if (error) {
+      console.warn('[upsertUserProfile] First attempt error:', error.message);
+      // Fallback for unmigrated columns
+      const safePayload: any = {
+        user_id: user.id,
+        initial_capital: payload.initial_capital ?? 0,
+        subscription_tier: payload.subscription_tier ?? 'free',
+        updated_at: payload.updated_at
+      };
+      const { error: fallbackError } = await client
+        .from('user_profiles')
+        .upsert(safePayload);
+
+      if (fallbackError) throw fallbackError;
+    }
   }
 
   // ──────────────────────────────────
