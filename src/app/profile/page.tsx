@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
-import { getUserProfileAction, upsertUserProfileAction } from '@/lib/portfolio-actions';
+import { getUserProfileAction, upsertUserProfileAction, sendTestAlertAction } from '@/lib/portfolio-actions';
 import { useRouter } from 'next/navigation';
 import { PremiumPaywallModal } from '@/components/portfolio/PremiumPaywallModal';
 
@@ -17,6 +17,7 @@ export default function ProfilePage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [testingAlert, setTestingAlert] = useState(false);
   const [mounted, setMounted] = useState(false);
   
   // Non-blocking toast state
@@ -154,6 +155,25 @@ export default function ProfilePage() {
       setTimeout(() => setSaveMessage(null), 4000);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleTestAlert = async () => {
+    try {
+      setTestingAlert(true);
+      setSaveMessage({ type: 'success', text: 'Envoi du test d\'alerte en cours...' });
+      const res = await sendTestAlertAction();
+      if (res && res.success) {
+        setSaveMessage({ type: 'success', text: res.message || 'Notification de test envoyée avec succès !' });
+      } else {
+        setSaveMessage({ type: 'error', text: res?.error || 'Erreur lors de l\'envoi du test.' });
+      }
+      setTimeout(() => setSaveMessage(null), 6000);
+    } catch (err: any) {
+      setSaveMessage({ type: 'error', text: err.message || 'Erreur lors de l\'envoi du test.' });
+      setTimeout(() => setSaveMessage(null), 6000);
+    } finally {
+      setTestingAlert(false);
     }
   };
 
@@ -444,21 +464,42 @@ export default function ProfilePage() {
                       </div>
                     )}
 
-                    {/* Submit Button */}
-                    <button 
-                      type="submit" 
-                      className="submit-btn"
-                      disabled={saving}
-                    >
-                      {saving ? (
-                        <>
-                          <RefreshCw className="animate-spin" size={14} />
-                          <span>ENREGISTREMENT...</span>
-                        </>
-                      ) : (
-                        <span>SAUVEGARDER LES PARAMÈTRES</span>
-                      )}
-                    </button>
+                    {/* Action Buttons Grid */}
+                    <div className="form-actions-grid">
+                      <button 
+                        type="submit" 
+                        className="submit-btn"
+                        disabled={saving || testingAlert}
+                      >
+                        {saving ? (
+                          <>
+                            <RefreshCw className="animate-spin" size={14} />
+                            <span>ENREGISTREMENT...</span>
+                          </>
+                        ) : (
+                          <span>SAUVEGARDER LES PARAMÈTRES</span>
+                        )}
+                      </button>
+
+                      <button 
+                        type="button" 
+                        onClick={handleTestAlert}
+                        className="test-alert-btn"
+                        disabled={saving || testingAlert}
+                      >
+                        {testingAlert ? (
+                          <>
+                            <RefreshCw className="animate-spin" size={14} />
+                            <span>ENVOI DU TEST...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Zap size={14} />
+                            <span>TESTER L'ALERTE</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
 
                   </div>
                 </form>
@@ -1034,6 +1075,50 @@ export default function ProfilePage() {
 
         .setup-guide li {
           line-height: 1.4;
+        }
+
+        /* Action Buttons Grid */
+        .form-actions-grid {
+          display: grid;
+          grid-template-columns: 1.2fr 1fr;
+          gap: 1rem;
+        }
+
+        @media (max-width: 640px) {
+          .form-actions-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        .test-alert-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          background: rgba(168, 85, 247, 0.1);
+          border: 1px solid rgba(168, 85, 247, 0.3);
+          color: #c084fc;
+          font-family: 'Outfit', sans-serif;
+          font-weight: 800;
+          font-size: 0.85rem;
+          letter-spacing: 0.02em;
+          padding: 1rem;
+          border-radius: 0.75rem;
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .test-alert-btn:hover:not(:disabled) {
+          background: rgba(168, 85, 247, 0.25);
+          border-color: rgba(168, 85, 247, 0.6);
+          color: #fff;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 15px rgba(168, 85, 247, 0.2);
+        }
+
+        .test-alert-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
 
         /* Submit Button */
