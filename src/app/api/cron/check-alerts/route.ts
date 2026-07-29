@@ -116,7 +116,7 @@ export async function GET(request: Request) {
         // 4. Récupérer le profil utilisateur pour les préférences d'alertes
         const { data: profile } = await supabaseAdmin
           .from('user_profiles')
-          .select('telegram_chat_id, whatsapp_phone, alert_channel')
+          .select('telegram_chat_id, whatsapp_phone, alert_channel, notification_email')
           .eq('user_id', alert.user_id)
           .single();
 
@@ -137,13 +137,13 @@ export async function GET(request: Request) {
         // Notification Email
         if (channel === 'EMAIL' || channel === 'ALL') {
           const { data: userData } = await supabaseAdmin.auth.admin.getUserById(alert.user_id);
-          const userEmail = userData?.user?.email;
+          const targetEmail = profile?.notification_email || userData?.user?.email;
 
-          if (userEmail) {
+          if (targetEmail) {
             try {
               await resend.emails.send({
                 from: 'Aetheris Terminal <onboarding@resend.dev>',
-                to: userEmail,
+                to: targetEmail,
                 subject: `🚨 Alerte Aetheris : ${alert.symbol} a déclenché une alerte`,
                 html: `
                   <div style="font-family: sans-serif; padding: 20px; color: #1e293b;">
@@ -159,7 +159,7 @@ export async function GET(request: Request) {
                   </div>
                 `
               });
-              console.log(`[Cron Check Alerts] Email envoyé à ${userEmail} pour ${alert.symbol}`);
+              console.log(`[Cron Check Alerts] Email envoyé à ${targetEmail} pour ${alert.symbol}`);
             } catch (emailError: any) {
               console.error(`[Cron Check Alerts] Erreur envoi email:`, emailError.message);
             }
