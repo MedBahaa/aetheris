@@ -309,7 +309,7 @@ export class PortfolioService {
 
     const { data, error } = await client
       .from('user_profiles')
-      .select('initial_capital, subscription_tier, telegram_chat_id, whatsapp_phone, alert_channel, username, virtual_initial_capital, virtual_balance')
+      .select('initial_capital, subscription_tier, telegram_chat_id, whatsapp_phone, alert_channel, notification_email, username, virtual_initial_capital, virtual_balance')
       .eq('user_id', user.id)
       .single();
 
@@ -321,6 +321,7 @@ export class PortfolioService {
       telegram_chat_id: data?.telegram_chat_id ?? '',
       whatsapp_phone: data?.whatsapp_phone ?? '',
       alert_channel: data?.alert_channel ?? 'EMAIL',
+      notification_email: data?.notification_email ?? user.email ?? '',
       username: data?.username ?? '',
       virtual_initial_capital: data?.virtual_initial_capital ?? 100000,
       virtual_balance: data?.virtual_balance ?? 100000,
@@ -333,6 +334,7 @@ export class PortfolioService {
     telegram_chat_id?: string;
     whatsapp_phone?: string;
     alert_channel?: string;
+    notification_email?: string;
     username?: string;
     virtual_initial_capital?: number;
     virtual_balance?: number;
@@ -350,6 +352,7 @@ export class PortfolioService {
     if (profile.telegram_chat_id !== undefined) payload.telegram_chat_id = profile.telegram_chat_id;
     if (profile.whatsapp_phone !== undefined) payload.whatsapp_phone = profile.whatsapp_phone;
     if (profile.alert_channel !== undefined) payload.alert_channel = profile.alert_channel;
+    if (profile.notification_email !== undefined) payload.notification_email = profile.notification_email;
     if (profile.username !== undefined) payload.username = profile.username;
     if (profile.virtual_initial_capital !== undefined) payload.virtual_initial_capital = profile.virtual_initial_capital;
     if (profile.virtual_balance !== undefined) payload.virtual_balance = profile.virtual_balance;

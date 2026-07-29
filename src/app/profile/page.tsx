@@ -28,6 +28,7 @@ export default function ProfilePage() {
   const [telegramChatId, setTelegramChatId] = useState('');
   const [whatsappPhone, setWhatsappPhone] = useState('');
   const [alertChannel, setAlertChannel] = useState('EMAIL');
+  const [notificationEmail, setNotificationEmail] = useState('');
   const [username, setUsername] = useState('');
   const [subscriptionTier, setSubscriptionTier] = useState('free');
   const [showPaywallModal, setShowPaywallModal] = useState(false);
@@ -49,6 +50,7 @@ export default function ProfilePage() {
         setTelegramChatId(prof.telegram_chat_id || '');
         setWhatsappPhone(prof.whatsapp_phone || '');
         setAlertChannel(prof.alert_channel || 'EMAIL');
+        setNotificationEmail(prof.notification_email || '');
         setUsername(prof.username || '');
         setSubscriptionTier(prof.subscription_tier || 'free');
       } else {
@@ -101,6 +103,7 @@ export default function ProfilePage() {
         telegram_chat_id: telegramChatId,
         whatsapp_phone: whatsappPhone,
         alert_channel: alertChannel,
+        notification_email: notificationEmail,
         username: username
       };
 
@@ -136,6 +139,7 @@ export default function ProfilePage() {
         telegram_chat_id: telegramChatId,
         whatsapp_phone: whatsappPhone,
         alert_channel: alertChannel,
+        notification_email: notificationEmail,
         username: username
       });
       setShowPaywallModal(false);
@@ -318,6 +322,25 @@ export default function ProfilePage() {
                       </div>
                       <p className="field-help">Canal d'alerte instantané pour les franchissements de seuils (Stop Loss / Take Profit).</p>
                     </div>
+
+                    {/* Notification Email Input */}
+                    {(alertChannel === 'EMAIL' || alertChannel === 'ALL') && (
+                      <div className="field-group animate-slide-down">
+                        <label className="field-label flex items-center gap-1.5 text-emerald-400">
+                          <Mail size={12} /> EMAIL DE RÉCEPTION DES ALERTES
+                        </label>
+                        <div className="input-wrapper">
+                          <input 
+                            type="email" 
+                            value={notificationEmail} 
+                            onChange={e => setNotificationEmail(e.target.value)} 
+                            placeholder="votre_email@exemple.com" 
+                            className="terminal-input emerald-focus"
+                          />
+                        </div>
+                        <p className="field-help">Adresse email de destination pour vos alertes de Stop Loss & Take Profit.</p>
+                      </div>
+                    )}
 
                     {/* Telegram Section */}
                     {(alertChannel === 'TELEGRAM' || alertChannel === 'ALL') && (
