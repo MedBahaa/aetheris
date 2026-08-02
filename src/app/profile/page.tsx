@@ -726,6 +726,20 @@ export default function ProfilePage() {
           border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         }
 
+        .header-container {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 2rem;
+          gap: 1rem;
+        }
+
+        .header-title-group {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+        }
+
         .header-identity {
           display: flex;
           flex-direction: column;
@@ -1103,9 +1117,13 @@ export default function ProfilePage() {
         }
 
         @media (max-width: 640px) {
-          .form-actions-grid {
-            grid-template-columns: 1fr;
-          }
+          .title-row { flex-wrap: wrap; gap: 0.5rem; }
+          .title-h1 { font-size: 1.5rem; }
+          .glass-card, .premium-card { padding: 1.25rem !important; border-radius: 1rem !important; }
+          .form-actions-grid { grid-template-columns: 1fr; gap: 0.75rem; }
+          .terminal-input, .terminal-select { font-size: 16px !important; }
+          .input-prefix, .input-suffix { padding: 0.75rem 0.75rem !important; }
+          .submit-btn, .test-alert-btn, .profile-logout-btn { min-height: 50px; font-size: 0.8rem; }
         }
 
         .test-alert-btn {
