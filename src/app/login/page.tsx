@@ -23,15 +23,21 @@ export default function LoginPage() {
   useEffect(() => {
     setMounted(true);
 
-    // Auto-redirect if already authenticated
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        window.location.href = '/portfolio';
-      }
-    });
+    // Check if session expired from inactivity
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('reason') === 'expired') {
+      setError("SESSION EXPIRÉE : Votre session s'est fermée automatiquement après une période d'inactivité pour votre sécurité.");
+    } else {
+      // Auto-redirect if already authenticated
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          window.location.href = '/portfolio';
+        }
+      });
+    }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
+      if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && params.get('reason') !== 'expired') {
         window.location.href = '/portfolio';
       }
     });
