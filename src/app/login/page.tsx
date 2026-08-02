@@ -238,13 +238,17 @@ export default function LoginPage() {
       <style jsx>{`
         .login-root {
           min-height: 100vh;
+          width: 100vw;
+          max-width: 100%;
           display: flex;
           align-items: center;
           justify-content: center;
           background-color: #020617;
           position: relative;
-          overflow: hidden;
-          padding: 2rem;
+          overflow: hidden !important;
+          overflow-x: hidden !important;
+          padding: 1.5rem 1rem;
+          box-sizing: border-box;
         }
 
         .technical-grid {
@@ -261,10 +265,12 @@ export default function LoginPage() {
           position: absolute;
           width: 600px;
           height: 600px;
+          max-width: 100vw;
           background: radial-gradient(circle, rgba(16, 185, 129, 0.08) 0%, transparent 70%);
           top: -300px;
           right: -300px;
           z-index: 0;
+          pointer-events: none;
         }
         .light-orb.side {
           top: unset;
@@ -272,6 +278,28 @@ export default function LoginPage() {
           bottom: -300px;
           left: -300px;
           background: radial-gradient(circle, rgba(14, 165, 233, 0.05) 0%, transparent 70%);
+        }
+
+        @media (max-width: 640px) {
+          .login-root {
+            padding: 1rem 0.5rem !important;
+          }
+          .login-glass {
+            padding: 1.75rem 1.25rem !important;
+          }
+          .bracket {
+            display: none !important;
+          }
+          .light-orb {
+            width: 300px !important;
+            height: 300px !important;
+            top: -150px !important;
+            right: -150px !important;
+          }
+          .light-orb.side {
+            bottom: -150px !important;
+            left: -150px !important;
+          }
         }
 
         .login-container {
