@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   User, Activity, Bell, Sparkles, CheckCircle2, AlertTriangle, 
   RefreshCw, ArrowLeft, ShieldCheck, Mail, Send, Phone, Info,
-  ExternalLink, CreditCard, ChevronRight, HelpCircle, Zap, X
+  ExternalLink, CreditCard, ChevronRight, HelpCircle, Zap, X, LogOut
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
@@ -498,6 +498,24 @@ export default function ProfilePage() {
                             <span>TESTER L'ALERTE</span>
                           </>
                         )}
+                      </button>
+                    </div>
+
+                    {/* Logout Button */}
+                    <div className="profile-logout-section">
+                      <button 
+                        type="button" 
+                        onClick={async () => {
+                          const { supabase } = await import('@/lib/supabase');
+                          await supabase.auth.signOut();
+                          localStorage.removeItem('aetheris_last_activity_time');
+                          localStorage.removeItem('aetheris_user_profile');
+                          window.location.href = '/login';
+                        }}
+                        className="profile-logout-btn"
+                      >
+                        <LogOut size={15} />
+                        <span>SE DÉCONNECTER DU TERMINAL</span>
                       </button>
                     </div>
 
@@ -1119,6 +1137,38 @@ export default function ProfilePage() {
         .test-alert-btn:disabled {
           opacity: 0.6;
           cursor: not-allowed;
+        }
+
+        .profile-logout-section {
+          margin-top: 1.5rem;
+          padding-top: 1.5rem;
+          border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .profile-logout-btn {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.6rem;
+          background: rgba(239, 68, 68, 0.08);
+          border: 1px solid rgba(239, 68, 68, 0.25);
+          color: #f87171;
+          font-family: 'Outfit', sans-serif;
+          font-weight: 800;
+          font-size: 0.85rem;
+          letter-spacing: 0.05em;
+          padding: 0.85rem;
+          border-radius: 0.75rem;
+          cursor: pointer;
+          transition: all 0.3s ease;
+        }
+
+        .profile-logout-btn:hover {
+          background: rgba(239, 68, 68, 0.2);
+          border-color: rgba(239, 68, 68, 0.5);
+          color: #ffffff;
+          box-shadow: 0 0 15px rgba(239, 68, 68, 0.15);
         }
 
         /* Submit Button */

@@ -1,6 +1,6 @@
 'use client';
 
-import { Menu, Zap } from 'lucide-react';
+import { Menu, Zap, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import MacroWidget from './MacroWidget';
 
@@ -9,6 +9,19 @@ interface HeaderProps {
 }
 
 export default function Header({ onOpenSidebar }: HeaderProps) {
+  const handleLogout = async () => {
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      await supabase.auth.signOut();
+      localStorage.removeItem('aetheris_last_activity_time');
+      localStorage.removeItem('aetheris_user_profile');
+      window.location.href = '/login';
+    } catch (err) {
+      console.error('Error logging out:', err);
+      window.location.href = '/login';
+    }
+  };
+
   return (
     <header className="fixed-header glass-heavy">
       <div className="header-inner">
@@ -27,16 +40,29 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
           <MacroWidget />
         </div>
 
-        {/* Menu Burger à DROITE (masqué sur desktop) */}
-        <button 
-          onClick={onOpenSidebar} 
-          className="menu-toggle-btn touch-target lg:hidden" 
-          aria-label="Ouvrir le menu principal"
-          aria-expanded={false}
-        >
-          <Menu size={24} />
-          <span className="menu-dot"></span>
-        </button>
+        {/* Actions à DROITE */}
+        <div className="header-right-actions">
+          <button 
+            onClick={handleLogout}
+            className="header-logout-btn touch-target"
+            title="Se déconnecter de votre session"
+            aria-label="Se déconnecter"
+          >
+            <LogOut size={16} />
+            <span className="logout-text-label">SORTIR</span>
+          </button>
+
+          {/* Menu Burger à DROITE (masqué sur desktop) */}
+          <button 
+            onClick={onOpenSidebar} 
+            className="menu-toggle-btn touch-target lg:hidden" 
+            aria-label="Ouvrir le menu principal"
+            aria-expanded={false}
+          >
+            <Menu size={24} />
+            <span className="menu-dot"></span>
+          </button>
+        </div>
       </div>
 
       <style jsx>{`
@@ -107,6 +133,49 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
           font-size: clamp(1.1rem, 4vw, 1.4rem);
           color: #fff;
           letter-spacing: -0.04em;
+        }
+
+        .header-right-actions {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .header-logout-btn {
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+          background: rgba(239, 68, 68, 0.1);
+          border: 1px solid rgba(239, 68, 68, 0.25);
+          color: #f87171;
+          height: 42px;
+          padding: 0 0.85rem;
+          border-radius: 0.75rem;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 0.7rem;
+          font-weight: 800;
+          cursor: pointer;
+          transition: all 0.25s ease;
+        }
+
+        .header-logout-btn:hover {
+          background: rgba(239, 68, 68, 0.25);
+          border-color: rgba(239, 68, 68, 0.5);
+          color: #ffffff;
+          transform: translateY(-1px);
+          box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);
+        }
+
+        @media (max-width: 640px) {
+          .logout-text-label {
+            display: none;
+          }
+          .header-logout-btn {
+            padding: 0;
+            height: 44px;
+            width: 44px;
+            justify-content: center;
+          }
         }
 
         .menu-toggle-btn {

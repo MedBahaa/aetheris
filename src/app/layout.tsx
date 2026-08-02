@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import StyledJsxRegistry from "@/lib/registry";
 import BottomNav from "@/components/BottomNav";
+import SessionGuard from "@/components/SessionGuard";
 
 export const metadata: Metadata = {
   title: "Aetheris AI | Analyste Financier Stratégique",
@@ -31,6 +32,7 @@ export default function RootLayout({
     <html lang="fr">
       <body>
         <StyledJsxRegistry>
+          <SessionGuard />
           {children}
           <BottomNav />
         </StyledJsxRegistry>

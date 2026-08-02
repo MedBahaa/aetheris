@@ -4,7 +4,7 @@ import {
   History, Search, ArrowRight, BrainCircuit, Activity, 
   ShieldCheck, X, Globe, Zap, LayoutGrid, Scale,
   Landmark, Briefcase, ChevronDown, ChevronRight,
-  User, AlertTriangle, CheckCircle2, Bell, MessageSquare
+  User, AlertTriangle, CheckCircle2, Bell, MessageSquare, LogOut
 } from 'lucide-react';
 import { CompanyAnalysis, AgentType } from '@/lib/agent-engine';
 import Link from 'next/link';
@@ -29,6 +29,19 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
   const [isIntelligenceOpen, setIsIntelligenceOpen] = useState(true);
   const [sidebarSearch, setSidebarSearch] = useState('');
   const [profile, setProfile] = useState<any>(null);
+
+  const handleLogout = async () => {
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      await supabase.auth.signOut();
+      localStorage.removeItem('aetheris_last_activity_time');
+      localStorage.removeItem('aetheris_user_profile');
+      window.location.href = '/login';
+    } catch (err) {
+      console.error('Error logging out:', err);
+      window.location.href = '/login';
+    }
+  };
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -316,6 +329,11 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
                     )}
                   </button>
                 </Link>
+
+                <button onClick={handleLogout} className="agent-btn-compact logout-nav-item">
+                  <LogOut size={16} style={{ color: '#ef4444' }} />
+                  <span style={{ color: '#f87171', fontWeight: 700 }}>Déconnexion</span>
+                </button>
               </div>
 
               <div className="nav-spacer-tiny"></div>
@@ -385,14 +403,10 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
 
         <div className="sidebar-footer-compact">
           <button 
-            onClick={async () => {
-              const { supabase } = await import('@/lib/supabase');
-              await supabase.auth.signOut();
-              window.location.href = '/login';
-            }}
+            onClick={handleLogout}
             className="logout-btn-minimal"
           >
-            <ShieldCheck size={13} />
+            <LogOut size={14} />
             DÉCONNEXION
           </button>
           <span className="v-tag-minimal">VERSION 2.0 ALPHA</span>
@@ -579,15 +593,36 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
 
           .sidebar-footer-compact {
             padding: 1rem 1.25rem;
-            border-top: 1px solid rgba(255, 255, 255, 0.04);
+            padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 24px));
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
             display: flex;
             align-items: center;
             justify-content: space-between;
-            background: rgba(0,0,0,0.15);
+            background: rgba(0,0,0,0.4);
             flex-shrink: 0;
           }
-          .logout-btn-minimal { background: transparent; border: none; color: #ef4444; font-size: 9px; font-weight: 900; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; letter-spacing: 0.05rem; font-family: 'JetBrains Mono', monospace; }
-          .logout-btn-minimal:hover { color: #f43f5e; }
+          .logout-btn-minimal { 
+            background: rgba(239, 68, 68, 0.12); 
+            border: 1px solid rgba(239, 68, 68, 0.3); 
+            color: #f87171; 
+            font-size: 10px; 
+            font-weight: 900; 
+            padding: 0.5rem 0.85rem;
+            border-radius: 8px;
+            cursor: pointer; 
+            display: flex; 
+            align-items: center; 
+            gap: 0.5rem; 
+            letter-spacing: 0.05rem; 
+            font-family: 'JetBrains Mono', monospace; 
+            transition: all 0.25s ease;
+          }
+          .logout-btn-minimal:hover { 
+            background: rgba(239, 68, 68, 0.25); 
+            border-color: rgba(239, 68, 68, 0.5); 
+            color: #ffffff; 
+            box-shadow: 0 0 12px rgba(239, 68, 68, 0.2);
+          }
           .v-tag-minimal { font-size: 9px; color: #334155; font-weight: 900; font-family: 'JetBrains Mono', monospace; }
 
           .close-btn-drawer { background: transparent; border: none; color: #475569; cursor: pointer; }
