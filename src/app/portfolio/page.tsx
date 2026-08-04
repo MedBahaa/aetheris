@@ -893,12 +893,12 @@ export default function PortfolioPage() {
       />
 
       <style jsx>{`
-        .max-container { width: 100%; max-width: 1400px; margin: 0 auto; padding: 2rem 1.5rem; }
-        .terminal-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem; }
-        .header-identity { display: flex; flex-direction: column; gap: 0.75rem; }
+        .max-container { width: 100%; max-width: 1650px; margin: 0 auto; padding: 1rem 0.5rem; }
+        .terminal-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1.25rem; }
+        .header-identity { display: flex; flex-direction: column; gap: 0.4rem; }
         .identity-block { display: flex; align-items: center; gap: 0.5rem; }
-        .title-row { display: flex; align-items: baseline; gap: 1rem; }
-        .title-h1 { font-size: 2.2rem; font-weight: 900; letter-spacing: -0.04em; }
+        .title-row { display: flex; align-items: baseline; gap: 0.75rem; }
+        .title-h1 { font-size: 1.65rem; font-weight: 900; letter-spacing: -0.04em; }
         .market-badge { background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 6px; font-size: 10px; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
         .header-actions-row { display: flex; align-items: center; gap: 0.75rem; }
         .action-chip { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-radius: 100px; border: 1px solid var(--border-glass); background: rgba(255,255,255,0.03); color: #64748b; cursor: pointer; transition: all 0.2s; font-size: 10px; font-family: 'JetBrains Mono', monospace; font-weight: 800; }

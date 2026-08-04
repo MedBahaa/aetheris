@@ -773,7 +773,7 @@ export default function ProfilePage() {
         .title-h1 {
           font-family: 'Outfit', sans-serif;
           font-weight: 900;
-          font-size: 2rem;
+          font-size: 1.65rem;
           letter-spacing: -0.02em;
           margin: 0;
           color: #fff;
@@ -860,7 +860,7 @@ export default function ProfilePage() {
         .profile-grid {
           display: grid;
           grid-template-columns: 1.2fr 1fr;
-          gap: 2rem;
+          gap: 1.25rem;
           align-items: start;
         }
 
@@ -875,7 +875,7 @@ export default function ProfilePage() {
           background: rgba(10, 14, 23, 0.6);
           border: 1px solid rgba(255, 255, 255, 0.04);
           border-radius: 1rem;
-          padding: 2rem;
+          padding: 1.5rem;
           backdrop-filter: blur(20px);
         }
 
@@ -883,8 +883,8 @@ export default function ProfilePage() {
           display: flex;
           align-items: center;
           gap: 0.75rem;
-          margin-bottom: 2rem;
-          padding-bottom: 1rem;
+          margin-bottom: 1.25rem;
+          padding-bottom: 0.75rem;
           border-bottom: 1px solid rgba(255, 255, 255, 0.04);
         }
 
@@ -1225,10 +1225,10 @@ export default function ProfilePage() {
           background: rgba(10, 14, 23, 0.7);
           border: 1px solid rgba(255, 255, 255, 0.04);
           border-radius: 1rem;
-          padding: 2.5rem 2rem;
+          padding: 1.5rem;
           display: flex;
           flex-direction: column;
-          gap: 1.5rem;
+          gap: 1.25rem;
           transition: all 0.5s ease;
           position: relative;
           overflow: hidden;

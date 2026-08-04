@@ -116,21 +116,21 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
         }
 
         .logo-icon-box {
-          width: 2.2rem;
-          height: 2.2rem;
+          width: 1.85rem;
+          height: 1.85rem;
           background: #fff;
           color: #000;
-          border-radius: 0.6rem;
+          border-radius: 0.5rem;
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+          box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
         }
 
         .logo-text {
           font-family: 'Outfit', sans-serif;
           font-weight: 900;
-          font-size: clamp(1.1rem, 4vw, 1.4rem);
+          font-size: 1.15rem;
           color: #fff;
           letter-spacing: -0.04em;
         }
@@ -148,11 +148,11 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
           background: rgba(239, 68, 68, 0.1);
           border: 1px solid rgba(239, 68, 68, 0.25);
           color: #f87171;
-          height: 42px;
-          padding: 0 0.85rem;
-          border-radius: 0.75rem;
+          height: 34px;
+          padding: 0 0.75rem;
+          border-radius: 0.6rem;
           font-family: 'JetBrains Mono', monospace;
-          font-size: 0.7rem;
+          font-size: 0.68rem;
           font-weight: 800;
           cursor: pointer;
           transition: all 0.25s ease;
