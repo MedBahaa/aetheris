@@ -89,43 +89,53 @@ export const AddDividendModal: React.FC<AddDividendModalProps> = ({
 
           {/* LIVE FISCAL CALCULATOR SIMULATION (13.45% WITHHOLDING) */}
           {amountPerShare > 0 && (
-            <div className="bg-slate-950/80 p-3.5 rounded-xl border border-emerald-500/30 flex flex-col gap-2 my-1 text-xs">
-              <div className="flex items-center justify-between text-slate-300 font-bold border-b border-white/10 pb-2">
-                <span className="flex items-center gap-1.5 text-emerald-400">
-                  <CheckCircle2 size={14} /> DÉDUCTION FISCALE 2026 (13,45 %) :
+            <div className="bg-slate-950/80 p-4 rounded-xl border border-emerald-500/30 flex flex-col gap-3 my-1">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between text-slate-300 font-bold border-b border-white/10 pb-3 gap-2">
+                <span className="flex items-center gap-2 text-emerald-400 text-sm">
+                  <CheckCircle2 size={16} /> DÉDUCTION FISCALE (13,45%)
                 </span>
-                <span className="mono text-white bg-slate-800 px-2 py-0.5 rounded text-[10px]">
-                  {qty > 0 ? `${qty} titre(s) détenu(s)` : 'Estimation / titre'}
+                <span className="mono text-white bg-slate-800/80 px-2.5 py-1 rounded-md text-xs border border-white/5 w-fit">
+                  {qty > 0 ? `${qty} TITRE(S)` : 'ESTIMATION'}
                 </span>
               </div>
 
               {qty > 0 ? (
-                <>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Dividende Brut Total :</span>
-                    <span className="mono font-semibold text-slate-100">{grossTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} MAD</span>
+                <div className="flex flex-col gap-2.5 text-[13px]">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400">Dividende Brut Total</span>
+                    <span className="mono font-medium text-slate-200">{grossTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} MAD</span>
                   </div>
-                  <div className="flex justify-between text-rose-400">
-                    <span>🔴 Impôt État (TPA 11,25 %) :</span>
-                    <span className="mono">-{tpaStateTax.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} MAD</span>
+                  
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span> Impôt État (11,25%)
+                    </span>
+                    <span className="mono text-rose-400/90">-{tpaStateTax.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} MAD</span>
                   </div>
-                  <div className="flex justify-between text-amber-400">
-                    <span>🏦 Frais Wafa Bourse (2,20 % TTC) :</span>
-                    <span className="mono">-{wafaBrokerFee.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} MAD</span>
+                  
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Frais Bourse (2,20%)
+                    </span>
+                    <span className="mono text-amber-400/90">-{wafaBrokerFee.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} MAD</span>
                   </div>
-                  <div className="flex justify-between text-slate-400 border-t border-white/10 pt-1.5 font-semibold">
-                    <span>Total Prélèvements (13,45 %) :</span>
-                    <span className="mono text-rose-400">-{totalDeductions.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} MAD</span>
+                  
+                  <div className="flex justify-between items-center border-t border-white/5 pt-2 mt-0.5">
+                    <span className="text-slate-400 font-medium">Total Prélèvements</span>
+                    <span className="mono text-rose-400 font-medium">-{totalDeductions.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} MAD</span>
                   </div>
-                  <div className="flex justify-between items-center text-emerald-400 bg-emerald-950/50 p-2.5 rounded-lg border border-emerald-500/40 font-bold mt-1">
-                    <span>🟢 DIVIDENDE NET EN COMPTE (86,55 %) :</span>
-                    <span className="mono text-base text-white">+{netReceived.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} MAD</span>
+                  
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center bg-emerald-950/40 p-3 rounded-lg border border-emerald-500/20 mt-2 gap-1.5">
+                    <span className="text-emerald-400 font-bold text-xs tracking-wider flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> DIVIDENDE NET
+                    </span>
+                    <span className="mono text-lg font-bold text-white tracking-tight">+{netReceived.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} MAD</span>
                   </div>
-                </>
+                </div>
               ) : (
-                <div className="flex justify-between items-center text-emerald-400 bg-emerald-950/40 p-2 rounded-lg border border-emerald-500/30">
-                  <span className="text-slate-300">Estimation Net par Titre (86,55 %) :</span>
-                  <span className="mono font-bold text-white">+{netPerShare.toFixed(2)} MAD / titre</span>
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center text-emerald-400 bg-emerald-950/30 p-3 rounded-lg border border-emerald-500/20 gap-1.5">
+                  <span className="text-slate-300 text-xs font-semibold">Net Estimé (86,55%)</span>
+                  <span className="mono font-bold text-white text-base">+{netPerShare.toFixed(2)} MAD <span className="text-xs text-slate-400 font-normal">/ titre</span></span>
                 </div>
               )}
             </div>
