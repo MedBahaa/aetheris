@@ -623,8 +623,8 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
           }
           .v-tag-minimal { font-size: 9px; color: #334155; font-weight: 900; font-family: 'JetBrains Mono', monospace; }
 
-          .close-btn-drawer { background: transparent; border: none; color: #475569; cursor: pointer; }
-          @media (min-width: 1024px) { .close-btn-drawer { display: none; } }
+          .close-btn-drawer { background: transparent; border: none; color: #475569; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: color 0.2s; }
+          .close-btn-drawer:hover { color: #fff; }
           
           @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
           .animate-fade-in { animation: fadeIn 0.4s ease forwards; }
