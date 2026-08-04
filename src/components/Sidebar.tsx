@@ -143,7 +143,9 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
          <div 
           className={`sidebar-overlay ${isOpen ? 'is-active' : ''}`}
           onClick={onClose}
+          onTouchStart={onClose}
           aria-hidden="true"
+          style={{ cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}
          />
        )}
 
