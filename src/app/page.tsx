@@ -46,6 +46,12 @@ function Home() {
   const autoSearchDone = useRef(false);
 
   useEffect(() => {
+    if (isDesktop) {
+      setIsSidebarOpen(true);
+    }
+  }, [isDesktop]);
+
+  useEffect(() => {
     const agentParam = searchParams.get('agent') as AgentType;
     const qParam = searchParams.get('q');
 
