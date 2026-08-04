@@ -8,6 +8,11 @@ import { Zap, Briefcase, Activity, BrainCircuit, User } from 'lucide-react';
 export default function BottomNav() {
   const pathname = usePathname();
 
+  // Ne pas afficher la barre de navigation mobile sur la page de connexion ou les callbacks auth
+  if (pathname === '/login' || pathname?.startsWith('/auth')) {
+    return null;
+  }
+
   const navItems = [
     { label: 'Accueil', href: '/', icon: Zap },
     { label: 'Portefeuille', href: '/portfolio', icon: Briefcase },
