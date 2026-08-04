@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { getUserProfileAction, upsertUserProfileAction } from '@/lib/portfolio-actions';
+import { useDevice } from '@/hooks/useDevice';
 
 
 interface SidebarProps {
@@ -26,6 +27,7 @@ interface SidebarProps {
 export default function Sidebar({ history, onSelect, activeId, activeAgent, onAgentChange, isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { isDesktop } = useDevice();
   const [isIntelligenceOpen, setIsIntelligenceOpen] = useState(true);
   const [sidebarSearch, setSidebarSearch] = useState('');
   const [profile, setProfile] = useState<any>(null);
@@ -137,11 +139,13 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
 
   return (
     <>
-       <div 
-        className={`sidebar-overlay ${isOpen ? 'is-active' : ''}`}
-        onClick={onClose}
-        aria-hidden="true"
-      />
+       {!isDesktop && (
+         <div 
+          className={`sidebar-overlay ${isOpen ? 'is-active' : ''}`}
+          onClick={onClose}
+          aria-hidden="true"
+         />
+       )}
 
       <aside 
         className={`sidebar glass-heavy ${isOpen ? 'is-open' : ''}`}
@@ -151,14 +155,16 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
       >
         <div className="sidebar-header">
           <div className="nav-label-top">CONTRÔLE ALPHA</div>
-          <button 
-            onClick={onClose} 
-            className="close-btn-drawer touch-target"
-            aria-label="Fermer le menu"
-            style={{ width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-             <X size={20} />
-          </button>
+          {!isDesktop && (
+            <button 
+              onClick={onClose} 
+              className="close-btn-drawer touch-target"
+              aria-label="Fermer le menu"
+              style={{ width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+               <X size={20} />
+            </button>
+          )}
         </div>
 
         <div className="sidebar-scroll-area">
