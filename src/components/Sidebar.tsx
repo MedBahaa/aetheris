@@ -424,11 +424,12 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
             top: 0;
             left: 0;
             width: var(--sidebar-width);
-            z-index: 1000;
-            background: rgba(8, 10, 15, 0.85) !important;
-            backdrop-filter: blur(20px);
-            border-right: 1px solid rgba(255, 255, 255, 0.04);
-            box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+            z-index: 100000 !important;
+            background: #090d16 !important;
+            backdrop-filter: blur(24px) saturate(180%) !important;
+            -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+            border-right: 1px solid rgba(255, 255, 255, 0.12) !important;
+            box-shadow: 20px 0 60px rgba(0, 0, 0, 0.85) !important;
           }
 
           .sidebar-scroll-area {
