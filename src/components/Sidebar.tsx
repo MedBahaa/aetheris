@@ -329,11 +329,6 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
                     )}
                   </button>
                 </Link>
-
-                <button onClick={handleLogout} className="agent-btn-compact logout-nav-item">
-                  <LogOut size={16} style={{ color: '#ef4444' }} />
-                  <span style={{ color: '#f87171', fontWeight: 700 }}>Déconnexion</span>
-                </button>
               </div>
 
               <div className="nav-spacer-tiny"></div>

@@ -1,9 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import StyledJsxRegistry from "@/lib/registry";
-import BottomNav from "@/components/BottomNav";
 import SessionGuard from "@/components/SessionGuard";
-
+import { DeviceProvider } from "@/hooks/useDevice";
+import PwaRegistry from "@/components/PwaRegistry";
 export const metadata: Metadata = {
   title: "Aetheris AI | Analyste Financier Stratégique",
   description: "Agent IA spécialisé dans la veille stratégique et l'analyse de sentiment boursier.",
@@ -31,10 +31,12 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <body>
+        <PwaRegistry />
         <StyledJsxRegistry>
-          <SessionGuard />
-          {children}
-          <BottomNav />
+          <DeviceProvider>
+            <SessionGuard />
+            {children}
+          </DeviceProvider>
         </StyledJsxRegistry>
       </body>
     </html>

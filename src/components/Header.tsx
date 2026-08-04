@@ -1,6 +1,6 @@
 'use client';
 
-import { Menu, Zap, LogOut } from 'lucide-react';
+import { Menu, Zap } from 'lucide-react';
 import Link from 'next/link';
 import MacroWidget from './MacroWidget';
 
@@ -9,19 +9,6 @@ interface HeaderProps {
 }
 
 export default function Header({ onOpenSidebar }: HeaderProps) {
-  const handleLogout = async () => {
-    try {
-      const { supabase } = await import('@/lib/supabase');
-      await supabase.auth.signOut();
-      localStorage.removeItem('aetheris_last_activity_time');
-      localStorage.removeItem('aetheris_user_profile');
-      window.location.href = '/login';
-    } catch (err) {
-      console.error('Error logging out:', err);
-      window.location.href = '/login';
-    }
-  };
-
   return (
     <header className="fixed-header glass-heavy">
       <div className="header-inner">
@@ -42,16 +29,6 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
 
         {/* Actions à DROITE */}
         <div className="header-right-actions">
-          <button 
-            onClick={handleLogout}
-            className="header-logout-btn touch-target"
-            title="Se déconnecter de votre session"
-            aria-label="Se déconnecter"
-          >
-            <LogOut size={16} />
-            <span className="logout-text-label">SORTIR</span>
-          </button>
-
           {/* Menu Burger à DROITE (visible sur mobile et desktop) */}
           <button 
             onClick={onOpenSidebar} 
