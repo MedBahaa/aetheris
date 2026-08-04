@@ -205,18 +205,23 @@ export default function PortfolioPage() {
 
   // Handle Search Suggestions
   useEffect(() => {
-    if (newTx.symbol.length < 2) {
+    const currentQuery = showAddModal ? newTx.symbol : (showDivModal ? newDiv.symbol : '');
+    if (currentQuery.length < 2) {
       setSuggestions([]);
       return;
     }
     const timer = setTimeout(async () => {
-      const res = await fetch(`/api/companies/search?q=${newTx.symbol}`);
-      const data = await res.json();
-      setSuggestions(data);
-      setShowSuggestions(true);
+      try {
+        const res = await fetch(`/api/companies/search?q=${currentQuery}`);
+        const data = await res.json();
+        setSuggestions(data);
+        setShowSuggestions(true);
+      } catch (err) {
+        console.error('Error fetching suggestions:', err);
+      }
     }, 300);
     return () => clearTimeout(timer);
-  }, [newTx.symbol]);
+  }, [newTx.symbol, newDiv.symbol, showAddModal, showDivModal]);
 
   // Close suggestions on outside click
   useEffect(() => {
@@ -884,6 +889,10 @@ export default function PortfolioPage() {
         setNewDiv={setNewDiv}
         handleAddDividend={handleAddDividend}
         holdings={holdings}
+        suggestions={suggestions}
+        showSuggestions={showSuggestions}
+        setShowSuggestions={setShowSuggestions}
+        searchRef={searchRef}
       />
 
       <PremiumPaywallModal 

@@ -16,6 +16,10 @@ interface AddDividendModalProps {
   setNewDiv: (val: any) => void;
   handleAddDividend: (e: React.FormEvent) => void;
   holdings?: PortfolioHolding[];
+  suggestions: any[];
+  showSuggestions: boolean;
+  setShowSuggestions: (val: boolean) => void;
+  searchRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export const AddDividendModal: React.FC<AddDividendModalProps> = ({
@@ -25,6 +29,10 @@ export const AddDividendModal: React.FC<AddDividendModalProps> = ({
   setNewDiv,
   handleAddDividend,
   holdings = [],
+  suggestions,
+  showSuggestions,
+  setShowSuggestions,
+  searchRef,
 }) => {
   if (!showDivModal) return null;
 
@@ -53,9 +61,21 @@ export const AddDividendModal: React.FC<AddDividendModalProps> = ({
 
         <form onSubmit={handleAddDividend} className="modal-form">
           <div className="form-grid">
-            <div className="form-group">
+            <div className="form-group" ref={searchRef}>
               <label className="mono">SYMBOLE</label>
-              <input type="text" value={newDiv.symbol} onChange={e => setNewDiv({ ...newDiv, symbol: e.target.value.toUpperCase() })} placeholder="EX: IAM" className="terminal-input-field" required inputMode="text" autoCapitalize="characters" />
+              <div className="input-with-suggestions">
+                <input type="text" value={newDiv.symbol} onChange={e => setNewDiv({ ...newDiv, symbol: e.target.value.toUpperCase() })} onFocus={() => newDiv.symbol.length >= 2 && setShowSuggestions(true)} placeholder="EX: IAM, BCP..." className="terminal-input-field" required autoComplete="off" inputMode="text" autoCapitalize="characters" />
+                {showSuggestions && suggestions.length > 0 && (
+                  <div className="modal-suggestions glass-heavy animate-slide-up">
+                    {suggestions.map((item, idx) => (
+                      <div key={idx} className="s-item" onClick={() => { setNewDiv({ ...newDiv, symbol: item.symbol || item.name }); setShowSuggestions(false); }}>
+                        <div className="s-sym-badge mono">{item.symbol}</div>
+                        <span className="s-name truncate">{item.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="form-group">
               <label className="mono">MONTANT BRUT / TITRE (MAD)</label>
