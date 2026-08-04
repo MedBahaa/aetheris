@@ -444,23 +444,21 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
             display: flex; 
             align-items: center; 
             justify-content: space-between; 
-            padding: 1.25rem;
+            padding: 0.85rem 1rem;
             border-bottom: 1px solid rgba(255, 255, 255, 0.04);
             flex-shrink: 0;
           }
           .nav-label-top { font-size: 10px; font-weight: 900; color: #475569; letter-spacing: 0.12rem; font-family: 'JetBrains Mono', monospace; }
 
-
-
-          .sidebar-search-block { padding: 0 1rem 1rem; }
+          .sidebar-search-block { padding: 0 0.75rem 0.6rem; }
           .sidebar-search-container { position: relative; display: flex; align-items: center; }
-          .s-icon { position: absolute; left: 12px; color: #475569; transition: color 0.2s; }
+          .s-icon { position: absolute; left: 10px; color: #475569; transition: color 0.2s; }
           .sidebar-search-input { 
             width: 100%; 
             background: rgba(0,0,0,0.25); 
             border: 1px solid rgba(255, 255, 255, 0.04); 
-            border-radius: 8px; 
-            padding: 0.6rem 0.75rem 0.6rem 2.25rem; 
+            border-radius: 6px; 
+            padding: 0.45rem 0.6rem 0.45rem 2rem; 
             color: #fff; 
             font-size: 11px; 
             outline: none; 
@@ -475,27 +473,27 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
             color: #10b981;
           }
 
-          .nav-label { font-size: 9px; font-weight: 950; color: #475569; letter-spacing: 0.15rem; padding: 1.25rem 1.25rem 0.6rem; text-transform: uppercase; font-family: 'JetBrains Mono', monospace; }
+          .nav-label { font-size: 9px; font-weight: 950; color: #475569; letter-spacing: 0.15rem; padding: 0.85rem 1rem 0.4rem; text-transform: uppercase; font-family: 'JetBrains Mono', monospace; }
           
           .agent-btn-compact {
             display: flex;
             align-items: center;
-            gap: 0.75rem;
+            gap: 0.6rem;
             width: 100%;
-            padding: 0.7rem 1.25rem;
+            padding: 0.5rem 1rem;
             background: transparent;
             border: none;
             color: #94a3b8;
             cursor: pointer;
             transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
             text-align: left;
-            font-size: 12px;
+            font-size: 11.5px;
             font-weight: 500;
           }
           .agent-btn-compact:hover { 
             background: rgba(255, 255, 255, 0.02); 
             color: #fff; 
-            padding-left: 1.45rem; 
+            padding-left: 1.15rem; 
           }
           .agent-btn-compact.active { 
             background: rgba(255, 255, 255, 0.04); 
