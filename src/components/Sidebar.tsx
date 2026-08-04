@@ -157,16 +157,14 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
       >
         <div className="sidebar-header">
           <div className="nav-label-top">CONTRÔLE ALPHA</div>
-          {!isDesktop && (
-            <button 
-              onClick={onClose} 
-              className="close-btn-drawer touch-target"
-              aria-label="Fermer le menu"
-              style={{ width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            >
-               <X size={20} />
-            </button>
-          )}
+          <button 
+            onClick={onClose} 
+            className="close-btn-drawer touch-target"
+            aria-label="Fermer le menu"
+            style={{ width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+             <X size={20} />
+          </button>
         </div>
 
         <div className="sidebar-scroll-area">

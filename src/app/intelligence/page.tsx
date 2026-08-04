@@ -94,7 +94,7 @@ export default function IntelligenceDashboard() {
         onClose={() => setIsSidebarOpen(false)}
       />
 
-      <Header onOpenSidebar={() => setIsSidebarOpen(true)} />
+      <Header onOpenSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
 
       <main className="main-content">
         <div className="max-container">

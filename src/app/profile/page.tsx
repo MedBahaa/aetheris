@@ -264,7 +264,7 @@ export default function ProfilePage() {
   return (
     <div className="app-container">
       <Sidebar history={[]} onSelect={() => {}} activeAgent="STRATEGY" onAgentChange={() => {}} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-      <Header onOpenSidebar={() => setIsSidebarOpen(true)} />
+      <Header onOpenSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
       
       <main className="main-content">
         <div className="max-container">
