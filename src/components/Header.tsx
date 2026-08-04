@@ -52,14 +52,14 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
             <span className="logout-text-label">SORTIR</span>
           </button>
 
-          {/* Menu Burger à DROITE (masqué sur desktop) */}
+          {/* Menu Burger à DROITE (visible sur mobile et desktop) */}
           <button 
             onClick={onOpenSidebar} 
-            className="menu-toggle-btn touch-target lg:hidden" 
+            className="menu-toggle-btn touch-target" 
             aria-label="Ouvrir le menu principal"
             aria-expanded={false}
           >
-            <Menu size={24} />
+            <Menu size={22} />
             <span className="menu-dot"></span>
           </button>
         </div>
