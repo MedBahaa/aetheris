@@ -162,7 +162,7 @@ export default function MarcheLive() {
         onClose={() => setIsSidebarOpen(false)}
       />
 
-      <Header onOpenSidebar={() => setIsSidebarOpen(true)} />
+      <Header onOpenSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
 
       <main className="main-content">
         <TickerTape stocks={stocks} />

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
+import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import { 
   CheckCircle2, XCircle, Search, Sparkles, Key, Calculator, 
@@ -174,6 +175,7 @@ export default function PurificationPage() {
         isOpen={isSidebarOpen} 
         onClose={() => setIsSidebarOpen(false)} 
       />
+      <Header onOpenSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
 
       <main className="main-content">
         <div className="max-container">
