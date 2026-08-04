@@ -19,12 +19,17 @@ export default function DesktopDashboard(props: DesktopDashboardProps) {
         activeId={props.activeId}
         activeAgent={props.activeAgent}
         onAgentChange={props.handleAgentChange}
-        isOpen={true} // Always open on desktop
-        onClose={() => {}} 
+        isOpen={props.isSidebarOpen} 
+        onClose={() => props.setIsSidebarOpen(false)} 
       />
       
-      <div className="desktop-main-wrapper" style={{ flex: 1, width: '100%', paddingLeft: 'var(--sidebar-width)' }}>
-        <Header onOpenSidebar={() => {}} /> 
+      <div className="desktop-main-wrapper" style={{ 
+        flex: 1, 
+        width: '100%', 
+        paddingLeft: props.isSidebarOpen ? 'var(--sidebar-width)' : '0',
+        transition: 'padding-left 0.35s var(--ease)' 
+      }}>
+        <Header onOpenSidebar={() => props.setIsSidebarOpen(!props.isSidebarOpen)} /> 
         
         <main className="main-content desktop-content" style={{ padding: '2.5rem', paddingTop: 'calc(var(--header-height) + 2.5rem)', margin: '0 auto', maxWidth: '1400px' }}>
           <DashboardContent {...props} />
