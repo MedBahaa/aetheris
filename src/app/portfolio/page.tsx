@@ -487,99 +487,49 @@ export default function PortfolioPage() {
                 <div className="market-badge opacity-70">{isVirtualMode ? 'COMPTE DE PAPER TRADING' : 'VALEUR RÉELLE & PMP'}</div>
               </div>
             </div>
-             <div className="header-actions-row">
+             {/* ── Actions Desktop (cachées sur mobile) ─── */}
+             <div className="header-actions-row desktop-actions">
                <button 
-                 onClick={() => {
-                   setIsVirtualMode(!isVirtualMode);
-                 }} 
+                 onClick={() => setIsVirtualMode(!isVirtualMode)}
                  className="action-chip"
                  style={{
-                   background: isVirtualMode ? 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' : 'rgba(255, 255, 255, 0.05)',
-                   border: isVirtualMode ? '1px solid rgba(168, 85, 247, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
-                   color: '#fff',
-                   fontWeight: 'bold',
+                   background: isVirtualMode ? 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' : 'rgba(255,255,255,0.05)',
+                   border: isVirtualMode ? '1px solid rgba(168,85,247,0.5)' : '1px solid rgba(255,255,255,0.1)',
+                   color: '#fff', fontWeight: 'bold',
                  }}
-                 title="Basculez vers le mode Paper Trading (Portefeuille Virtuel)"
                >
                  <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-                 <span className="mono-tiny">{isVirtualMode ? '🎮 MODE VIRTUEL (PAPER)' : '💰 MODE RÉEL'}</span>
+                 <span className="mono-tiny">{isVirtualMode ? '🎮 PAPER' : '💰 RÉEL'}</span>
                </button>
 
-               {isVirtualMode && (
-                 <button 
-                   onClick={async () => {
-                     if (confirm("Voulez-vous réinitialiser votre portefeuille virtuel à 100 000 MAD ? Toutes vos transactions virtuelles seront supprimées.")) {
-                       try {
-                         setLoading(true);
-                         await resetVirtualPortfolioAction(100000);
-                         await loadData();
-                       } catch (err: any) {
-                         alert(err.message);
-                       } finally {
-                         setLoading(false);
-                       }
-                     }
-                   }} 
-                   className="action-chip red"
-                   style={{
-                     background: 'rgba(239, 68, 68, 0.15)',
-                     border: '1px solid rgba(239, 68, 68, 0.3)',
-                     color: '#ef4444'
-                   }}
-                   title="Réinitialiser le portefeuille virtuel"
-                 >
-                   <RefreshCw size={12} /> <span className="mono-tiny">RÉINITIALISER</span>
-                 </button>
+               <button 
+                 onClick={() => subscriptionTier !== 'premium' ? setShowPaywallModal(true) : null}
+                 className={`action-chip ${subscriptionTier === 'premium' ? 'premium-gold' : 'free-badge'}`}
+               >
+                 <Sparkles size={12} />
+                 <span className="mono-tiny">{subscriptionTier === 'premium' ? '👑 PRO' : '⭐ FREE'}</span>
+               </button>
+               
+               <button 
+                 onClick={() => subscriptionTier !== 'premium' ? setShowPaywallModal(true) : setShowRoboPanel(!showRoboPanel)}
+                 className={`action-chip purple ${showRoboPanel ? 'active' : ''}`}
+               >
+                 <Zap size={12} />
+                 <span className="mono-tiny">ROBO</span>
+               </button>
+
+               {masiBenchmark && (
+                 <div className={`benchmark-chip ${masiBenchmark.variationValue >= 0 ? 'bull' : 'bear'}`}>
+                   <BarChart2 size={12} />
+                   <span className="mono-tiny">MASI {masiBenchmark.variation}</span>
+                 </div>
                )}
-
-              <button 
-                onClick={() => {
-                  if (subscriptionTier !== 'premium') {
-                    setShowPaywallModal(true);
-                  }
-                }} 
-                className={`action-chip ${subscriptionTier === 'premium' ? 'premium-gold' : 'free-badge'}`}
-                title={subscriptionTier === 'premium' ? 'Abonnement Pro Actif' : "Souscrire à l'offre Pro"}
-              >
-                <Sparkles size={12} />
-                <span className="mono-tiny">{subscriptionTier === 'premium' ? '👑 PRO ACTIVE' : '⭐ CLASSIQUE (FREE)'}</span>
-              </button>
-              
-              <button 
-                onClick={() => {
-                  if (subscriptionTier !== 'premium') {
-                    setShowPaywallModal(true);
-                  } else {
-                    setShowRoboPanel(!showRoboPanel);
-                  }
-                }} 
-                className={`action-chip purple ${showRoboPanel ? 'active' : ''}`}
-                title="Robo-Advisor"
-              >
-                <Zap size={12} />
-                <span className="mono-tiny">ROBO-ADVISOR</span>
-              </button>
-
-              {masiBenchmark && (
-                <div className={`benchmark-chip ${masiBenchmark.variationValue >= 0 ? 'bull' : 'bear'}`}>
-                  <BarChart2 size={12} />
-                  <span className="mono-tiny">MASI {masiBenchmark.variation}</span>
-                </div>
-              )}
-              <input type="file" ref={fileInputRef} accept=".csv" onChange={handleImportCsv} style={{ display: 'none' }} />
-              <button onClick={() => fileInputRef.current?.click()} className="action-chip" title="Importer CSV">
-                <Upload size={12} /> <span className="mono-tiny">IMPORT</span>
-              </button>
-              <button onClick={() => exportToCsv(transactions, dividends)} className="action-chip" title="Exporter CSV">
-                <Download size={12} /> <span className="mono-tiny">EXPORT</span>
-              </button>
-              <button onClick={() => setShowDivModal(true)} className="action-chip emerald">
-                <Gift size={12} /> <span className="mono-tiny">DIVIDENDE</span>
-              </button>
-              <button onClick={() => setShowAddModal(true)} className="action-chip white">
-                <Plus size={12} /> <span className="mono-tiny">ORDRE</span>
-              </button>
-            </div>
+               <input type="file" ref={fileInputRef} accept=".csv" onChange={handleImportCsv} style={{ display: 'none' }} />
+               <button onClick={() => fileInputRef.current?.click()} className="action-chip"><Upload size={12} /> <span className="mono-tiny">IMPORT</span></button>
+               <button onClick={() => exportToCsv(transactions, dividends)} className="action-chip"><Download size={12} /> <span className="mono-tiny">EXPORT</span></button>
+               <button onClick={() => setShowDivModal(true)} className="action-chip emerald"><Gift size={12} /> <span className="mono-tiny">DIVIDENDE</span></button>
+               <button onClick={() => setShowAddModal(true)} className="action-chip white"><Plus size={12} /> <span className="mono-tiny">ORDRE</span></button>
+             </div>
           </header>
 
           <PortfolioStats 
@@ -869,6 +819,30 @@ export default function PortfolioPage() {
         </div>
       </main>
 
+      {/* ── Barre d'actions Mobile PWA (bottom safe area) ── */}
+      <div className="mobile-bottom-bar">
+        <button className="mob-btn" onClick={() => setIsVirtualMode(!isVirtualMode)} style={{ color: isVirtualMode ? '#a855f7' : '#64748b' }}>
+          <RefreshCw size={18} />
+          <span>{isVirtualMode ? 'PAPER' : 'RÉEL'}</span>
+        </button>
+        <button className="mob-btn" onClick={() => setShowDivModal(true)} style={{ color: '#10b981' }}>
+          <Gift size={18} />
+          <span>DIVIDENDE</span>
+        </button>
+        {/* FAB central */}
+        <button className="mob-fab" onClick={() => setShowAddModal(true)}>
+          <Plus size={22} />
+        </button>
+        <button className="mob-btn" onClick={() => subscriptionTier !== 'premium' ? setShowPaywallModal(true) : setShowRoboPanel(!showRoboPanel)} style={{ color: '#a855f7' }}>
+          <Zap size={18} />
+          <span>ROBO</span>
+        </button>
+        <button className="mob-btn" onClick={() => exportToCsv(transactions, dividends)} style={{ color: '#64748b' }}>
+          <Download size={18} />
+          <span>EXPORT</span>
+        </button>
+      </div>
+
       <AddTransactionModal 
         showAddModal={showAddModal}
         setShowAddModal={setShowAddModal}
@@ -902,28 +876,34 @@ export default function PortfolioPage() {
       />
 
       <style jsx>{`
-        .max-container { width: 100%; max-width: 1650px; margin: 0 auto; padding: 1rem 0.5rem; }
-        .terminal-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1.25rem; }
+        /* ── Base Layout ── */
+        .max-container { width: 100%; max-width: 1650px; margin: 0 auto; padding: 1rem 0.75rem; }
+        .terminal-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem; }
         .header-identity { display: flex; flex-direction: column; gap: 0.4rem; }
         .identity-block { display: flex; align-items: center; gap: 0.5rem; }
-        .title-row { display: flex; align-items: baseline; gap: 0.75rem; }
+        .title-row { display: flex; align-items: baseline; gap: 0.75rem; flex-wrap: wrap; }
         .title-h1 { font-size: 1.65rem; font-weight: 900; letter-spacing: -0.04em; }
         .market-badge { background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 6px; font-size: 10px; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
-        .header-actions-row { display: flex; align-items: center; gap: 0.75rem; }
-        .action-chip { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-radius: 100px; border: 1px solid var(--border-glass); background: rgba(255,255,255,0.03); color: #64748b; cursor: pointer; transition: all 0.2s; font-size: 10px; font-family: 'JetBrains Mono', monospace; font-weight: 800; }
+
+        /* ── Desktop Actions ── */
+        .header-actions-row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+        .action-chip { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-radius: 100px; border: 1px solid var(--border-glass); background: rgba(255,255,255,0.03); color: #64748b; cursor: pointer; transition: all 0.2s; font-size: 10px; font-family: 'JetBrains Mono', monospace; font-weight: 800; min-height: 36px; }
         .action-chip:hover { color: #fff; background: rgba(255,255,255,0.07); }
+        .action-chip:active { transform: scale(0.96); }
         .action-chip.emerald { color: #10b981; border-color: rgba(16,185,129,0.2); }
         .action-chip.white { color: #fff; background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); }
         .benchmark-chip { display: flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.85rem; border-radius: 100px; border: 1px solid; font-size: 10px; font-family: 'JetBrains Mono', monospace; font-weight: 800; }
         .benchmark-chip.bull { color: #10b981; border-color: rgba(16,185,129,0.2); background: rgba(16,185,129,0.05); }
         .benchmark-chip.bear { color: #ef4444; border-color: rgba(244,63,94,0.2); background: rgba(244,63,94,0.05); }
 
+        /* ── Content spacing ── */
         .main-content {
           padding-top: calc(var(--header-height) + 1.25rem);
-          padding-bottom: calc(100px + env(safe-area-inset-bottom, 24px));
+          padding-bottom: calc(90px + env(safe-area-inset-bottom, 20px));
           min-height: 100vh;
         }
 
+        /* ── Swipeable Tabs ── */
         .tab-strip { 
           display: flex; 
           gap: 0.5rem; 
@@ -931,14 +911,16 @@ export default function PortfolioPage() {
           overflow-x: auto; 
           scroll-snap-type: x mandatory; 
           -webkit-overflow-scrolling: touch; 
-          padding-bottom: 4px; 
+          padding-bottom: 4px;
+          scrollbar-width: none;
         }
         .tab-strip::-webkit-scrollbar { display: none; }
         .tab-btn { 
           display: flex; 
           align-items: center; 
           gap: 0.5rem; 
-          padding: 0.65rem 1.15rem; 
+          padding: 0.75rem 1.15rem;
+          min-height: 44px;
           border-radius: 0.75rem; 
           border: 1px solid var(--border-glass); 
           background: rgba(10, 14, 23, 0.6); 
@@ -949,8 +931,10 @@ export default function PortfolioPage() {
           white-space: nowrap; 
           scroll-snap-align: start; 
           flex-shrink: 0; 
-          transition: all 0.2s ease; 
+          transition: all 0.2s ease;
+          -webkit-tap-highlight-color: transparent;
         }
+        .tab-btn:active { transform: scale(0.97); }
         .tab-btn.active { 
           background: rgba(255,255,255,0.08); 
           color: #fff; 
@@ -958,7 +942,76 @@ export default function PortfolioPage() {
           box-shadow: 0 0 15px rgba(255,255,255,0.05); 
         }
 
-        .active-filter-bar { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1.25rem; border-radius: 0.75rem; background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.2); margin-bottom: 1rem; }
+        /* ── Mobile Bottom Bar PWA ── */
+        .mobile-bottom-bar {
+          display: none;
+        }
+        @media (max-width: 768px) {
+          .desktop-actions { display: none !important; }
+          .title-h1 { font-size: 1.3rem; }
+          .mobile-bottom-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 0.65rem 0.5rem;
+            padding-bottom: calc(0.65rem + env(safe-area-inset-bottom, 12px));
+            background: rgba(8, 10, 15, 0.97);
+            border-top: 1px solid rgba(255,255,255,0.07);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            z-index: 500;
+            gap: 0.25rem;
+          }
+          .mob-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.75rem;
+            transition: all 0.15s;
+            -webkit-tap-highlight-color: transparent;
+            min-width: 52px;
+            font-family: 'JetBrains Mono', monospace;
+          }
+          .mob-btn span {
+            font-size: 8px;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+          }
+          .mob-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.05); }
+          /* FAB central */
+          .mob-fab {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 54px;
+            height: 54px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(135deg, #a855f7, #7c3aed);
+            color: #fff;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(168,85,247,0.45);
+            transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
+            margin-top: -20px;
+          }
+          .mob-fab:active { transform: scale(0.92); box-shadow: 0 2px 10px rgba(168,85,247,0.3); }
+          /* Ajuster les charts pour mobile */
+          .portfolio-charts-grid { grid-template-columns: 1fr !important; }
+          .max-container { padding: 0.75rem 0.5rem; }
+        }
+
+        /* ── Filtres & divers ── */
+        .active-filter-bar { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1.25rem; border-radius: 0.75rem; background: rgba(59,130,246,0.05); border: 1px solid rgba(59,130,246,0.2); margin-bottom: 1rem; }
         .clear-filter-btn { background: transparent; border: none; color: #3b82f6; cursor: pointer; font-weight: 800; font-family: 'JetBrains Mono', monospace; transition: color 0.2s; }
         .clear-filter-btn:hover { color: #fff; }
 
@@ -970,7 +1023,6 @@ export default function PortfolioPage() {
           .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; } 
           .stats-grid > .stat-card:nth-child(1),
           .stats-grid > .stat-card:nth-child(2) { grid-column: span 2; }
-          .header-actions-row { flex-wrap: wrap; gap: 0.5rem; } 
         }
       `}</style>
     </div>
