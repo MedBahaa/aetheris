@@ -206,7 +206,7 @@ export const PortfolioStats: React.FC<PortfolioStatsProps> = ({
   
   const renderVal = (formattedVal: React.ReactNode) => {
     if (loading) {
-      return <div className="h-5 w-28 bg-slate-800/90 animate-pulse rounded my-1" />;
+      return <div style={{ height: '1.2rem', width: '70%', background: 'rgba(30,41,59,0.9)', borderRadius: '4px', margin: '2px 0', animation: 'pulse 1.5s ease-in-out infinite' }} />;
     }
     return formattedVal;
   };
