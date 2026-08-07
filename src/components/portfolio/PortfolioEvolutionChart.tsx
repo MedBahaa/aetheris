@@ -76,10 +76,10 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
     const masiPoints: { time: string; value: number }[] = [];
 
     const activeVal = currentValue > 0 ? currentValue : 100000;
-    const startVal = Math.max(1000, activeVal * (1 - (performancePct / 100)));
+    const startVal = Math.max(1000, activeVal / (1 + (performancePct / 100)));
 
     // MASI starting points at beginning of timeframe
-    const startMasiPts = Math.max(1000, currentMasiPts * (1 - (masiVarPct / 100)));
+    const startMasiPts = Math.max(1000, currentMasiPts / (1 + (masiVarPct / 100)));
 
     for (let i = 0; i <= totalDays; i++) {
       const currentDate = new Date(startDate.getTime() + i * dayMs);
@@ -197,10 +197,10 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
 
       // Reconstruct actual MAD value for portfolio & actual Index Points for MASI
       const activeVal = currentValue > 0 ? currentValue : 100000;
-      const startVal = Math.max(1000, activeVal * (1 - (performancePct / 100)));
+      const startVal = Math.max(1000, activeVal / (1 + (performancePct / 100)));
       const recomputedPortVal = Math.round(startVal * (1 + (pPct / 100)));
 
-      const startMasi = Math.max(1000, currentMasiPts * (1 - (masiVarPct / 100)));
+      const startMasi = Math.max(1000, currentMasiPts / (1 + (masiVarPct / 100)));
       const recomputedMasiPts = Math.round(startMasi * (1 + (mPct / 100)) * 100) / 100;
 
       const dateStr = typeof param.time === 'string' 
