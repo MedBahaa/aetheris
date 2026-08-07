@@ -46,6 +46,12 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
     alpha: number;
   } | null>(null);
 
+  // Keep track of latest props for the chart crosshair closure
+  const latestPropsRef = useRef({ currentValue, performancePct, currentMasiPts, masiVarPct });
+  useEffect(() => {
+    latestPropsRef.current = { currentValue, performancePct, currentMasiPts, masiVarPct };
+  }, [currentValue, performancePct, currentMasiPts, masiVarPct]);
+
   // Build robust percentage (%) comparison timeline for Portfolio vs MASI Index
   const buildEquityData = (range: '1S' | '1M' | 'YTD' | '1A' | 'MAX') => {
     const now = new Date();
@@ -195,12 +201,14 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
       const mPct = masiPctData?.value || 0;
       const alphaVal = pPct - mPct;
 
-      // Reconstruct actual MAD value for portfolio & actual Index Points for MASI
-      const activeVal = currentValue > 0 ? currentValue : 100000;
-      const startVal = Math.max(1000, activeVal / (1 + (performancePct / 100)));
+      // Reconstruct actual MAD value for portfolio & actual Index Points for MASI using LATEST props
+      const { currentValue: latestVal, performancePct: latestPerf, currentMasiPts: latestMasiPts, masiVarPct: latestMasiVar } = latestPropsRef.current;
+      
+      const activeVal = latestVal > 0 ? latestVal : 100000;
+      const startVal = Math.max(1000, activeVal / (1 + (latestPerf / 100)));
       const recomputedPortVal = Math.round(startVal * (1 + (pPct / 100)));
 
-      const startMasi = Math.max(1000, currentMasiPts / (1 + (masiVarPct / 100)));
+      const startMasi = Math.max(1000, latestMasiPts / (1 + (latestMasiVar / 100)));
       const recomputedMasiPts = Math.round(startMasi * (1 + (mPct / 100)) * 100) / 100;
 
       const dateStr = typeof param.time === 'string' 
