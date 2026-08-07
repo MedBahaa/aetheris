@@ -104,10 +104,11 @@ export default function MacroWidget() {
         }
 
         .macro-ticker-content {
-          display: flex;
+          display: inline-flex;
           align-items: center;
+          gap: 1.5rem;
           white-space: nowrap;
-          width: max-content;
+          min-width: max-content;
         }
 
         .animate-ticker {
@@ -119,11 +120,11 @@ export default function MacroWidget() {
         }
 
         .macro-ticker-group {
-          display: flex;
+          display: inline-flex;
           align-items: center;
           gap: 1.5rem;
-          padding-right: 1.5rem;
           flex-shrink: 0;
+          min-width: max-content;
         }
 
         @keyframes ticker-move {
@@ -132,10 +133,12 @@ export default function MacroWidget() {
         }
 
         .macro-item {
-          display: flex;
+          display: inline-flex;
           align-items: center;
           gap: 0.6rem;
           font-family: 'JetBrains Mono', monospace;
+          flex-shrink: 0;
+          white-space: nowrap;
         }
 
         .m-label {
