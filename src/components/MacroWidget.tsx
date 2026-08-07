@@ -123,6 +123,7 @@ export default function MacroWidget() {
           align-items: center;
           gap: 1.5rem;
           padding-right: 1.5rem;
+          flex-shrink: 0;
         }
 
         @keyframes ticker-move {
