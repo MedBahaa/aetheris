@@ -56,6 +56,23 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr">
+      <head>
+        {/* Capture beforeinstallprompt AVANT le chargement de React */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.__pwaInstallEvent = null;
+              window.__pwaInstallDismissed = false;
+              window.addEventListener('beforeinstallprompt', function(e) {
+                e.preventDefault();
+                window.__pwaInstallEvent = e;
+                // Déclencher un événement custom pour que React puisse l'intercepter
+                window.dispatchEvent(new CustomEvent('pwa-install-available'));
+              });
+            `,
+          }}
+        />
+      </head>
       <body>
         <PwaRegistry />
         <StyledJsxRegistry>
