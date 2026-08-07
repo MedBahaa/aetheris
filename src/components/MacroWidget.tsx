@@ -7,19 +7,25 @@ export default function MacroWidget() {
   const [data, setData] = useState<any>(null);
   
   useEffect(() => {
-    fetch('/api/macro')
-      .then(async res => {
-        const contentType = res.headers.get('content-type');
-        if (!res.ok || !contentType?.includes('application/json')) {
-          console.error(`[MacroWidget] Invalid response: status=${res.status}, type=${contentType}`);
-          return null;
-        }
-        return res.json();
-      })
-      .then(d => {
-         if (d && !d.error) setData(d);
-      })
-      .catch(err => console.error('[MacroWidget] Network error:', err));
+    const fetchMacro = () => {
+      fetch('/api/macro')
+        .then(async res => {
+          const contentType = res.headers.get('content-type');
+          if (!res.ok || !contentType?.includes('application/json')) {
+            console.error(`[MacroWidget] Invalid response: status=${res.status}, type=${contentType}`);
+            return null;
+          }
+          return res.json();
+        })
+        .then(d => {
+           if (d && !d.error) setData(d);
+        })
+        .catch(err => console.error('[MacroWidget] Network error:', err));
+    };
+
+    fetchMacro(); // Fetch initial
+    const interval = setInterval(fetchMacro, 3 * 60 * 1000); // Rafraîchissement toutes les 3 minutes
+    return () => clearInterval(interval);
   }, []);
 
   if (!data) return null;

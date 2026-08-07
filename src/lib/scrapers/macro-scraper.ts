@@ -57,13 +57,15 @@ export class MacroScraper {
         }
       }));
 
-      // 2. Données Institutionnelles (BKAM) - Statistique au 01/05/2026
-      // AUDIT NOTE: Ces données changent peu souvent (Trimestriel), 
-      // on utilise les dernières valeurs vérifiées via BKAM.
+      // 2. Données Institutionnelles (BKAM)
+      // LAST_VERIFIED: 07/08/2026 — Source: bkam.ma + HCP
+      // Taux directeur: maintenu à 2.25% lors du conseil du 23/06/2026
+      // Inflation: IPC annuel Juin 2026 = +0.3% (HCP, publié Juillet 2026)
+      // Prochaine réunion: 22/09/2026 (calendrier officiel BKAM 2026)
       const institutionalData = {
-        keyRate: { value: 2.25, lastChange: '18/12/2025' },
-        inflation: { value: 0.9, period: 'Mars 2026 (Annuel)' },
-        nextBAMMeeting: '23 Juin 2026'
+        keyRate: { value: 2.25, lastChange: '23/06/2026' },
+        inflation: { value: 0.3, period: 'Juin 2026 (Annuel)' },
+        nextBAMMeeting: '22 Sept 2026'
       };
 
       // Validation

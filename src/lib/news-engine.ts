@@ -20,12 +20,9 @@ export enum SourceType {
 
 const FEEDS = [
   { name: 'AMMC Officiel', url: 'https://www.ammc.ma/fr/rss.xml', type: SourceType.OFFICIAL },
-  { name: 'Le Boursier (Médias24)', url: 'https://medias24.com/categorie/leboursier/actus/feed/', type: SourceType.SPECIALIZED },
   { name: 'Médias24 Actualités', url: 'https://medias24.com/feed/', type: SourceType.SPECIALIZED },
-  { name: 'Le360 Economie', url: 'https://fr.le360.ma/rss/economie/', type: SourceType.GENERAL },
-  { name: 'Telquel', url: 'https://telquel.ma/feed/', type: SourceType.GENERAL },
-  { name: 'Le Matin', url: 'https://lematin.ma/rss/economie.xml', type: SourceType.GENERAL },
-  { name: "L'Observateur", url: 'https://lobservateur.info/?feed=rss2', type: SourceType.GENERAL },
+  { name: 'Hespress Économie', url: 'https://fr.hespress.com/feed/', type: SourceType.GENERAL },
+  { name: 'Challenge.ma', url: 'https://www.challenge.ma/feed/', type: SourceType.SPECIALIZED },
   { name: 'Google News Bourse', url: 'https://news.google.com/rss/search?q=Bourse+de+Casablanca+OR+Morocco+Stock+Exchange&hl=fr-MA&gl=MA&ceid=MA:fr', type: SourceType.GENERAL }
 ];
 
@@ -172,7 +169,15 @@ export class NewsEngine {
     const results = await Promise.allSettled(
       allFeeds.map(async feed => {
         try {
-          const content = await this.parser.parseURL(feed.url);
+          // Timeout de 8 secondes par feed pour éviter les blocages
+          const FEED_TIMEOUT = 8000;
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`Timeout ${FEED_TIMEOUT}ms`)), FEED_TIMEOUT)
+          );
+          const content = await Promise.race([
+            this.parser.parseURL(feed.url),
+            timeoutPromise
+          ]);
           return content.items.map(item => {
             let actualTitle = item.title || '';
             let actualSource = feed.name;
@@ -196,7 +201,7 @@ export class NewsEngine {
             };
           });
         } catch (e) {
-          // Silencieux : les feeds RSS sont souvent instables
+          console.warn(`[NewsEngine] ⚠️ Feed "${feed.name}" échoué: ${(e as Error).message?.substring(0, 60)}`);
           return [];
         }
       })
@@ -208,8 +213,8 @@ export class NewsEngine {
       }
     });
 
-    // Tracker les métriques de collecte
-    const successCount = results.filter(r => r.status === 'fulfilled' && (r.value as any[]).length >= 0).length;
+    // Tracker les métriques de collecte (seuls les feeds ayant retourné ≥1 article comptent comme succès)
+    const successCount = results.filter(r => r.status === 'fulfilled' && (r.value as any[]).length > 0).length;
     this.lastCollectionMetrics = {
       successCount,
       totalFeeds: allFeeds.length,
