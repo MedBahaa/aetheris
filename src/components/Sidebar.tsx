@@ -436,6 +436,7 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
 
           .sidebar-scroll-area {
             flex: 1 !important;
+            min-height: 0 !important;
             overflow-y: auto !important;
             overflow-x: hidden !important;
             display: flex;
