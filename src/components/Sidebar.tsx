@@ -420,6 +420,7 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
             display: flex !important;
             flex-direction: column !important;
             height: 100vh !important;
+            height: 100dvh !important;
             overflow: hidden !important;
             position: fixed;
             top: 0;
