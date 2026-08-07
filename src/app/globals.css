@@ -816,7 +816,7 @@ body {
 .ticker-content { 
   display: inline-flex; 
   gap: 4rem; 
-  animation: scroll-ticker 40s linear infinite; 
+  animation: scroll-ticker 30s linear infinite; 
 }
 
 .ticker-scroll:hover .ticker-content {
