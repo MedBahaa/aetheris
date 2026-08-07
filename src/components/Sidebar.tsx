@@ -594,38 +594,41 @@ export default function Sidebar({ history, onSelect, activeId, activeAgent, onAg
           .h-date { font-size: 9px; opacity: 0.4; margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
 
           .sidebar-footer-compact {
-            padding: 1rem 1.25rem;
-            padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 24px));
+            padding: 0.5rem 0;
+            padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 24px));
             border-top: 1px solid rgba(255, 255, 255, 0.08);
             display: flex;
-            align-items: center;
-            justify-content: space-between;
+            flex-direction: column;
             background: rgba(0,0,0,0.4);
             flex-shrink: 0;
           }
           .logout-btn-minimal { 
-            background: rgba(239, 68, 68, 0.12); 
-            border: 1px solid rgba(239, 68, 68, 0.3); 
-            color: #f87171; 
-            font-size: 10px; 
-            font-weight: 900; 
-            padding: 0.5rem 0.85rem;
-            border-radius: 8px;
-            cursor: pointer; 
-            display: flex; 
-            align-items: center; 
-            gap: 0.5rem; 
-            letter-spacing: 0.05rem; 
-            font-family: 'JetBrains Mono', monospace; 
-            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.45rem 1rem;
+            background: transparent;
+            border: none;
+            color: #475569;
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            width: 100%;
+            text-align: left;
+            transition: all 0.2s;
           }
           .logout-btn-minimal:hover { 
-            background: rgba(239, 68, 68, 0.25); 
-            border-color: rgba(239, 68, 68, 0.5); 
-            color: #ffffff; 
-            box-shadow: 0 0 12px rgba(239, 68, 68, 0.2);
+            padding-left: 1.15rem; 
+            background: rgba(239, 68, 68, 0.04); 
+            color: #ef4444; 
           }
-          .v-tag-minimal { font-size: 9px; color: #334155; font-weight: 900; font-family: 'JetBrains Mono', monospace; }
+          .v-tag-minimal { 
+            font-size: 9px; 
+            color: #334155; 
+            font-weight: 900; 
+            font-family: 'JetBrains Mono', monospace; 
+            padding: 0.2rem 1rem 0.5rem;
+          }
 
           .close-btn-drawer { background: transparent; border: none; color: #475569; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: color 0.2s; }
           .close-btn-drawer:hover { color: #fff; }
