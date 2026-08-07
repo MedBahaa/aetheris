@@ -2,8 +2,10 @@ name: Aetheris Market Cron
 
 on:
   schedule:
-    # S'exécute toutes les 5 minutes
-    - cron: '*/5 * * * *'
+    # 09:00 - 15:55 (Heure locale Maroc = 08:00 - 14:55 UTC) du Lundi au Vendredi
+    - cron: '*/5 8-14 * * 1-5'
+    # 16:00 - 16:30 (Heure locale Maroc = 15:00 - 15:30 UTC) du Lundi au Vendredi
+    - cron: '0,5,10,15,20,25,30 15 * * 1-5'
   # Permet de lancer le workflow manuellement depuis l'interface GitHub
   workflow_dispatch:
 
