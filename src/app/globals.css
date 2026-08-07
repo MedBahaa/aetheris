@@ -47,6 +47,20 @@
   box-sizing: border-box;
   padding: 0;
   margin: 0;
+  /* Empêcher tout élément de dépasser la largeur viewport */
+  max-width: 100%;
+}
+
+/* Exclure les éléments qui doivent garder des dimensions fixes */
+svg, canvas, img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* La racine HTML aussi doit être contrainte */
+html {
+  overflow-x: hidden;
+  width: 100%;
 }
 
 body {
@@ -55,6 +69,7 @@ body {
   font-family: 'Inter', sans-serif;
   min-height: 100vh;
   overflow-x: hidden;
+  width: 100%;
   background-image: 
     radial-gradient(circle at 50% -20%, rgba(16, 185, 129, 0.08) 0%, transparent 40%),
     radial-gradient(circle at 10% 20%, rgba(14, 165, 233, 0.04) 0%, transparent 30%),
@@ -126,7 +141,11 @@ body {
 
 .main-content {
   flex: 1;
+  /* CRITICAL: empêcher le dépassement horizontal */
   width: 100%;
+  min-width: 0;
+  max-width: 100vw;
+  overflow-x: hidden;
   padding: 1rem;
   padding-top: calc(var(--header-height) + var(--sat) + 0.75rem);
   padding-bottom: calc(88px + var(--sab));
@@ -138,6 +157,7 @@ body {
   .main-content {
     margin-left: 0 !important;
     width: 100% !important;
+    max-width: 100% !important;
     padding: 1.25rem 2rem;
     padding-top: calc(var(--header-height) + 1.25rem);
     padding-bottom: 2.5rem;
@@ -147,7 +167,9 @@ body {
 
 .max-container {
   max-width: var(--max-width);
+  width: 100%;
   margin: 0 auto;
+  overflow-x: hidden;
 }
 
 /* Responsive Header */
@@ -1643,11 +1665,17 @@ thead th { transition: color 0.15s ease; }
   grid-template-columns: 2fr 1fr;
   gap: 1rem;
   margin-bottom: 1.5rem;
-  align-items: stretch; /* Hauteur égale entre les deux cards */
+  align-items: stretch;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .portfolio-charts-grid > * {
   min-height: 340px;
+  min-width: 0;  /* Empêche le dépassement des enfants de grille */
+  max-width: 100%;
+  overflow: hidden;
 }
 
 /* Masquer le watermark TradingView en fallback CSS */
@@ -1655,9 +1683,13 @@ thead th { transition: color 0.15s ease; }
   display: none !important;
 }
 
-@media (max-width: 1024px) {
+/* Mobile: 1 colonne dès 768px */
+@media (max-width: 768px) {
   .portfolio-charts-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
+  }
+  .portfolio-charts-grid > * {
+    min-height: 260px;
   }
 }
 
@@ -2027,3 +2059,86 @@ thead th { transition: color 0.15s ease; }
   font-weight: 700;
   text-align: center;
 }
+
+/* ==========================================================================
+   VIEWPORT CONTAINMENT UNIVERSELLE — Correction dépassement mobile / PWA
+   ========================================================================== */
+
+/* 1. App container jamais plus large que le viewport */
+.app-container {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* 2. Tables horizontalement scrollables dans leur wrapper, jamais en overflow */
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  /* Wrapper de table scrollable */
+  .data-terminal,
+  .leaderboard-panel,
+  .table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+
+  /* Empêcher les tables internes de causer le scroll global */
+  .data-terminal table,
+  .leaderboard-panel table {
+    min-width: auto;
+    width: 100%;
+    display: block;
+    overflow-x: auto;
+  }
+
+  /* Pre et code ne débordent jamais */
+  pre, code {
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+
+  /* Tous les wrappers de charts */
+  [class*="chart"],
+  [class*="Chart"],
+  .recharts-wrapper,
+  .recharts-surface {
+    max-width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  /* Modals toujours dans le viewport */
+  .modal-overlay {
+    padding: 0.75rem;
+  }
+
+  .modal-content {
+    max-height: 92dvh;
+    border-radius: 1.25rem;
+  }
+
+  /* Stats grid 2 colonnes maxi sur mobile */
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Header actions caché par défaut sur très petit écran */
+  .desktop-actions {
+    display: none !important;
+  }
+}
+
+/* 3. Isolation de contexte pour empêcher les enfants d'élargir le parent */
+@media (max-width: 768px) {
+  .glass,
+  .glass-heavy,
+  .data-terminal {
+    overflow: hidden;
+    max-width: 100%;
+  }
+}
+
