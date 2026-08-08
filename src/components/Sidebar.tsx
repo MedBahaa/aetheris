@@ -103,8 +103,8 @@ export default function Sidebar({
 
   const handleAgentClick = (type: AgentType) => {
     onAgentChange(type);
-    if (pathname !== '/') {
-      router.push(`/?agent=${type}`);
+    if (pathname !== '/console') {
+      router.push(`/console?agent=${type}`);
     }
     if (!isDesktop) {
       onClose();
@@ -234,8 +234,8 @@ export default function Sidebar({
                 </button>
               </Link>
 
-              <Link href="/" style={{ textDecoration: 'none' }} onClick={() => !isDesktop && onClose()}>
-                <button className={`agent-btn-compact ${pathname === '/' ? 'active' : ''}`}>
+              <Link href="/console" style={{ textDecoration: 'none' }} onClick={() => !isDesktop && onClose()}>
+                <button className={`agent-btn-compact ${pathname === '/console' ? 'active' : ''}`}>
                   <LayoutGrid size={16} className="nav-icon" />
                   <span>Console Alpha</span>
                 </button>
