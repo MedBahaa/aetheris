@@ -72,7 +72,7 @@ export async function proxy(request: NextRequest) {
   const isServerAction = request.headers.has('next-action')
 
   // Routes publiques accessibles sans être connecté
-  const publicRoutes = ['/', '/login', '/auth/callback', '/marche-live', '/offline']
+  const publicRoutes = ['/', '/console', '/login', '/auth/callback', '/marche-live', '/offline']
   const isPublicRoute = publicRoutes.includes(pathname) || pathname.startsWith('/auth/')
 
   // Si l'utilisateur n'est pas connecté et tente d'accéder à une page protégée
