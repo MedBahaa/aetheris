@@ -452,10 +452,6 @@ export default function EnterpriseLandingPage() {
         </div>
       )}
 
-      {/* ════════════════════ TICKER TAPE ════════════════════ */}
-      <div className="ticker-wrapper" aria-label="Cotations MASI en direct">
-        <TickerTape />
-      </div>
 
       {/* ════════════════════ HERO SECTION ════════════════════ */}
       <section className="lp-hero">
@@ -855,7 +851,7 @@ export default function EnterpriseLandingPage() {
         /* ── HERO ── */
         .lp-hero {
           position: relative; overflow: hidden;
-          padding: 3rem 2rem 5rem;
+          padding: 120px 2rem 5rem;
           display: flex; flex-direction: column; align-items: center;
         }
         .hero-grid-bg {
