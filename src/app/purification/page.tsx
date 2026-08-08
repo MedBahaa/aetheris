@@ -24,6 +24,7 @@ interface ShariaResult {
     interestIncome: string;
     interestDebt: string;
     interestCash: string;
+    marketCap: string;
   };
   summary: string;
   sources: string[];
@@ -137,7 +138,8 @@ export default function PurificationPage() {
         totalRevenue: `${revenue.toLocaleString('fr-FR')} MAD`,
         interestIncome: `${interestInc.toLocaleString('fr-FR')} MAD`,
         interestDebt: `${debt.toLocaleString('fr-FR')} MAD`,
-        interestCash: `${cash.toLocaleString('fr-FR')} MAD`
+        interestCash: `${cash.toLocaleString('fr-FR')} MAD`,
+        marketCap: `${cap.toLocaleString('fr-FR')} MAD`
       },
       summary: `Calcul manuels effectués selon les ratios AAOIFI. Taux de purification: ${purifRate.toFixed(2)}%, Endettement: ${debtR.toFixed(2)}%, Trésorerie: ${cashR.toFixed(2)}%.`,
       sources: ['Saisie Manuelle']
@@ -371,6 +373,18 @@ export default function PurificationPage() {
           {result && !loading && (
             <div className="flex flex-col gap-6 animate-fade-in">
               
+              {/* CREDIBILITY DISCLAIMER */}
+              <div className="bg-amber-950/20 border border-amber-500/30 p-4 rounded-xl flex items-start gap-3 text-amber-200/90">
+                <AlertTriangle size={20} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                <div className="flex flex-col gap-1">
+                  <h4 className="font-bold text-sm text-amber-400">AVERTISSEMENT : DONNÉES GÉNÉRÉES PAR INTELLIGENCE ARTIFICIELLE</h4>
+                  <p className="text-xs">
+                    Les montants financiers ci-dessous ont été extraits automatiquement par l'IA à partir des ressources disponibles sur le web. 
+                    Les calculs de conformité AAOIFI ont ensuite été appliqués mathématiquement. <strong>Avant toute décision d'investissement Halal, vous devez impérativement vérifier ces chiffres avec les rapports financiers officiels publiés par l'AMMC</strong>.
+                  </p>
+                </div>
+              </div>
+
               {/* COMPLIANCE STATUS & HERO PURIFICATION RATE */}
               <div className={`glass-heavy p-6 rounded-2xl border flex flex-col md:flex-row items-center justify-between gap-6 ${result.isCompliant ? 'border-emerald-500/40 bg-emerald-950/20' : 'border-rose-500/40 bg-rose-950/20'}`}>
                 <div className="flex items-center gap-4">
@@ -521,22 +535,26 @@ export default function PurificationPage() {
                   <BookOpen size={16} /> DONNÉES FINANCIÈRES EXTRAITES DU CPC ET BILAN
                 </h3>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
                   <div className="bg-slate-950/80 p-3 rounded-lg border border-white/5">
-                    <span className="text-slate-400 block mb-1">Chiffre d'Affaires Total</span>
+                    <span className="text-slate-400 block mb-1">Chiffre d'Affaires</span>
                     <span className="mono font-bold text-slate-100 text-sm">{result.financialData.totalRevenue}</span>
                   </div>
                   <div className="bg-slate-950/80 p-3 rounded-lg border border-white/5">
-                    <span className="text-slate-400 block mb-1">Produits d'Intérêts (Riba)</span>
+                    <span className="text-slate-400 block mb-1">Produits d'Intérêts</span>
                     <span className="mono font-bold text-rose-400 text-sm">{result.financialData.interestIncome}</span>
                   </div>
                   <div className="bg-slate-950/80 p-3 rounded-lg border border-white/5">
-                    <span className="text-slate-400 block mb-1">Dettes Financières d'Intérêts</span>
+                    <span className="text-slate-400 block mb-1">Dettes Bancaires</span>
                     <span className="mono font-bold text-amber-400 text-sm">{result.financialData.interestDebt}</span>
                   </div>
                   <div className="bg-slate-950/80 p-3 rounded-lg border border-white/5">
-                    <span className="text-slate-400 block mb-1">Trésorerie Placé</span>
+                    <span className="text-slate-400 block mb-1">Trésorerie Placée</span>
                     <span className="mono font-bold text-slate-200 text-sm">{result.financialData.interestCash}</span>
+                  </div>
+                  <div className="bg-slate-950/80 p-3 rounded-lg border border-emerald-500/20">
+                    <span className="text-slate-400 block mb-1">Capitalisation (Dénominateur)</span>
+                    <span className="mono font-bold text-emerald-400 text-sm">{result.financialData.marketCap}</span>
                   </div>
                 </div>
 
