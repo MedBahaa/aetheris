@@ -118,7 +118,7 @@ export default function MacroWidget() {
         }
 
         .animate-ticker {
-          animation: ticker-move 40s linear infinite;
+          animation: ticker-move 60s linear infinite;
         }
 
         .animate-ticker:hover {
