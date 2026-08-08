@@ -433,15 +433,12 @@ export default function EnterpriseLandingPage() {
           <div className="mobile-drawer-inner">
             <div className="mobile-links-container">
               <a href="#terminal" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Terminal Live</a>
-              
-              <div className="mobile-sublinks">
-                <Link href="/marche-live" className="mobile-sublink" onClick={() => setMobileMenuOpen(false)}>
-                  MASI Live
-                </Link>
-                <Link href="/purification" className="mobile-sublink" onClick={() => setMobileMenuOpen(false)}>
-                  Audit AAOIFI
-                </Link>
-              </div>
+              <Link href="/marche-live" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>
+                MASI Live
+              </Link>
+              <Link href="/purification" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>
+                Audit AAOIFI
+              </Link>
 
               <a href="#pipeline" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Architecture</a>
               <a href="#outcomes" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Plateforme</a>
