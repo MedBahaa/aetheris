@@ -812,7 +812,7 @@ export default function EnterpriseLandingPage() {
           background: rgba(3,5,8,0.85); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
           border-bottom: 1px solid rgba(255,255,255,0.06);
         }
-        .lp-nav.nav-scrolled { background: rgba(3,5,8,0.96); box-shadow: 0 4px 20px rgba(0,0,0,0.8); }
+        .lp-nav.nav-scrolled { background: rgba(3,5,8,0.75); backdrop-filter: blur(24px); box-shadow: 0 4px 20px rgba(0,0,0,0.8); }
         .nav-inner { width: 100%; max-width: 1400px; margin: 0 auto; padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; }
         .nav-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
         .brand-orb { width: 32px; height: 32px; border-radius: 6px; background: #10b981; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -990,7 +990,8 @@ export default function EnterpriseLandingPage() {
         .it-tprice { font-size: 11px; color: #cbd5e1; }
         .it-tchg { font-size: 10px; font-weight: 600; }
 
-        .it-workspace { padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; }
+        .it-workspace { padding: 1rem; display: flex; flex-direction: column; gap: 1.25rem; }
+        @media (min-width: 768px) { .it-workspace { padding: 1.5rem; } }
         .it-asset-head { display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 1rem; flex-wrap: wrap; gap: 1rem; }
         .it-asset-title-row { display: flex; align-items: center; gap: 10px; }
         .it-asset-name { font-family: 'Outfit', sans-serif; font-size: 1.35rem; font-weight: 800; color: #fff; margin: 0; }
@@ -1012,17 +1013,22 @@ export default function EnterpriseLandingPage() {
         .it-tb-text { font-size: 12.5px; color: #94a3b8; line-height: 1.6; margin: 0; font-style: italic; }
 
         /* ── SECTIONS ── */
-        .lp-section { padding: 6rem 2rem; }
+        .lp-section { padding: 4.5rem 1.5rem; }
         .lp-dark-section { background: #060910; border-top: 1px solid rgba(255,255,255,0.04); border-bottom: 1px solid rgba(255,255,255,0.04); }
         .lp-container { max-width: 1200px; margin: 0 auto; }
-        .section-head { text-align: center; margin-bottom: 4rem; }
-        .section-eyebrow { font-size: 9px; font-weight: 800; color: #10b981; letter-spacing: 0.1rem; margin-bottom: 0.75rem; }
-        .section-h2 { font-family: 'Outfit', sans-serif; font-size: clamp(1.8rem, 3.5vw, 2.5rem); font-weight: 800; color: #fff; letter-spacing: -0.03em; margin-bottom: 0.75rem; }
-        .section-p { font-size: 1rem; color: #64748b; max-width: 580px; margin: 0 auto; line-height: 1.6; }
+        .section-head { text-align: center; margin-bottom: 3.5rem; }
+        .section-eyebrow { font-size: 9.5px; font-weight: 800; color: #10b981; letter-spacing: 0.15rem; margin-bottom: 1rem; display: block; text-transform: uppercase; }
+        .section-h2 { font-family: 'Outfit', sans-serif; font-size: clamp(2.2rem, 5.5vw, 3.8rem); font-weight: 800; color: #fff; letter-spacing: -0.03em; margin-bottom: 1.25rem; line-height: 1.1; }
+        .section-p { font-size: 1.05rem; color: #94a3b8; max-width: 600px; margin: 0 auto; line-height: 1.7; }
+        @media (min-width: 768px) {
+          .lp-section { padding: 8rem 2rem; }
+          .section-head { margin-bottom: 5rem; }
+        }
 
         /* ── PIPELINE STAGES ── */
         .pipeline-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1rem; }
-        .pipeline-card { background: rgba(12,17,27,0.7); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 1.25rem; display: flex; flex-direction: column; }
+        .pipeline-card { background: rgba(12,17,27,0.7); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 1.5rem; display: flex; flex-direction: column; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        .pipeline-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px -10px rgba(16,185,129,0.15); border-color: rgba(16,185,129,0.25); background: rgba(16,185,129,0.03); }
         .pc-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
         .pc-step { font-size: 11px; font-weight: 800; color: #10b981; }
         .pc-icon { color: #64748b; }
@@ -1037,17 +1043,18 @@ export default function EnterpriseLandingPage() {
         .outcome-tab-btn {
           display: flex; flex-direction: column; text-align: left; padding: 1.1rem;
           background: rgba(12,17,27,0.5); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px;
-          cursor: pointer; transition: all 0.2s;
+          cursor: pointer; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        .outcome-tab-btn:hover { background: rgba(255,255,255,0.03); }
+        .outcome-tab-btn:hover { background: rgba(255,255,255,0.03); transform: translateX(4px); border-color: rgba(255,255,255,0.15); }
         .outcome-tab-btn.active { background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.3); border-left: 3px solid #10b981; }
         .otb-tag { font-size: 9px; font-weight: 800; color: #10b981; margin-bottom: 4px; }
         .otb-title { font-size: 13px; font-weight: 700; color: #fff; line-height: 1.35; }
 
         .outcome-display-panel {
           background: rgba(12,17,27,0.7); border: 1px solid rgba(255,255,255,0.07);
-          border-radius: 8px; padding: 2.5rem; display: flex; flex-direction: column; justify-content: space-between;
+          border-radius: 8px; padding: 1.5rem; display: flex; flex-direction: column; justify-content: space-between;
         }
+        @media (min-width: 768px) { .outcome-display-panel { padding: 2.5rem; } }
         .odp-tag { font-size: 10px; font-weight: 800; color: #10b981; margin-bottom: 0.5rem; }
         .odp-title { font-family: 'Outfit', sans-serif; font-size: 1.6rem; font-weight: 800; color: #fff; margin-bottom: 1rem; line-height: 1.25; }
         .odp-desc { font-size: 0.95rem; color: #64748b; line-height: 1.65; margin-bottom: 2rem; }
@@ -1076,7 +1083,7 @@ export default function EnterpriseLandingPage() {
         .pc-btn-ghost { background: rgba(255,255,255,0.04); color: #fff; border: 1px solid rgba(255,255,255,0.1); }
         .pc-btn-ghost:hover { background: rgba(255,255,255,0.08); }
         .pc-btn-primary { background: #10b981; color: #000; }
-        .pc-btn-primary:hover { background: #34d399; }
+        .pc-btn-primary:hover { background: #34d399; transform: translateY(-2px); box-shadow: 0 8px 20px -5px rgba(16,185,129,0.3); }
 
         /* ── FAQ ── */
         .faq-wrapper { max-width: 800px; margin: 0 auto; display: flex; flex-direction: column; gap: 0.75rem; }
