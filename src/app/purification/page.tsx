@@ -444,27 +444,33 @@ export default function PurificationPage() {
               </div>
 
               {/* COMPLIANCE STATUS & HERO PURIFICATION RATE */}
-              <div className={`glass-heavy p-6 rounded-2xl border flex flex-col md:flex-row items-center justify-between gap-6 ${result.isCompliant ? 'border-emerald-500/40 bg-emerald-950/20' : 'border-rose-500/40 bg-rose-950/20'}`}>
-                <div className="flex items-center gap-4">
-                  <div className={`p-4 rounded-2xl ${result.isCompliant ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
-                    {result.isCompliant ? <CheckCircle2 size={36} /> : <XCircle size={36} />}
+              <div className={`glass-heavy p-8 rounded-2xl border flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden ${result.isCompliant ? 'border-emerald-500/50 bg-emerald-950/10 shadow-[0_0_30px_rgba(16,185,129,0.1)]' : 'border-rose-500/50 bg-rose-950/10 shadow-[0_0_30px_rgba(244,63,94,0.1)]'}`}>
+                {/* Glow effect background */}
+                <div className={`absolute -top-20 -left-20 w-64 h-64 rounded-full blur-[80px] opacity-20 pointer-events-none ${result.isCompliant ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+
+                <div className="flex items-center gap-5 z-10">
+                  <div className={`p-4 rounded-2xl flex-shrink-0 ${result.isCompliant ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
+                    {result.isCompliant ? <CheckCircle2 size={42} /> : <XCircle size={42} />}
                   </div>
                   <div className="flex flex-col gap-1">
-                    <span className="mono-tiny opacity-70">SOCIÉTÉ : {result.companyName} ({result.ticker})</span>
-                    <h2 className={`font-black text-2xl ${result.isCompliant ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {result.isCompliant ? 'CONFORME SHARIA (HALAL)' : 'NON CONFORME (NON ELIGIBLE)'}
+                    <span className="mono-tiny opacity-70 tracking-wider">ANALYSE SHARIA • {result.fiscalYear}</span>
+                    <h2 className={`font-black text-3xl md:text-4xl tracking-tight ${result.isCompliant ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {result.isCompliant ? 'HALAL (CONFORME)' : 'NON CONFORME'}
                     </h2>
-                    <span className="text-xs text-slate-300">Rapport financier analysé : {result.fiscalYear}</span>
+                    <span className="text-sm text-slate-300 font-bold">{result.companyName} ({result.ticker})</span>
                   </div>
                 </div>
 
                 {/* HERO PURIFICATION RATE BADGE */}
-                <div className="bg-slate-950/80 p-4 rounded-xl border border-white/10 flex flex-col items-center md:items-end gap-1 min-w-[220px]">
-                  <span className="mono-tiny text-slate-400">TAUX DE PURIFICATION</span>
-                  <div className="text-3xl font-black mono text-emerald-400">
+                <div className="bg-slate-950 p-5 rounded-2xl border border-white/10 flex flex-col items-center md:items-end gap-1 min-w-[240px] z-10 relative overflow-hidden">
+                   <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
+                  <span className="mono-tiny text-slate-400 tracking-wider">TAUX DE PURIFICATION</span>
+                  <div className="text-4xl font-black mono text-emerald-400 tracking-tighter">
                     {result.purificationRate.toFixed(2)} %
                   </div>
-                  <span className="text-[10px] text-slate-400 text-center md:text-right">Part d'intérêts (Riba) à purifier</span>
+                  <span className="text-[10px] text-slate-500 text-center md:text-right uppercase font-bold mt-1">
+                    Fraction d'intérêts (Riba)
+                  </span>
                 </div>
               </div>
 
@@ -521,68 +527,68 @@ export default function PurificationPage() {
                   <ShieldCheck size={16} /> DÉTAILS DES 3 RATIOS DE CONFORMITÉ AAOIFI
                 </h3>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {/* RATIO 1: INTÉRÊTS / REVENUS */}
-                  <div className="bg-slate-950/70 p-4 rounded-xl border border-white/10 flex flex-col gap-2">
+                  <div className="bg-slate-900 p-5 rounded-2xl border border-white/5 flex flex-col gap-3 relative overflow-hidden group hover:border-white/10 transition-colors">
                     <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-400 font-bold">1. REVENUS NON CONFORMES</span>
-                      <span className="mono text-[10px] text-slate-500">MAX: 5.00%</span>
+                      <span className="text-slate-400 font-bold uppercase tracking-wider">1. Revenus Non Conformes</span>
+                      <span className="mono text-[10px] text-slate-500 bg-slate-800 px-2 py-1 rounded">MAX 5%</span>
                     </div>
-                    <div className="flex justify-between items-baseline">
-                      <span className="text-2xl font-black mono text-white">{result.purificationRate.toFixed(2)} %</span>
-                      <span className={`text-xs font-bold ${result.purificationRate <= 5.0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {result.purificationRate <= 5.0 ? '✓ CONFORME' : '✗ DÉPASSÉ'}
+                    <div className="flex justify-between items-baseline mt-1">
+                      <span className="text-3xl font-black mono text-white">{result.purificationRate.toFixed(2)}<span className="text-xl text-slate-500">%</span></span>
+                      <span className={`text-xs font-bold px-2 py-1 rounded ${result.purificationRate <= 5.0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                        {result.purificationRate <= 5.0 ? '✓ OK' : '✗ DÉPASSÉ'}
                       </span>
                     </div>
-                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden mt-2">
                       <div 
-                        className={`h-full ${result.purificationRate <= 5.0 ? 'bg-emerald-500' : 'bg-rose-500'}`} 
+                        className={`h-full transition-all duration-1000 ${result.purificationRate <= 5.0 ? 'bg-emerald-500' : 'bg-rose-500'}`} 
                         style={{ width: `${Math.min((result.purificationRate / 5) * 100, 100)}%` }}
                       />
                     </div>
-                    <span className="text-[10px] text-slate-400">Ratio des produits d'intérêts sur le CA total</span>
+                    <span className="text-[10px] text-slate-500 font-medium">Ratio Riba / Chiffre d'Affaires</span>
                   </div>
 
                   {/* RATIO 2: ENDETTEMENT */}
-                  <div className="bg-slate-950/70 p-4 rounded-xl border border-white/10 flex flex-col gap-2">
+                  <div className="bg-slate-900 p-5 rounded-2xl border border-white/5 flex flex-col gap-3 relative overflow-hidden group hover:border-white/10 transition-colors">
                     <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-400 font-bold">2. ENDETTEMENT BANCAIRE</span>
-                      <span className="mono text-[10px] text-slate-500">MAX: 33.00%</span>
+                      <span className="text-slate-400 font-bold uppercase tracking-wider">2. Endettement Bancaire</span>
+                      <span className="mono text-[10px] text-slate-500 bg-slate-800 px-2 py-1 rounded">MAX 33%</span>
                     </div>
-                    <div className="flex justify-between items-baseline">
-                      <span className="text-2xl font-black mono text-white">{result.debtRatio.toFixed(2)} %</span>
-                      <span className={`text-xs font-bold ${result.debtRatio <= 33.0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {result.debtRatio <= 33.0 ? '✓ CONFORME' : '✗ DÉPASSÉ'}
+                    <div className="flex justify-between items-baseline mt-1">
+                      <span className="text-3xl font-black mono text-white">{result.debtRatio.toFixed(2)}<span className="text-xl text-slate-500">%</span></span>
+                      <span className={`text-xs font-bold px-2 py-1 rounded ${result.debtRatio <= 33.0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                        {result.debtRatio <= 33.0 ? '✓ OK' : '✗ DÉPASSÉ'}
                       </span>
                     </div>
-                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden mt-2">
                       <div 
-                        className={`h-full ${result.debtRatio <= 33.0 ? 'bg-emerald-500' : 'bg-rose-500'}`} 
+                        className={`h-full transition-all duration-1000 ${result.debtRatio <= 33.0 ? 'bg-emerald-500' : 'bg-rose-500'}`} 
                         style={{ width: `${Math.min((result.debtRatio / 33) * 100, 100)}%` }}
                       />
                     </div>
-                    <span className="text-[10px] text-slate-400">Ratio des dettes à intérêts sur la capitalisation</span>
+                    <span className="text-[10px] text-slate-500 font-medium">Dettes à intérêts / Capitalisation</span>
                   </div>
 
                   {/* RATIO 3: TRÉSORERIE */}
-                  <div className="bg-slate-950/70 p-4 rounded-xl border border-white/10 flex flex-col gap-2">
+                  <div className="bg-slate-900 p-5 rounded-2xl border border-white/5 flex flex-col gap-3 relative overflow-hidden group hover:border-white/10 transition-colors">
                     <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-400 font-bold">3. TRÉSORERIE PLACÉE</span>
-                      <span className="mono text-[10px] text-slate-500">MAX: 33.00%</span>
+                      <span className="text-slate-400 font-bold uppercase tracking-wider">3. Trésorerie Placée</span>
+                      <span className="mono text-[10px] text-slate-500 bg-slate-800 px-2 py-1 rounded">MAX 33%</span>
                     </div>
-                    <div className="flex justify-between items-baseline">
-                      <span className="text-2xl font-black mono text-white">{result.cashRatio.toFixed(2)} %</span>
-                      <span className={`text-xs font-bold ${result.cashRatio <= 33.0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {result.cashRatio <= 33.0 ? '✓ CONFORME' : '✗ DÉPASSÉ'}
+                    <div className="flex justify-between items-baseline mt-1">
+                      <span className="text-3xl font-black mono text-white">{result.cashRatio.toFixed(2)}<span className="text-xl text-slate-500">%</span></span>
+                      <span className={`text-xs font-bold px-2 py-1 rounded ${result.cashRatio <= 33.0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                        {result.cashRatio <= 33.0 ? '✓ OK' : '✗ DÉPASSÉ'}
                       </span>
                     </div>
-                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden mt-2">
                       <div 
-                        className={`h-full ${result.cashRatio <= 33.0 ? 'bg-emerald-500' : 'bg-rose-500'}`} 
+                        className={`h-full transition-all duration-1000 ${result.cashRatio <= 33.0 ? 'bg-emerald-500' : 'bg-rose-500'}`} 
                         style={{ width: `${Math.min((result.cashRatio / 33) * 100, 100)}%` }}
                       />
                     </div>
-                    <span className="text-[10px] text-slate-400">Ratio des placements rémunérés sur la capitalisation</span>
+                    <span className="text-[10px] text-slate-500 font-medium">Placements rémunérés / Capitalisation</span>
                   </div>
                 </div>
               </div>
@@ -593,26 +599,27 @@ export default function PurificationPage() {
                   <BookOpen size={16} /> DONNÉES FINANCIÈRES EXTRAITES DU CPC ET BILAN
                 </h3>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
-                  <div className="bg-slate-950/80 p-3 rounded-lg border border-white/5">
-                    <span className="text-slate-400 block mb-1">Chiffre d'Affaires</span>
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                  <div className="bg-slate-900 p-4 rounded-2xl border border-white/5 flex flex-col justify-center">
+                    <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider mb-1">Chiffre d'Affaires</span>
                     <span className="mono font-bold text-slate-100 text-sm">{result.financialData.totalRevenue}</span>
                   </div>
-                  <div className="bg-slate-950/80 p-3 rounded-lg border border-white/5">
-                    <span className="text-slate-400 block mb-1">Produits d'Intérêts</span>
+                  <div className="bg-slate-900 p-4 rounded-2xl border border-white/5 flex flex-col justify-center">
+                    <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider mb-1">Produits d'Intérêts</span>
                     <span className="mono font-bold text-rose-400 text-sm">{result.financialData.interestIncome}</span>
                   </div>
-                  <div className="bg-slate-950/80 p-3 rounded-lg border border-white/5">
-                    <span className="text-slate-400 block mb-1">Dettes Bancaires</span>
+                  <div className="bg-slate-900 p-4 rounded-2xl border border-white/5 flex flex-col justify-center">
+                    <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider mb-1">Dettes Bancaires</span>
                     <span className="mono font-bold text-amber-400 text-sm">{result.financialData.interestDebt}</span>
                   </div>
-                  <div className="bg-slate-950/80 p-3 rounded-lg border border-white/5">
-                    <span className="text-slate-400 block mb-1">Trésorerie Placée</span>
+                  <div className="bg-slate-900 p-4 rounded-2xl border border-white/5 flex flex-col justify-center">
+                    <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider mb-1">Trésorerie Placée</span>
                     <span className="mono font-bold text-slate-200 text-sm">{result.financialData.interestCash}</span>
                   </div>
-                  <div className="bg-slate-950/80 p-3 rounded-lg border border-emerald-500/20">
-                    <span className="text-slate-400 block mb-1">Capitalisation (Dénominateur)</span>
-                    <span className="mono font-bold text-emerald-400 text-sm">{result.financialData.marketCap}</span>
+                  <div className="bg-emerald-950/20 p-4 rounded-2xl border border-emerald-500/20 flex flex-col justify-center col-span-2 lg:col-span-1 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 rounded-full blur-xl"></div>
+                    <span className="text-emerald-500/70 text-[10px] uppercase font-bold tracking-wider mb-1">Capitalisation Base</span>
+                    <span className="mono font-bold text-emerald-400 text-sm z-10">{result.financialData.marketCap}</span>
                   </div>
                 </div>
 

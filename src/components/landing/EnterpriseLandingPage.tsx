@@ -426,25 +426,50 @@ export default function EnterpriseLandingPage() {
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
         <div className="mobile-drawer-overlay animate-in">
+          <div className="mobile-drawer-header">
+            <div className="mobile-logo-brand">
+              <div className="mobile-logo-icon-bg">
+                <Zap size={14} className="text-black" />
+              </div>
+              <span className="mobile-brand-name">AETHERIS</span>
+              <span className="mobile-version-badge">v2.8</span>
+            </div>
+            <button className="mobile-close-btn" onClick={() => setMobileMenuOpen(false)}>
+              <X size={18} />
+            </button>
+          </div>
+
           <div className="mobile-drawer-inner">
-            <a href="#terminal" className="mobile-nl" onClick={() => setMobileMenuOpen(false)}>Terminal Live</a>
-            <Link href="/marche-live"  className="mobile-nl" onClick={() => setMobileMenuOpen(false)}>⚡ MASI Live</Link>
-            <Link href="/purification" className="mobile-nl" onClick={() => setMobileMenuOpen(false)}>🛡️ Audit AAOIFI</Link>
-            <a href="#pipeline" className="mobile-nl" onClick={() => setMobileMenuOpen(false)}>Architecture</a>
-            <a href="#outcomes" className="mobile-nl" onClick={() => setMobileMenuOpen(false)}>Plateforme</a>
-            <a href="#pricing"  className="mobile-nl" onClick={() => setMobileMenuOpen(false)}>Tarifs</a>
+            <div className="mobile-links-container">
+              <a href="#terminal" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Terminal Live</a>
+              
+              <div className="mobile-sublinks">
+                <Link href="/marche-live" className="mobile-sublink" onClick={() => setMobileMenuOpen(false)}>
+                  <Zap size={14} className="text-orange-500" /> MASI Live
+                </Link>
+                <Link href="/purification" className="mobile-sublink" onClick={() => setMobileMenuOpen(false)}>
+                  <ShieldCheck size={14} className="text-blue-500" /> Audit AAOIFI
+                </Link>
+              </div>
+
+              <a href="#pipeline" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Architecture</a>
+              <a href="#outcomes" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Plateforme</a>
+              <a href="#pricing" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Tarifs</a>
+            </div>
+
             <div className="mobile-drawer-divider" />
+            
             {isAuthenticated ? (
               <Link href="/console" onClick={() => setMobileMenuOpen(false)} style={{ textDecoration: 'none' }}>
-                <button className="btn-cta-sm w-full"><Cpu size={14} />Accéder à la Console</button>
+                <button className="btn-cta-mobile-premium"><Cpu size={16} />Accéder à la Console</button>
               </Link>
             ) : (
               <div className="mobile-drawer-actions">
                 <Link href="/login" onClick={() => setMobileMenuOpen(false)} style={{ textDecoration: 'none' }}>
-                  <button className="btn-ghost w-full"><LogIn size={14} />Se connecter</button>
+                  <button className="btn-ghost-mobile"><LogIn size={14} />Se connecter</button>
                 </Link>
                 <Link href="/login?mode=signup" onClick={() => setMobileMenuOpen(false)} style={{ textDecoration: 'none' }}>
-                  <button className="btn-cta-sm w-full"><UserPlus size={14} />Créer un compte gratuit</button>
+                  <button className="btn-cta-mobile-premium"><UserPlus size={16} />Créer un compte gratuit</button>
                 </Link>
               </div>
             )}
@@ -823,6 +848,28 @@ export default function EnterpriseLandingPage() {
         }
 
         .nav-ctas { display: flex; align-items: center; gap: 0.75rem; }
+        .mobile-hamburger-btn { display: none; background: none; border: none; color: #fff; cursor: pointer; padding: 0.5rem; }
+        .mobile-drawer-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999; background: #030508; padding: 1.5rem; display: flex; flex-direction: column; }
+        
+        .mobile-drawer-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
+        .mobile-logo-brand { display: flex; align-items: center; gap: 8px; }
+        .mobile-logo-icon-bg { background: #10b981; border-radius: 6px; padding: 6px; display: flex; align-items: center; justify-content: center; }
+        .mobile-brand-name { font-family: 'Outfit', sans-serif; font-weight: 900; font-size: 1.2rem; color: #fff; letter-spacing: -0.5px; }
+        .mobile-version-badge { font-size: 8.5px; font-weight: 800; color: #10b981; border: 1px solid rgba(16,185,129,0.3); padding: 2px 6px; border-radius: 4px; }
+        .mobile-close-btn { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: #fff; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.2s; }
+        
+        .mobile-drawer-inner { display: flex; flex-direction: column; width: 100%; }
+        .mobile-links-container { display: flex; flex-direction: column; gap: 0.75rem; }
+        .mobile-card-link { background: #0c111a; border: 1px solid rgba(255,255,255,0.03); border-radius: 8px; padding: 1rem 1.25rem; color: #fff; font-weight: 700; font-size: 1rem; text-decoration: none; transition: background 0.2s; }
+        .mobile-card-link:active { background: rgba(255,255,255,0.06); }
+        .mobile-sublinks { display: flex; flex-direction: column; gap: 0.25rem; }
+        .mobile-sublink { display: flex; align-items: center; gap: 10px; padding: 0.6rem 1.25rem 0.6rem 1.5rem; color: #cbd5e1; font-weight: 600; font-size: 0.95rem; text-decoration: none; }
+        
+        .mobile-drawer-divider { height: 1px; background: rgba(255,255,255,0.05); margin: 1.25rem 0; }
+        .mobile-drawer-actions { display: flex; flex-direction: column; gap: 0.75rem; }
+        .btn-cta-mobile-premium { width: 100%; background: #10b981; color: #000; border: none; border-radius: 8px; padding: 1.1rem; font-weight: 800; font-size: 0.95rem; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: opacity 0.2s; }
+        .btn-cta-mobile-premium:active { opacity: 0.8; }
+        .btn-ghost-mobile { width: 100%; background: transparent; color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 1.1rem; font-weight: 600; font-size: 0.95rem; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
         .nav-skel { width: 140px; height: 32px; }
         .btn-ghost-link, .btn-primary-link { text-decoration: none; }
 
