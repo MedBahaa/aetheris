@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Zap, Search, ShieldCheck, Activity, Landmark, Globe, Briefcase, Scale,
-  ArrowRight, CheckCircle2, UserPlus, Sparkles, Cpu, TrendingUp,
-  TrendingDown, BarChart2, Brain, ChevronRight, Star, Shield, Lock,
+  ArrowRight, CheckCircle2, XCircle, UserPlus, Sparkles, Cpu, TrendingUp,
+  TrendingDown, BarChart2, Brain, ChevronRight, Star, Shield, Lock, ChevronDown,
+  HelpCircle, Check, Flame
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
@@ -30,29 +31,29 @@ const SERVICES = [
   {
     id: 'terminal', badge: 'IA ÉLITE', color: '#10b981', bg: 'rgba(16,185,129,0.08)',
     title: 'Terminal Multi-Agents IA',
-    desc: "Quatre agents IA spécialisés — Veille Narrative, Trading Quant, Analyse Fondamentale et Stratégie Alpha — collaborent pour produire des rapports d'investissement de grade institutionnel.",
+    desc: "4 agents IA spécialisés — Veille Narrative, Trading Quant, Analyse Fonda & Stratégie Alpha — collaborent pour livrer des synthèses d'investissement instantanées.",
     features: ['Analyse RSI / MACD / Fibonacci', 'Sentiment NLP temps réel', 'Score de Confiance Pondéré'],
     link: '/console',
   },
   {
     id: 'marche', badge: 'LIVE 24/7', color: '#3b82f6', bg: 'rgba(59,130,246,0.08)',
     title: 'Flux de Marché MASI Live',
-    desc: "Cotations en direct du MASI Casablanca, carnets d'ordres, devises (USD/MAD, EUR/MAD) et matières premières (Brent, Or, Argent) avec actualisation automatique toutes les 3 minutes.",
+    desc: "Cotations en direct du MASI Casablanca, carnets d'ordres, devises (USD/MAD, EUR/MAD) et matières premières avec rafraîchissement temps réel.",
     features: ['MASI • MADEX en direct', 'USD/MAD • Brent • Or', 'Actualisation auto 3 min'],
     link: '/marche-live',
   },
   {
     id: 'portfolio', badge: 'GESTION P&L', color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',
     title: 'Portefeuille Intelligent',
-    desc: "Suivi consolidé du P&L (Plus/Moins-values), calcul des rendements, allocation d'actifs et performance de portefeuille avec métriques professionnelles en temps réel.",
+    desc: "Suivi consolidé du P&L (Plus/Moins-values), calcul des rendements et allocation d'actifs avec métriques professionnelles.",
     features: ['P&L en temps réel', 'Allocation par secteur', 'Rendement annualisé'],
     link: '/portfolio',
   },
   {
     id: 'purification', badge: 'AAOIFI', color: '#a855f7', bg: 'rgba(168,85,247,0.08)',
     title: 'Purification Dividendes',
-    desc: "Screening Shariah-Compliant automatisé et calculateur précis d'étanchéité financière des dividendes non-conformes selon les normes éthiques AAOIFI internationales.",
-    features: ["Screening Shariah Auto", "Calcul d'étanchéité précis", 'Standards AAOIFI 2024'],
+    desc: "Screening Shariah-Compliant automatisé et calculateur d'étanchéité financière des dividendes non-conformes selon les normes AAOIFI.",
+    features: ["Screening Shariah Auto", "Calcul d'étanchéité précis", 'Standards AAOIFI 2026'],
     link: '/purification',
   },
 ];
@@ -63,11 +64,11 @@ const AGENTS = [
     label: 'Stratégie Alpha',
     badge: 'SYNTHÈSE GLOBALE',
     color: '#a855f7',
-    desc: "L'agent orchestrateur. Il collecte les signaux des 3 autres agents IA spécialisés pour forger une thèse d'investissement complète, dotée d'un score de confiance et d'objectifs de cours précis.",
+    desc: "L'agent orchestrateur. Il fusionne les signaux des 3 autres agents IA pour élaborer une thèse d'investissement claire avec objectif de cours et score de confiance.",
     metrics: [
       { name: 'Score de Confiance', val: '94%' },
       { name: 'Obj. Cours 1 an',    val: '+18.4%' },
-      { name: 'Signal',             val: 'ACHAT FORT' },
+      { name: 'Signal Composite',   val: 'ACHAT FORT' },
     ],
   },
   {
@@ -75,7 +76,7 @@ const AGENTS = [
     label: 'Veille Narrative',
     badge: 'NLP & SCRAPING',
     color: '#10b981',
-    desc: "Scrape et analyse en temps réel des dizaines de flux RSS d'actualités financières marocaines. Évalue le sentiment agrégé (positif/négatif/neutre) et détecte les signaux faibles.",
+    desc: "Scrape et évalue en temps réel le sentiment des flux d'actualités financières marocaines. Détecte les rumeurs et mouvements de presse avant le marché.",
     metrics: [
       { name: 'Sources RSS',   val: '40+' },
       { name: 'Sentiment Net', val: 'POSITIF' },
@@ -87,7 +88,7 @@ const AGENTS = [
     label: 'Trading Quant',
     badge: 'INDICATEURS',
     color: '#3b82f6',
-    desc: "Calcule instantanément une batterie d'indicateurs : RSI, MACD, moyennes mobiles (20/50/200j), retracements de Fibonacci, niveaux de support/résistance et signaux de croisement.",
+    desc: "Calcule instantanément le RSI, MACD, moyennes mobiles (20/50/200j), retracements de Fibonacci et niveaux de support/résistance clés.",
     metrics: [
       { name: 'RSI (14j)',    val: '58.3' },
       { name: 'MACD',        val: 'HAUSSIER' },
@@ -99,7 +100,7 @@ const AGENTS = [
     label: 'Analyse Fonda',
     badge: 'VALORISATION',
     color: '#f59e0b',
-    desc: "Dissèque les états financiers (bilan, compte de résultat), calcule le PER, les ratios d'endettement, la marge nette, le rendement des dividendes et évalue la valorisation intrinsèque.",
+    desc: "Examine les bilans financiers, le PER, les ratios d'endettement, la marge nette et le rendement des dividendes pour trouver la valeur intrinsèque.",
     metrics: [
       { name: 'PER',              val: '11.2x' },
       { name: 'Rendement Div.',   val: '5.4%' },
@@ -122,9 +123,6 @@ const SERVICE_ICONS: Record<string, React.ReactNode> = {
   purification: <Scale size={24} />,
 };
 
-/* ─────────────────────────────────────────
-   TERMINAL LINES (stable, outside component)
-───────────────────────────────────────── */
 const TERMINAL_LINES = [
   { delay: 0,    text: '> AETHERIS ENGINE v2.0 — INITIALISATION...', color: '#64748b' },
   { delay: 300,  text: '> CONNEXION MASI CASABLANCA [OK]',            color: '#10b981' },
@@ -140,11 +138,33 @@ const TERMINAL_LINES = [
   { delay: 3300, text: '> RAPPORT GÉNÉRÉ EN 4.2s ✓',                  color: '#10b981' },
 ];
 
+const FAQ_ITEMS = [
+  {
+    q: "D'où proviennent les données financières et boursières du MASI ?",
+    a: "Aetheris agrège les cours en direct du marché de Casablanca (BVC), les données macro-économiques et scrapent plus de 40 flux d'actualités financières marocaines reconnues pour alimenter ses algorithmes."
+  },
+  {
+    q: "Comment est calculée la purification des dividendes AAOIFI ?",
+    a: "Notre algorithme passe chaque entreprise du MASI au criblage des critères financiers AAOIFI (ratio d'endettement < 30%, revenus d'intérêts non-conformes < 5%). Il calcule ensuite le pourcentage exact à isoler et reverser sous forme de purification."
+  },
+  {
+    q: "Le compte Découverte est-il vraiment gratuit sans carte bancaire ?",
+    a: "Absolument. Vous pouvez créer un compte en 10 secondes sans saisir de carte bancaire pour accéder au terminal, au marché en direct et lancer vos premières analyses d'actions."
+  },
+  {
+    q: "Comment fonctionnent les 4 agents IA ?",
+    a: "Chaque agent possède un périmètre dédié : l'agent Sentiment analyse les news, l'agent Quant calcule les indicateurs graphiques, l'agent Fonda évalue les bilans et l'agent Stratégie Alpha fusionne le tout en une note de synthèse pondérée."
+  },
+  {
+    q: "Puis-je utiliser Aetheris sur mon smartphone ou tablette ?",
+    a: "Oui, la plateforme est une Progressive Web App (PWA) 100% responsive optimisée pour smartphone, tablette et ordinateurs de bureau."
+  }
+];
+
 /* ─────────────────────────────────────────
-   TICKER TAPE
+   COMPONENTS
 ───────────────────────────────────────── */
 function TickerTape() {
-  // Duplicate for seamless loop
   const items = [...TICKERS, ...TICKERS];
   return (
     <div className="ticker-tape-container">
@@ -166,9 +186,6 @@ function TickerTape() {
   );
 }
 
-/* ─────────────────────────────────────────
-   ANIMATED STAT (scroll-triggered)
-───────────────────────────────────────── */
 interface StatDef { value: string; label: string; iconKey: string; }
 const STATS: StatDef[] = [
   { value: '12 400+',  label: 'Transactions Analysées', iconKey: 'chart' },
@@ -207,16 +224,11 @@ function AnimatedStat({ value, label, iconKey }: StatDef) {
   );
 }
 
-/* ─────────────────────────────────────────
-   TERMINAL MOCKUP
-───────────────────────────────────────── */
 function TerminalMockup() {
   const [visibleCount, setVisibleCount] = useState(0);
-  // Store timeout IDs for cleanup
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
-    // Clear any previous timers
     timersRef.current.forEach(clearTimeout);
     timersRef.current = [];
     setVisibleCount(0);
@@ -229,7 +241,7 @@ function TerminalMockup() {
     });
 
     return () => { timersRef.current.forEach(clearTimeout); };
-  }, []); // stable — TERMINAL_LINES never changes
+  }, []);
 
   return (
     <div className="terminal-mockup">
@@ -252,7 +264,7 @@ function TerminalMockup() {
 }
 
 /* ─────────────────────────────────────────
-   MAIN COMPONENT
+   MAIN ENTERPRISE LANDING PAGE
 ───────────────────────────────────────── */
 export default function EnterpriseLandingPage() {
   const router = useRouter();
@@ -260,9 +272,9 @@ export default function EnterpriseLandingPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeAgent, setActiveAgent] = useState(0);
   const [scrolled, setScrolled] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   useEffect(() => {
-    // Auth check
     supabase.auth.getUser()
       .then(({ data: { user } }) => setIsAuthenticated(!!user))
       .catch(() => setIsAuthenticated(false));
@@ -271,7 +283,6 @@ export default function EnterpriseLandingPage() {
       setIsAuthenticated(!!s?.user);
     });
 
-    // Scroll detection for navbar
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', onScroll, { passive: true });
 
@@ -293,7 +304,6 @@ export default function EnterpriseLandingPage() {
 
   return (
     <div className="lp-root">
-      {/* ── NOISE OVERLAY ── */}
       <div className="noise-overlay" aria-hidden />
 
       {/* ════════════════════ NAVBAR ════════════════════ */}
@@ -312,6 +322,7 @@ export default function EnterpriseLandingPage() {
           <div className="nav-links">
             <a href="#services" className="nl">Services</a>
             <a href="#agents"   className="nl">Agents IA</a>
+            <a href="#pricing"  className="nl">Tarifs</a>
             <Link href="/marche-live"  className="nl">Marché Live</Link>
             <Link href="/purification" className="nl">Conformité AAOIFI</Link>
           </div>
@@ -332,37 +343,31 @@ export default function EnterpriseLandingPage() {
       </nav>
 
       {/* ════════════════════ TICKER TAPE ════════════════════ */}
-      {/* Fixed below navbar at top:64px, height 32px */}
       <div className="ticker-wrapper" aria-label="Cotations MASI en direct">
         <TickerTape />
       </div>
 
-      {/* ════════════════════ HERO ════════════════════ */}
-      {/* padding-top: 64 (navbar) + 32 (ticker) + 48 extra = 144px */}
+      {/* ════════════════════ HERO SECTION ════════════════════ */}
       <section className="lp-hero">
-        {/* BG Blobs — using wrapper to avoid transform conflict */}
         <div className="blob-wrap blob-1" aria-hidden><div className="blob" /></div>
         <div className="blob-wrap blob-2" aria-hidden><div className="blob" /></div>
         <div className="blob-wrap blob-3" aria-hidden><div className="blob" /></div>
         <div className="hero-grid-bg" aria-hidden />
 
-        {/* Text content */}
         <div className="hero-content">
           <div className="hero-pill animate-in" style={{ animationDelay: '0ms' }}>
             <span className="live-dot pulsing" />
-            <span className="mono">SYSTÈME OPÉRATIONNEL • MASI CASABLANCA • BVC LIVE</span>
+            <span className="mono">✦ TERMINAL IA N°1 POUR LA BOURSE DE CASABLANCA</span>
             <ChevronRight size={12} />
           </div>
 
           <h1 className="hero-h1 animate-in" style={{ animationDelay: '80ms' }}>
-            L'Intelligence Financière<br />
-            <span className="grad-text">de Nouvelle Génération</span><br />
-            pour la Bourse de Casablanca
+            Surpassez le MASI grâce à<br />
+            <span className="grad-text">l'Analyse Multi-Agents IA</span>
           </h1>
 
           <p className="hero-sub animate-in" style={{ animationDelay: '160ms' }}>
-            4 agents IA orchestrés — Veille Narrative, Trading Quant, Analyse Fondamentale &amp; Stratégie Alpha —
-            pour des décisions d'investissement MASI de grade institutionnel.
+            Détectez les meilleures opportunités du marché marocain, suivez votre P&L et purifiez vos dividendes selon les normes AAOIFI en un clic.
           </p>
 
           <div className="hero-ctas animate-in" style={{ animationDelay: '240ms' }}>
@@ -372,23 +377,29 @@ export default function EnterpriseLandingPage() {
               </button>
             ) : (
               <>
-                <Link href="/login?mode=signup">
-                  <button className="btn-primary-lg">
-                    <Sparkles size={17} />Démarrer gratuitement<ArrowRight size={16} />
-                  </button>
-                </Link>
-                <button className="btn-ghost-lg" onClick={() => gotoConsole()}>
-                  Explorer le Terminal
+                <button className="btn-primary-lg" onClick={() => gotoConsole()}>
+                  <Sparkles size={17} />⚡ Analyser une action gratuitement<ArrowRight size={16} />
+                </button>
+                <button className="btn-ghost-lg" onClick={() => gotoConsole('ATW')}>
+                  Voir la démo sur ATW →
                 </button>
               </>
             )}
           </div>
 
-          <div className="social-proof animate-in" style={{ animationDelay: '320ms' }}>
+          <div className="hero-microcopy animate-in" style={{ animationDelay: '300ms' }}>
+            <span>✓ Gratuit sans carte bancaire</span>
+            <span className="sep">•</span>
+            <span>Données MASI en direct</span>
+            <span className="sep">•</span>
+            <span>Conformité AAOIFI 2026</span>
+          </div>
+
+          <div className="social-proof animate-in" style={{ animationDelay: '360ms' }}>
             <div className="sp-stars">
               {[0,1,2,3,4].map(i => <Star key={i} size={12} fill="#f59e0b" color="#f59e0b" />)}
             </div>
-            <span className="sp-text">Plateforme de référence pour les investisseurs MASI</span>
+            <span className="sp-text">Utilisé par +1 200 investisseurs &amp; analystes sur le marché marocain</span>
             <span className="sp-divider">•</span>
             <span className="sp-badge mono">AAOIFI COMPLIANT</span>
           </div>
@@ -407,7 +418,7 @@ export default function EnterpriseLandingPage() {
               <Search size={17} className="sb-icon" />
               <input
                 className="sb-input mono"
-                placeholder="ANALYSER UN ACTIF DU MASI — EX: ATW • IAM • BCP • TGCC…"
+                placeholder="RECHERCHER UN ACTIF MASI — EX: ATW • IAM • BCP • TGCC • MANAGEM…"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 aria-label="Rechercher un actif MASI"
@@ -440,6 +451,85 @@ export default function EnterpriseLandingPage() {
         </div>
       </section>
 
+      {/* ════════════════════ PROBLEM VS SOLUTION ════════════════════ */}
+      <section className="lp-section lp-dark-section">
+        <div className="lp-container">
+          <div className="section-head">
+            <div className="section-eyebrow mono">POURQUOI AETHERIS ?</div>
+            <h2 className="section-h2">
+              L'Analyse Boursière sur le MASI :<br />
+              <span className="grad-text">L'Ancienne Méthode vs Aetheris Terminal</span>
+            </h2>
+            <p className="section-p">
+              Ne perdez plus des heures à éplucher des documents PDF complexes sans savoir si vos décisions sont optimales et éthiques.
+            </p>
+          </div>
+
+          <div className="vs-grid">
+            {/* Old Method */}
+            <div className="vs-card vs-old">
+              <div className="vs-card-header">
+                <XCircle size={22} className="text-red" />
+                <h3>Méthode Traditionnelle</h3>
+              </div>
+              <ul className="vs-list">
+                <li>
+                  <XCircle size={15} className="vs-icon-bad" />
+                  <span>Rapports PDF et bilans de 80+ pages longs et opaques à déchiffrer</span>
+                </li>
+                <li>
+                  <XCircle size={15} className="vs-icon-bad" />
+                  <span>Flux d'actualités financières éparpillés sur des dizaines de sites</span>
+                </li>
+                <li>
+                  <XCircle size={15} className="vs-icon-bad" />
+                  <span>Doutes permanents sur le caractère Shariah-Compliant d'une action</span>
+                </li>
+                <li>
+                  <XCircle size={15} className="vs-icon-bad" />
+                  <span>Calcul manuel complexe et imprécis de la purification des dividendes</span>
+                </li>
+                <li>
+                  <XCircle size={15} className="vs-icon-bad" />
+                  <span>Retard fréquent sur les signaux de marché et les points de retournement</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Aetheris Method */}
+            <div className="vs-card vs-new">
+              <div className="vs-card-header">
+                <CheckCircle2 size={22} className="text-emerald" />
+                <h3>Aetheris Terminal IA</h3>
+                <span className="vs-badge mono">10x PLUS RAPIDE</span>
+              </div>
+              <ul className="vs-list">
+                <li>
+                  <CheckCircle2 size={15} className="vs-icon-good" />
+                  <span><strong>4 Agents IA spécialisés</strong> générant une synthèse complète en 4 secondes</span>
+                </li>
+                <li>
+                  <CheckCircle2 size={15} className="vs-icon-good" />
+                  <span><strong>Agrégation NLP en temps réel</strong> de +40 sources d'actualités marocaines</span>
+                </li>
+                <li>
+                  <CheckCircle2 size={15} className="vs-icon-good" />
+                  <span><strong>Screening Shariah AAOIFI automatique</strong> mis à jour en continu</span>
+                </li>
+                <li>
+                  <CheckCircle2 size={15} className="vs-icon-good" />
+                  <span><strong>Calculateur d'étanchéité des dividendes</strong> instantané par valeur</span>
+                </li>
+                <li>
+                  <CheckCircle2 size={15} className="vs-icon-good" />
+                  <span><strong>Score de confiance composite</strong> et objectifs de cours automatisés</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ════════════════════ SERVICES ════════════════════ */}
       <section id="services" className="lp-section">
         <div className="lp-container">
@@ -450,7 +540,7 @@ export default function EnterpriseLandingPage() {
               <span className="grad-text">pour Chaque Dimension du Marché</span>
             </h2>
             <p className="section-p">
-              Du flux de données brutes à la thèse d'investissement finale, chaque outil est pensé pour l'investisseur exigeant.
+              Tout ce dont vous avez besoin pour analyser, suivre et optimiser vos placements sur le marché marocain.
             </p>
           </div>
 
@@ -484,7 +574,7 @@ export default function EnterpriseLandingPage() {
         </div>
       </section>
 
-      {/* ════════════════════ AGENTS ════════════════════ */}
+      {/* ════════════════════ AGENTS SHOWCASE ════════════════════ */}
       <section id="agents" className="lp-section lp-dark-section">
         <div className="lp-container">
           <div className="section-head">
@@ -563,7 +653,7 @@ export default function EnterpriseLandingPage() {
         </div>
       </section>
 
-      {/* ════════════════════ AAOIFI ════════════════════ */}
+      {/* ════════════════════ AAOIFI SECTION ════════════════════ */}
       <section className="lp-section">
         <div className="lp-container">
           <div className="aaoifi-block">
@@ -580,7 +670,7 @@ export default function EnterpriseLandingPage() {
                 {[
                   'Screening Shariah automatique sur toutes les valeurs MASI',
                   "Calcul d'étanchéité des dividendes non-conformes",
-                  'Conformité aux standards AAOIFI 2024 reconnus internationalement',
+                  'Conformité aux standards AAOIFI 2026 reconnus internationalement',
                   'Rapports détaillés et historisés téléchargeables',
                 ].map((item, i) => (
                   <div key={i} className="aaoifi-check">
@@ -633,6 +723,106 @@ export default function EnterpriseLandingPage() {
         </div>
       </section>
 
+      {/* ════════════════════ PRICING SECTION ════════════════════ */}
+      <section id="pricing" className="lp-section lp-dark-section">
+        <div className="lp-container">
+          <div className="section-head">
+            <div className="section-eyebrow mono">TARIFICATION CLAIRE</div>
+            <h2 className="section-h2">
+              Des Tarifs Transparents pour<br />
+              <span className="grad-text">Chaque Profil d'Investisseur</span>
+            </h2>
+            <p className="section-p">
+              Commencez gratuitement sans carte bancaire et débloquez la puissance maximale de nos 4 agents IA quand vous êtes prêt.
+            </p>
+          </div>
+
+          <div className="pricing-grid">
+            {/* Free Tier */}
+            <div className="pricing-card">
+              <div className="pc-header">
+                <h3 className="pc-title">Compte Découverte</h3>
+                <p className="pc-desc">Idéal pour explorer le marché et tester la recherche en direct.</p>
+                <div className="pc-price">
+                  <span className="price-val">0 MAD</span>
+                  <span className="price-period">/ pour toujours</span>
+                </div>
+              </div>
+              <ul className="pc-features">
+                <li><Check size={15} className="pc-check" /><span>3 Analyses IA / jour</span></li>
+                <li><Check size={15} className="pc-check" /><span>Flux MASI Live rafraîchi</span></li>
+                <li><Check size={15} className="pc-check" /><span>Screening Shariah AAOIFI basique</span></li>
+                <li><Check size={15} className="pc-check" /><span>Suivi de Portefeuille P&L</span></li>
+              </ul>
+              <Link href="/login?mode=signup" style={{ textDecoration: 'none' }}>
+                <button className="pc-btn pc-btn-ghost">Créer un compte gratuit</button>
+              </Link>
+            </div>
+
+            {/* Pro Tier */}
+            <div className="pricing-card pc-featured">
+              <div className="pc-popular-tag mono"><Flame size={12} /> ACCÈS BETA OFFERT</div>
+              <div className="pc-header">
+                <h3 className="pc-title">Console Alpha Pro</h3>
+                <p className="pc-desc">Pour les investisseurs actifs exigeant l'intégralité du moteur IA.</p>
+                <div className="pc-price">
+                  <span className="price-val text-emerald">OFFERT</span>
+                  <span className="price-period">/ pendant la Beta 2026</span>
+                </div>
+              </div>
+              <ul className="pc-features">
+                <li><Check size={15} className="pc-check-green" /><span><strong>Analyses Multi-Agents IA illimitées</strong></span></li>
+                <li><Check size={15} className="pc-check-green" /><span>Agent Stratégie Alpha &amp; Score Composite</span></li>
+                <li><Check size={15} className="pc-check-green" /><span>Carnet d'ordres &amp; Cotations temps réel 24/7</span></li>
+                <li><Check size={15} className="pc-check-green" /><span>Purification Dividendes AAOIFI complète</span></li>
+                <li><Check size={15} className="pc-check-green" /><span>Export des rapports d'analyse en PDF</span></li>
+              </ul>
+              <Link href="/login?mode=signup" style={{ textDecoration: 'none' }}>
+                <button className="pc-btn pc-btn-primary">⚡ Réserver mon Accès Pro Gratuit</button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ════════════════════ FAQ SECTION ════════════════════ */}
+      <section className="lp-section">
+        <div className="lp-container">
+          <div className="section-head">
+            <div className="section-eyebrow mono">FOIRE AUX QUESTIONS</div>
+            <h2 className="section-h2">
+              Des Réponses Claires à<br />
+              <span className="grad-text">Toutes vos Questions</span>
+            </h2>
+            <p className="section-p">
+              Tout ce que vous devez savoir sur le fonctionnement du Terminal Aetheris et nos normes de conformité.
+            </p>
+          </div>
+
+          <div className="faq-wrapper">
+            {FAQ_ITEMS.map((item, index) => {
+              const isOpen = openFaq === index;
+              return (
+                <div key={index} className={`faq-card${isOpen ? ' faq-open' : ''}`}>
+                  <button className="faq-question" onClick={() => setOpenFaq(isOpen ? null : index)}>
+                    <div className="faq-q-text">
+                      <HelpCircle size={16} className="faq-icon" />
+                      <span>{item.q}</span>
+                    </div>
+                    <ChevronDown size={16} className={`faq-arrow${isOpen ? ' arrow-up' : ''}`} />
+                  </button>
+                  {isOpen && (
+                    <div className="faq-answer animate-in">
+                      <p>{item.a}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
       {/* ════════════════════ CTA BAND ════════════════════ */}
       <section className="cta-band">
         <div className="cta-blob" aria-hidden />
@@ -652,7 +842,7 @@ export default function EnterpriseLandingPage() {
                 <Link href="/login?mode=signup">
                   <button className="btn-primary-lg"><Sparkles size={17} />Créer un compte gratuit<ArrowRight size={16} /></button>
                 </Link>
-                <button className="btn-ghost-lg" onClick={() => gotoConsole()}>Voir la démo</button>
+                <button className="btn-ghost-lg" onClick={() => gotoConsole()}>Voir la démo sur ATW</button>
               </>
             )}
           </div>
@@ -851,17 +1041,14 @@ export default function EnterpriseLandingPage() {
         /* ── HERO ── */
         .lp-hero {
           position: relative; overflow: hidden;
-          /* 64px navbar + 32px ticker + 52px breathing room */
           padding: 148px 2rem 4rem;
           display: flex; flex-direction: column; align-items: center;
           min-height: 100vh;
         }
 
-        /* Blobs: wrapper handles position, inner handles animation to avoid transform conflicts */
         .blob-wrap {
           position: absolute; pointer-events: none;
-          border-radius: 50%;
-          filter: blur(80px);
+          border-radius: 50%; filter: blur(80px);
         }
         .blob-wrap .blob {
           width: 100%; height: 100%; border-radius: 50%;
@@ -935,12 +1122,19 @@ export default function EnterpriseLandingPage() {
         }
         .hero-sub {
           font-size: 1.1rem; color: #64748b; line-height: 1.7;
-          max-width: 680px; margin-bottom: 2.25rem;
+          max-width: 720px; margin-bottom: 2.25rem;
         }
         .hero-ctas {
           display: flex; align-items: center; gap: 1rem;
-          margin-bottom: 1.5rem; flex-wrap: wrap; justify-content: center;
+          margin-bottom: 1.25rem; flex-wrap: wrap; justify-content: center;
         }
+
+        .hero-microcopy {
+          display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;
+          font-size: 12px; color: #10b981; font-weight: 600; margin-bottom: 1.5rem;
+        }
+        .hero-microcopy .sep { color: #334155; }
+
         .social-proof {
           display: flex; align-items: center; gap: 10px;
           flex-wrap: wrap; justify-content: center; margin-bottom: 2.5rem;
@@ -955,9 +1149,7 @@ export default function EnterpriseLandingPage() {
         }
 
         /* ── TERMINAL ── */
-        .hero-terminal {
-          position: relative; z-index: 10; width: 100%; max-width: 820px; margin-bottom: 2.5rem;
-        }
+        .hero-terminal { position: relative; z-index: 10; width: 100%; max-width: 820px; margin-bottom: 2.5rem; }
         .terminal-mockup {
           border-radius: 14px; overflow: hidden;
           background: rgba(8,12,20,0.96); border: 1px solid rgba(255,255,255,0.09);
@@ -1044,14 +1236,32 @@ export default function EnterpriseLandingPage() {
         .stat-value { font-family: 'Outfit', sans-serif; font-size: 2rem; font-weight: 900; color: #f1f5f9; letter-spacing: -0.04em; line-height: 1; margin-bottom: 0.4rem; }
         .stat-label { font-size: 11px; color: #475569; font-weight: 700; letter-spacing: 0.04rem; font-family: 'JetBrains Mono', monospace; }
 
-        /* ── SECTIONS ── */
-        .lp-section { padding: 6rem 2rem; }
-        .lp-dark-section { background: rgba(5,7,13,0.7); border-top: 1px solid rgba(255,255,255,0.04); border-bottom: 1px solid rgba(255,255,255,0.04); }
-        .lp-container { max-width: 1300px; margin: 0 auto; }
-        .section-head { text-align: center; margin-bottom: 4rem; }
-        .section-eyebrow { display: inline-block; font-size: 9.5px; font-weight: 900; color: #10b981; letter-spacing: 0.12rem; margin-bottom: 1rem; font-family: 'JetBrains Mono', monospace; }
-        .section-h2 { font-family: 'Outfit', sans-serif; font-size: clamp(1.8rem, 3.5vw, 2.6rem); font-weight: 900; color: #f1f5f9; letter-spacing: -0.04em; line-height: 1.15; margin-bottom: 1rem; }
-        .section-p { font-size: 1rem; color: #475569; max-width: 580px; margin: 0 auto; line-height: 1.65; }
+        /* ── PROBLEM VS SOLUTION ── */
+        .vs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+        .vs-card {
+          border-radius: 16px; padding: 2.5rem;
+          display: flex; flex-direction: column; gap: 1.5rem;
+        }
+        .vs-old {
+          background: rgba(15,23,42,0.4); border: 1px solid rgba(239,68,68,0.2);
+        }
+        .vs-new {
+          background: rgba(10,14,23,0.9); border: 1px solid rgba(16,185,129,0.3);
+          box-shadow: 0 20px 50px rgba(16,185,129,0.06); position: relative;
+        }
+        .vs-card-header { display: flex; align-items: center; gap: 10px; }
+        .vs-card-header h3 { font-family: 'Outfit', sans-serif; font-size: 1.35rem; font-weight: 800; color: #f1f5f9; margin: 0; }
+        .vs-badge {
+          margin-left: auto; font-size: 8px; font-weight: 900; color: #10b981;
+          background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.25);
+          padding: 2px 7px; border-radius: 4px;
+        }
+        .vs-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 1rem; }
+        .vs-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 13.5px; color: #94a3b8; line-height: 1.5; }
+        .vs-icon-bad { color: #ef4444; flex-shrink: 0; margin-top: 3px; }
+        .vs-icon-good { color: #10b981; flex-shrink: 0; margin-top: 3px; }
+        .text-red { color: #ef4444; }
+        .text-emerald { color: #10b981; }
 
         /* ── SERVICES ── */
         .services-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.25rem; }
@@ -1126,6 +1336,58 @@ export default function EnterpriseLandingPage() {
         .ac-rval  { font-size: 11px; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
         .ac-footer { font-size: 9px; color: #475569; text-align: center; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.04); font-family: 'JetBrains Mono', monospace; }
 
+        /* ── PRICING ── */
+        .pricing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; max-width: 960px; margin: 0 auto; }
+        .pricing-card {
+          background: rgba(10,14,23,0.8); border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 20px; padding: 2.5rem; display: flex; flex-direction: column;
+          position: relative; transition: all 0.3s;
+        }
+        .pricing-card.pc-featured {
+          background: rgba(10,14,23,0.95); border: 1px solid rgba(16,185,129,0.4);
+          box-shadow: 0 20px 60px rgba(16,185,129,0.12);
+        }
+        .pc-popular-tag {
+          position: absolute; top: -14px; right: 24px;
+          background: linear-gradient(135deg, #10b981, #059669); color: #000;
+          font-size: 9px; font-weight: 900; padding: 4px 12px; border-radius: 100px;
+          display: flex; align-items: center; gap: 5px; letter-spacing: 0.05rem;
+        }
+        .pc-header { margin-bottom: 1.75rem; }
+        .pc-title { font-family: 'Outfit', sans-serif; font-size: 1.5rem; font-weight: 800; color: #f1f5f9; margin-bottom: 0.4rem; }
+        .pc-desc { font-size: 0.85rem; color: #64748b; line-height: 1.5; margin-bottom: 1.25rem; }
+        .pc-price { display: flex; align-items: baseline; gap: 6px; }
+        .price-val { font-family: 'Outfit', sans-serif; font-size: 2.25rem; font-weight: 900; color: #f1f5f9; }
+        .price-period { font-size: 0.85rem; color: #64748b; }
+        .pc-features { list-style: none; padding: 0; margin: 0 0 2rem; display: flex; flex-direction: column; gap: 0.85rem; flex: 1; }
+        .pc-features li { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: #cbd5e1; }
+        .pc-check { color: #64748b; flex-shrink: 0; }
+        .pc-check-green { color: #10b981; flex-shrink: 0; }
+        .pc-btn { width: 100%; padding: 0.95rem 1.5rem; border-radius: 10px; font-size: 13.5px; font-weight: 800; cursor: pointer; transition: all 0.25s; border: none; font-family: 'Inter', sans-serif; }
+        .pc-btn-ghost { background: rgba(255,255,255,0.05); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.1); }
+        .pc-btn-ghost:hover { background: rgba(255,255,255,0.09); }
+        .pc-btn-primary { background: linear-gradient(135deg, #10b981, #059669); color: #000; box-shadow: 0 4px 20px rgba(16,185,129,0.3); }
+        .pc-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(16,185,129,0.45); }
+
+        /* ── FAQ ── */
+        .faq-wrapper { max-width: 820px; margin: 0 auto; display: flex; flex-direction: column; gap: 1rem; }
+        .faq-card {
+          background: rgba(10,14,23,0.7); border: 1px solid rgba(255,255,255,0.07);
+          border-radius: 14px; overflow: hidden; transition: border-color 0.2s;
+        }
+        .faq-card.faq-open { border-color: rgba(16,185,129,0.3); background: rgba(10,14,23,0.9); }
+        .faq-question {
+          width: 100%; padding: 1.25rem 1.5rem; background: none; border: none;
+          display: flex; align-items: center; justify-content: space-between;
+          color: #f1f5f9; font-size: 14.5px; font-weight: 700; cursor: pointer; text-align: left;
+          font-family: 'Inter', sans-serif;
+        }
+        .faq-q-text { display: flex; align-items: center; gap: 10px; }
+        .faq-icon { color: #10b981; flex-shrink: 0; }
+        .faq-arrow { color: #64748b; transition: transform 0.2s; flex-shrink: 0; }
+        .faq-arrow.arrow-up { transform: rotate(180deg); color: #10b981; }
+        .faq-answer { padding: 0 1.5rem 1.25rem 2.75rem; color: #94a3b8; font-size: 13.5px; line-height: 1.65; }
+
         /* ── CTA ── */
         .cta-band { position: relative; overflow: hidden; padding: 7rem 2rem; text-align: center; border-top: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05); }
         .cta-blob { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 800px; height: 400px; background: radial-gradient(circle, rgba(16,185,129,0.1) 0%, transparent 65%); filter: blur(60px); pointer-events: none; }
@@ -1164,6 +1426,8 @@ export default function EnterpriseLandingPage() {
           .agent-tabs    { grid-template-columns: repeat(2, 1fr); }
           .agent-detail  { grid-template-columns: 1fr; }
           .aaoifi-block  { grid-template-columns: 1fr; }
+          .vs-grid       { grid-template-columns: 1fr; }
+          .pricing-grid  { grid-template-columns: 1fr; }
           .stats-inner   { grid-template-columns: repeat(2, 1fr); }
           .nav-links     { display: none; }
         }
