@@ -78,6 +78,11 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+a, a:visited {
+  color: inherit;
+  text-decoration: none;
+}
+
 /* Institutional Scrollbar - White/Grey Visibility */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
