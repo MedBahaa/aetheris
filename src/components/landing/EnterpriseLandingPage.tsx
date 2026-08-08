@@ -7,7 +7,7 @@ import {
   Zap, Search, ShieldCheck, Activity, Landmark, Globe, Briefcase, Scale,
   ArrowRight, CheckCircle2, XCircle, UserPlus, Sparkles, Cpu, TrendingUp,
   TrendingDown, BarChart2, Brain, ChevronRight, Star, Shield, Lock, ChevronDown,
-  HelpCircle, Check, Flame
+  HelpCircle, Check, Flame, Menu, X, LogIn, User
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
@@ -273,6 +273,7 @@ export default function EnterpriseLandingPage() {
   const [activeAgent, setActiveAgent] = useState(0);
   const [scrolled, setScrolled] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser()
@@ -314,11 +315,17 @@ export default function EnterpriseLandingPage() {
               <Zap size={16} fill="#000" strokeWidth={0} />
             </div>
             <div>
-              <div className="brand-name">AETHERIS</div>
+              <div className="brand-title-row">
+                <span className="brand-name">AETHERIS</span>
+                <span className="brand-status-pill mono">
+                  <span className="live-dot" /> LIVE 2.0
+                </span>
+              </div>
               <div className="brand-sub mono">ALPHA TERMINAL</div>
             </div>
           </Link>
 
+          {/* Desktop Nav Links */}
           <div className="nav-links">
             <a href="#services" className="nl">Services</a>
             <a href="#agents"   className="nl">Agents IA</a>
@@ -327,20 +334,64 @@ export default function EnterpriseLandingPage() {
             <Link href="/purification" className="nl">Conformité AAOIFI</Link>
           </div>
 
+          {/* Desktop Nav Actions */}
           <div className="nav-ctas">
             {isAuthenticated === null && <div className="nav-skel" />}
             {isAuthenticated === false && (
               <>
-                <Link href="/login"><button className="btn-ghost">Se connecter</button></Link>
-                <Link href="/login?mode=signup"><button className="btn-cta-sm"><UserPlus size={13} />S'inscrire</button></Link>
+                <Link href="/login" className="btn-ghost-link">
+                  <button className="btn-ghost"><LogIn size={13} />Se connecter</button>
+                </Link>
+                <Link href="/login?mode=signup" className="btn-primary-link">
+                  <button className="btn-cta-sm"><UserPlus size={13} />S'inscrire</button>
+                </Link>
               </>
             )}
             {isAuthenticated === true && (
-              <Link href="/console"><button className="btn-cta-sm"><Cpu size={13} />Ouvrir la Console</button></Link>
+              <Link href="/console" className="btn-primary-link">
+                <button className="btn-cta-sm"><Cpu size={13} />Accéder à la Console</button>
+              </Link>
+            )}
+          </div>
+
+          {/* Mobile Hamburger Toggle */}
+          <button 
+            className="mobile-hamburger-btn" 
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle navigation menu"
+          >
+            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </div>
+      </nav>
+
+      {/* Mobile Glass Drawer Overlay */}
+      {mobileMenuOpen && (
+        <div className="mobile-drawer-overlay animate-in">
+          <div className="mobile-drawer-inner">
+            <a href="#services" className="mobile-nl" onClick={() => setMobileMenuOpen(false)}>Services</a>
+            <a href="#agents"   className="mobile-nl" onClick={() => setMobileMenuOpen(false)}>Agents IA</a>
+            <a href="#pricing"  className="mobile-nl" onClick={() => setMobileMenuOpen(false)}>Tarifs</a>
+            <Link href="/marche-live"  className="mobile-nl" onClick={() => setMobileMenuOpen(false)}>Marché Live</Link>
+            <Link href="/purification" className="mobile-nl" onClick={() => setMobileMenuOpen(false)}>Conformité AAOIFI</Link>
+            <div className="mobile-drawer-divider" />
+            {isAuthenticated ? (
+              <Link href="/console" onClick={() => setMobileMenuOpen(false)} style={{ textDecoration: 'none' }}>
+                <button className="btn-cta-sm w-full"><Cpu size={14} />Accéder à la Console</button>
+              </Link>
+            ) : (
+              <div className="mobile-drawer-actions">
+                <Link href="/login" onClick={() => setMobileMenuOpen(false)} style={{ textDecoration: 'none' }}>
+                  <button className="btn-ghost w-full"><LogIn size={14} />Se connecter</button>
+                </Link>
+                <Link href="/login?mode=signup" onClick={() => setMobileMenuOpen(false)} style={{ textDecoration: 'none' }}>
+                  <button className="btn-cta-sm w-full"><UserPlus size={14} />Créer un compte gratuit</button>
+                </Link>
+              </div>
             )}
           </div>
         </div>
-      </nav>
+      )}
 
       {/* ════════════════════ TICKER TAPE ════════════════════ */}
       <div className="ticker-wrapper" aria-label="Cotations MASI en direct">
@@ -367,7 +418,7 @@ export default function EnterpriseLandingPage() {
           </h1>
 
           <p className="hero-sub animate-in" style={{ animationDelay: '160ms' }}>
-            Détectez les meilleures opportunités du marché marocain, suivez votre P&L et purifiez vos dividendes selon les normes AAOIFI en un clic.
+            Détectez les meilleures opportunités du marché marocain, suivez votre P&amp;L et purifiez vos dividendes selon les normes AAOIFI en un clic.
           </p>
 
           <div className="hero-ctas animate-in" style={{ animationDelay: '240ms' }}>
@@ -466,7 +517,6 @@ export default function EnterpriseLandingPage() {
           </div>
 
           <div className="vs-grid">
-            {/* Old Method */}
             <div className="vs-card vs-old">
               <div className="vs-card-header">
                 <XCircle size={22} className="text-red" />
@@ -496,7 +546,6 @@ export default function EnterpriseLandingPage() {
               </ul>
             </div>
 
-            {/* Aetheris Method */}
             <div className="vs-card vs-new">
               <div className="vs-card-header">
                 <CheckCircle2 size={22} className="text-emerald" />
@@ -738,7 +787,6 @@ export default function EnterpriseLandingPage() {
           </div>
 
           <div className="pricing-grid">
-            {/* Free Tier */}
             <div className="pricing-card">
               <div className="pc-header">
                 <h3 className="pc-title">Compte Découverte</h3>
@@ -752,14 +800,13 @@ export default function EnterpriseLandingPage() {
                 <li><Check size={15} className="pc-check" /><span>3 Analyses IA / jour</span></li>
                 <li><Check size={15} className="pc-check" /><span>Flux MASI Live rafraîchi</span></li>
                 <li><Check size={15} className="pc-check" /><span>Screening Shariah AAOIFI basique</span></li>
-                <li><Check size={15} className="pc-check" /><span>Suivi de Portefeuille P&L</span></li>
+                <li><Check size={15} className="pc-check" /><span>Suivi de Portefeuille P&amp;L</span></li>
               </ul>
               <Link href="/login?mode=signup" style={{ textDecoration: 'none' }}>
                 <button className="pc-btn pc-btn-ghost">Créer un compte gratuit</button>
               </Link>
             </div>
 
-            {/* Pro Tier */}
             <div className="pricing-card pc-featured">
               <div className="pc-popular-tag mono"><Flame size={12} /> ACCÈS BETA OFFERT</div>
               <div className="pc-header">
@@ -842,7 +889,7 @@ export default function EnterpriseLandingPage() {
                 <Link href="/login?mode=signup">
                   <button className="btn-primary-lg"><Sparkles size={17} />Créer un compte gratuit<ArrowRight size={16} /></button>
                 </Link>
-                <button className="btn-ghost-lg" onClick={() => gotoConsole()}>Voir la démo sur ATW</button>
+                <button className="btn-ghost-lg" onClick={() => gotoConsole('ATW')}>Voir la démo sur ATW</button>
               </>
             )}
           </div>
@@ -972,52 +1019,94 @@ export default function EnterpriseLandingPage() {
           position: fixed; top: 0; left: 0; right: 0;
           height: 64px; z-index: 200;
           display: flex; align-items: center;
-          transition: background 0.3s, box-shadow 0.3s;
+          transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+          background: rgba(5,7,13,0.75);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border-bottom: 1px solid rgba(255,255,255,0.06);
         }
         .lp-nav.nav-scrolled {
-          background: rgba(5,7,13,0.94);
-          backdrop-filter: blur(24px);
-          -webkit-backdrop-filter: blur(24px);
-          box-shadow: 0 1px 0 rgba(255,255,255,0.06);
+          background: rgba(5,7,13,0.92);
+          backdrop-filter: blur(30px);
+          -webkit-backdrop-filter: blur(30px);
+          box-shadow: 0 4px 30px rgba(0,0,0,0.5), 0 1px 0 rgba(16,185,129,0.15);
         }
         .nav-inner {
           width: 100%; max-width: 1400px; margin: 0 auto; padding: 0 2rem;
           display: flex; align-items: center; justify-content: space-between;
         }
-        .nav-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+        .nav-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
         .brand-orb {
-          width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
+          width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
           background: linear-gradient(135deg, #10b981 0%, #059669 100%);
           display: flex; align-items: center; justify-content: center;
-          box-shadow: 0 0 20px rgba(16,185,129,0.35);
+          box-shadow: 0 0 22px rgba(16,185,129,0.35);
+          transition: transform 0.2s;
         }
-        .brand-orb.sm { width: 28px; height: 28px; border-radius: 7px; }
-        .brand-name { font-family: 'Outfit', sans-serif; font-weight: 900; font-size: 1.1rem; color: #fff; letter-spacing: -0.03em; line-height: 1; }
-        .brand-sub  { font-size: 7.5px; color: #10b981; font-weight: 800; letter-spacing: 0.1rem; margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
-        .nav-links  { display: flex; align-items: center; gap: 2rem; }
-        .nl { color: #64748b; font-size: 13px; font-weight: 500; text-decoration: none; transition: color 0.2s; cursor: pointer; }
-        .nl:hover { color: #e2e8f0; }
-        .nav-ctas { display: flex; align-items: center; gap: 0.6rem; }
-        .nav-skel  { width: 180px; height: 34px; }
+        .nav-brand:hover .brand-orb { transform: scale(1.05); }
+        .brand-title-row { display: flex; align-items: center; gap: 8px; }
+        .brand-name { font-family: 'Outfit', sans-serif; font-weight: 900; font-size: 1.15rem; color: #fff; letter-spacing: -0.03em; line-height: 1; }
+        .brand-status-pill {
+          display: inline-flex; align-items: center; gap: 4px;
+          padding: 2px 6px; border-radius: 4px;
+          background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.25);
+          color: #10b981; font-size: 8px; font-weight: 900; letter-spacing: 0.05rem;
+        }
+        .brand-sub { font-size: 7.5px; color: #64748b; font-weight: 800; letter-spacing: 0.1rem; margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
+        
+        .nav-links { display: flex; align-items: center; gap: 0.5rem; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); padding: 4px 6px; border-radius: 100px; }
+        .nl {
+          color: #94a3b8; font-size: 13px; font-weight: 500; text-decoration: none;
+          padding: 6px 14px; border-radius: 100px; transition: all 0.2s;
+          cursor: pointer;
+        }
+        .nl:hover { color: #ffffff; background: rgba(255,255,255,0.07); }
+
+        .nav-ctas { display: flex; align-items: center; gap: 0.75rem; }
+        .nav-skel { width: 180px; height: 34px; }
+        .btn-ghost-link, .btn-primary-link { text-decoration: none; }
+
+        .mobile-hamburger-btn {
+          display: none; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+          color: #fff; width: 38px; height: 38px; border-radius: 9px;
+          align-items: center; justify-content: center; cursor: pointer;
+        }
+
+        .mobile-drawer-overlay {
+          position: fixed; top: 96px; left: 0; right: 0; bottom: 0; z-index: 190;
+          background: rgba(5,7,13,0.96); backdrop-filter: blur(30px);
+          padding: 2rem 1.5rem; display: flex; flex-direction: column;
+        }
+        .mobile-drawer-inner { display: flex; flex-direction: column; gap: 1rem; width: 100%; max-width: 400px; margin: 0 auto; }
+        .mobile-nl {
+          font-size: 1.1rem; font-weight: 700; color: #f1f5f9; text-decoration: none;
+          padding: 0.85rem 1rem; border-radius: 10px; background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.06); transition: background 0.2s;
+        }
+        .mobile-nl:hover { background: rgba(16,185,129,0.1); color: #10b981; }
+        .mobile-drawer-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 0.5rem 0; }
+        .mobile-drawer-actions { display: flex; flex-direction: column; gap: 0.75rem; }
+        .w-full { width: 100%; justify-content: center; }
 
         /* ── BUTTONS ── */
         .btn-ghost {
-          padding: 0.5rem 1rem; border-radius: 8px;
-          background: transparent; border: 1px solid rgba(255,255,255,0.1);
-          color: #94a3b8; font-size: 13px; font-weight: 600;
+          display: flex; align-items: center; gap: 6px;
+          padding: 0.5rem 1.1rem; border-radius: 9px;
+          background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);
+          color: #cbd5e1; font-size: 13px; font-weight: 600;
           cursor: pointer; transition: all 0.2s; font-family: 'Inter', sans-serif;
         }
-        .btn-ghost:hover { background: rgba(255,255,255,0.06); color: #fff; }
+        .btn-ghost:hover { background: rgba(255,255,255,0.08); color: #fff; border-color: rgba(255,255,255,0.2); }
 
         .btn-cta-sm {
           display: flex; align-items: center; gap: 6px;
-          padding: 0.5rem 1rem; border-radius: 8px;
+          padding: 0.5rem 1.25rem; border-radius: 9px;
           background: linear-gradient(135deg, #10b981, #059669);
           border: none; color: #000; font-size: 12.5px; font-weight: 800;
           cursor: pointer; transition: all 0.22s; font-family: 'Inter', sans-serif;
-          box-shadow: 0 0 20px rgba(16,185,129,0.25);
+          box-shadow: 0 0 20px rgba(16,185,129,0.3);
         }
-        .btn-cta-sm:hover { transform: translateY(-1px); box-shadow: 0 0 28px rgba(16,185,129,0.4); }
+        .btn-cta-sm:hover { transform: translateY(-1px); box-shadow: 0 0 28px rgba(16,185,129,0.5); }
 
         .btn-primary-lg {
           display: inline-flex; align-items: center; gap: 10px;
@@ -1423,13 +1512,14 @@ export default function EnterpriseLandingPage() {
           .footer-grid   { grid-template-columns: repeat(2, 1fr); }
         }
         @media (max-width: 900px) {
+          .nav-links, .nav-ctas { display: none; }
+          .mobile-hamburger-btn { display: flex; }
           .agent-tabs    { grid-template-columns: repeat(2, 1fr); }
           .agent-detail  { grid-template-columns: 1fr; }
           .aaoifi-block  { grid-template-columns: 1fr; }
           .vs-grid       { grid-template-columns: 1fr; }
           .pricing-grid  { grid-template-columns: 1fr; }
           .stats-inner   { grid-template-columns: repeat(2, 1fr); }
-          .nav-links     { display: none; }
         }
         @media (max-width: 640px) {
           .hero-h1         { font-size: 2.1rem; }
