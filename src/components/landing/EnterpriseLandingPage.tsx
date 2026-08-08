@@ -887,12 +887,7 @@ export default function EnterpriseLandingPage() {
         }
         .btn-cta-sm:hover { background: #34d399; }
 
-        .mobile-hamburger-btn { display: none; background: none; border: 1px solid rgba(255,255,255,0.1); color: #fff; width: 36px; height: 36px; border-radius: 6px; align-items: center; justify-content: center; cursor: pointer; }
-        .mobile-drawer-overlay { position: fixed; top: 64px; left: 0; right: 0; bottom: 0; z-index: 190; background: rgba(3,5,8,0.98); backdrop-filter: blur(20px); padding: 2rem 1.5rem; display: flex; flex-direction: column; }
-        .mobile-drawer-inner { display: flex; flex-direction: column; gap: 1rem; width: 100%; }
-        .mobile-nl, .mobile-nl:visited, .mobile-nl:link { font-size: 1.05rem; font-weight: 600; color: #f1f5f9 !important; text-decoration: none !important; padding: 0.75rem 1rem; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
-        .mobile-drawer-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 0.5rem 0; }
-        .mobile-drawer-actions { display: flex; flex-direction: column; gap: 0.75rem; }
+        .mobile-hamburger-btn { display: flex; background: none; border: 1px solid rgba(255,255,255,0.1); color: #fff; width: 36px; height: 36px; border-radius: 6px; align-items: center; justify-content: center; cursor: pointer; }
         .w-full { width: 100%; justify-content: center; }
 
         /* ── HERO ── */
