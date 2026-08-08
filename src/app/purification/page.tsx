@@ -41,6 +41,34 @@ export default function PurificationPage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ShariaResult | null>(null);
 
+  // Suggestions State
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearchingDebounce, setIsSearchingDebounce] = useState(false);
+
+  // Fetch suggestions when query changes
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      if (query.trim().length < 2) {
+        setSuggestions([]);
+        return;
+      }
+      setIsSearchingDebounce(true);
+      try {
+        const res = await fetch(`/api/companies/search?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        setSuggestions(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error('Error fetching suggestions:', err);
+      } finally {
+        setIsSearchingDebounce(false);
+      }
+    };
+    
+    const timeoutId = setTimeout(fetchSuggestions, 300);
+    return () => clearTimeout(timeoutId);
+  }, [query]);
+
   // Custom API Key State
   const [customApiKey, setCustomApiKey] = useState('');
   const [showKeyInput, setShowKeyInput] = useState(false);
@@ -253,16 +281,46 @@ export default function PurificationPage() {
           {activeTab === 'AI_SEARCH' ? (
             <div className="controls-bar glass-heavy animate-fade-in p-4 mb-6">
               <form onSubmit={e => { e.preventDefault(); handleSearch(); }} className="flex flex-col md:flex-row gap-3">
-                <div className="search-box flex-1">
+                <div className="search-box flex-1 relative">
                   <Search size={18} className="opacity-40" />
                   <input 
                     type="text" 
                     placeholder="RECHERCHER UNE ACTION (EX: DHO, IAM, DELTA HOLDING, AAPL...)"
                     value={query}
-                    onChange={e => setQuery(e.target.value)}
+                    onChange={e => {
+                      setQuery(e.target.value);
+                      setShowSuggestions(true);
+                    }}
+                    onFocus={() => setShowSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                     disabled={loading}
                     autoCapitalize="characters"
                   />
+                  {/* SUGGESTIONS DROPDOWN */}
+                  {showSuggestions && query.length >= 2 && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-slate-700 rounded-xl overflow-hidden z-50 shadow-2xl">
+                      {isSearchingDebounce ? (
+                        <div className="p-3 text-xs text-slate-400 font-mono">Recherche en cours...</div>
+                      ) : suggestions.length > 0 ? (
+                        suggestions.map((s, idx) => (
+                          <div 
+                            key={idx} 
+                            onClick={() => {
+                              setQuery(s.symbol);
+                              setShowSuggestions(false);
+                              handleSearch(s.symbol);
+                            }}
+                            className="p-3 hover:bg-slate-800 cursor-pointer border-b border-slate-800/50 last:border-0 flex justify-between items-center transition-colors"
+                          >
+                            <span className="font-bold text-white mono-tiny">{s.symbol}</span>
+                            <span className="text-xs text-slate-400 truncate ml-2">{s.name}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-3 text-xs text-slate-400 font-mono">Aucune action trouvée dans la base de données.</div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <button 
                   type="submit" 
