@@ -67,12 +67,16 @@ export async function proxy(request: NextRequest) {
     console.error('[Proxy Middleware] Authentication check threw an exception:', err)
   }
 
-  const isApiRoute = request.nextUrl.pathname.startsWith('/api/')
+  const pathname = request.nextUrl.pathname
+  const isApiRoute = pathname.startsWith('/api/')
   const isServerAction = request.headers.has('next-action')
 
-  // Redirection ou erreur pour les non-authentifiés
-  if (!user) {
-    // Si c'est une API ou une Action, on refuse en JSON (évite le crash "Unexpected token <")
+  // Routes publiques accessibles sans être connecté
+  const publicRoutes = ['/', '/login', '/auth/callback', '/marche-live', '/offline']
+  const isPublicRoute = publicRoutes.includes(pathname) || pathname.startsWith('/auth/')
+
+  // Si l'utilisateur n'est pas connecté et tente d'accéder à une page protégée
+  if (!user && !isPublicRoute) {
     if (isApiRoute || isServerAction) {
       return NextResponse.json(
         { error: 'Unauthorized', message: 'Session expired or invalid' },
@@ -80,16 +84,13 @@ export async function proxy(request: NextRequest) {
       )
     }
 
-    // Si c'est une navigation standard vers une page protégée
-    if (!request.nextUrl.pathname.startsWith('/login')) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/login'
-      return NextResponse.redirect(url)
-    }
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    return NextResponse.redirect(url)
   }
 
-  // Redirection vers / si authentifié et sur /login
-  if (user && request.nextUrl.pathname.startsWith('/login')) {
+  // Redirection vers / si authentifié et qu'il visite /login
+  if (user && pathname.startsWith('/login')) {
     const url = request.nextUrl.clone()
     url.pathname = '/'
     return NextResponse.redirect(url)
@@ -101,12 +102,7 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - Public assets (*.png, *.svg, etc.)
+     * Match all request paths except for static assets
      */
     '/((?!api/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],

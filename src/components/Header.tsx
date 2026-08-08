@@ -1,7 +1,9 @@
 'use client';
 
-import { Menu, Zap } from 'lucide-react';
+import { Menu, Zap, LogIn, UserPlus, User } from 'lucide-react';
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 import MacroWidget from './MacroWidget';
 
 interface HeaderProps {
@@ -9,6 +11,27 @@ interface HeaderProps {
 }
 
 export default function Header({ onOpenSidebar }: HeaderProps) {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const checkUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        setIsAuthenticated(!!user);
+      } catch (err) {
+        setIsAuthenticated(false);
+      }
+    };
+
+    checkUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(!!session?.user);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   return (
     <header className="fixed-header glass-heavy">
       <div className="header-inner">
@@ -29,16 +52,42 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
 
         {/* Actions à DROITE */}
         <div className="header-right-actions">
-          {/* Menu Burger à DROITE (visible sur mobile et desktop) */}
-          <button 
-            onClick={onOpenSidebar} 
-            className="menu-toggle-btn touch-target" 
-            aria-label="Ouvrir le menu principal"
-            aria-expanded={false}
-          >
-            <Menu size={22} />
-            <span className="menu-dot"></span>
-          </button>
+          {isAuthenticated === false ? (
+            <div className="auth-nav-buttons">
+              <Link href="/login" style={{ textDecoration: 'none' }}>
+                <button className="auth-btn login-btn">
+                  <LogIn size={14} />
+                  <span>Se connecter</span>
+                </button>
+              </Link>
+              <Link href="/login?mode=signup" style={{ textDecoration: 'none' }}>
+                <button className="auth-btn signup-btn">
+                  <UserPlus size={14} />
+                  <span>S'inscrire</span>
+                </button>
+              </Link>
+            </div>
+          ) : isAuthenticated === true ? (
+            <div className="user-nav-group">
+              <Link href="/profile" style={{ textDecoration: 'none' }}>
+                <button className="user-badge-btn" title="Mon Profil">
+                  <User size={14} />
+                  <span className="user-badge-label">Mon Espace</span>
+                </button>
+              </Link>
+              
+              <button 
+                onClick={onOpenSidebar} 
+                className="menu-toggle-btn touch-target" 
+                aria-label="Ouvrir le menu principal"
+              >
+                <Menu size={20} />
+                <span className="menu-dot"></span>
+              </button>
+            </div>
+          ) : (
+            <div className="auth-nav-placeholder" />
+          )}
         </div>
       </div>
 
@@ -54,6 +103,8 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
           border-bottom: 1px solid var(--border-glass);
           display: flex;
           align-items: center;
+          background: rgba(9, 13, 22, 0.85);
+          backdrop-filter: blur(20px);
         }
 
         .header-inner {
@@ -95,13 +146,13 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
         .logo-icon-box {
           width: 1.85rem;
           height: 1.85rem;
-          background: #fff;
+          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
           color: #000;
           border-radius: 0.5rem;
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+          box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
         }
 
         .logo-text {
@@ -118,50 +169,82 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
           gap: 0.5rem;
         }
 
-        .header-logout-btn {
+        .auth-nav-buttons {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .auth-btn {
           display: flex;
           align-items: center;
           gap: 0.4rem;
-          background: rgba(239, 68, 68, 0.1);
-          border: 1px solid rgba(239, 68, 68, 0.25);
-          color: #f87171;
-          height: 34px;
-          padding: 0 0.75rem;
-          border-radius: 0.6rem;
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 0.68rem;
-          font-weight: 800;
+          height: 36px;
+          padding: 0 0.85rem;
+          border-radius: 8px;
+          font-size: 11px;
+          font-weight: 700;
           cursor: pointer;
-          transition: all 0.25s ease;
+          transition: all 0.25s var(--ease);
+          font-family: 'Inter', sans-serif;
         }
 
-        .header-logout-btn:hover {
-          background: rgba(239, 68, 68, 0.25);
-          border-color: rgba(239, 68, 68, 0.5);
+        .login-btn {
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          color: #cbd5e1;
+        }
+        .login-btn:hover {
+          background: rgba(255, 255, 255, 0.08);
           color: #ffffff;
-          transform: translateY(-1px);
-          box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);
+          border-color: rgba(255, 255, 255, 0.2);
         }
 
-        @media (max-width: 640px) {
-          .logout-text-label {
-            display: none;
-          }
-          .header-logout-btn {
-            padding: 0;
-            height: 44px;
-            width: 44px;
-            justify-content: center;
-          }
+        .signup-btn {
+          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+          border: none;
+          color: #000000;
+          font-weight: 800;
+          box-shadow: 0 0 15px rgba(16, 185, 129, 0.25);
+        }
+        .signup-btn:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+        }
+
+        .user-nav-group {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .user-badge-btn {
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+          height: 36px;
+          padding: 0 0.75rem;
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          color: #10b981;
+          font-size: 11px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .user-badge-btn:hover {
+          background: rgba(16, 185, 129, 0.1);
+          border-color: rgba(16, 185, 129, 0.3);
         }
 
         .menu-toggle-btn {
           background: rgba(255, 255, 255, 0.03);
           border: 1px solid var(--border-glass);
           color: #fff;
-          width: 48px;
-          height: 48px;
-          border-radius: 0.75rem;
+          width: 38px;
+          height: 38px;
+          border-radius: 8px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -173,19 +256,28 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
         .menu-toggle-btn:hover {
           background: rgba(255, 255, 255, 0.08);
           border-color: rgba(255, 255, 255, 0.2);
-          transform: scale(1.05);
         }
 
         .menu-dot {
           position: absolute;
-          top: -2px;
-          right: -2px;
-          width: 8px;
-          height: 8px;
+          top: 2px;
+          right: 2px;
+          width: 6px;
+          height: 6px;
           background: var(--accent-emerald);
           border-radius: 50%;
-          box-shadow: 0 0 10px var(--accent-emerald);
-          border: 2px solid var(--bg-dark);
+          box-shadow: 0 0 8px var(--accent-emerald);
+        }
+
+        .auth-nav-placeholder {
+          width: 120px;
+          height: 36px;
+        }
+
+        @media (max-width: 640px) {
+          .user-badge-label { display: none; }
+          .auth-btn span { display: none; }
+          .auth-btn { padding: 0 0.6rem; }
         }
       `}</style>
     </header>
