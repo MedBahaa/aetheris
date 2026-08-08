@@ -370,22 +370,28 @@ export default function EnterpriseLandingPage() {
             <div className="brand-orb">
               <Zap size={16} fill="#000" strokeWidth={0} />
             </div>
-            <div>
-              <div className="brand-title-row">
-                <span className="brand-name">AETHERIS</span>
-                <span className="brand-status-pill mono">SYSTEM v2.0</span>
-              </div>
-              <div className="brand-sub mono">FINANCIAL INTELLIGENCE</div>
+            <div className="brand-title-row">
+              <span className="brand-name">AETHERIS</span>
+              <span className="brand-status-pill mono">v2.8</span>
             </div>
           </Link>
 
           <div className="nav-links">
-            <a href="#terminal" className="nl">Terminal Live</a>
+            <a href="#terminal" className="nl">
+              <TerminalIcon size={13} className="nl-icon" />
+              <span>Terminal Live</span>
+            </a>
+            <Link href="/marche-live" className="nl nl-live-badge">
+              <span className="live-pulse-dot" />
+              <span>MASI Live</span>
+            </Link>
+            <Link href="/purification" className="nl">
+              <ShieldCheck size={13} className="nl-icon text-emerald" />
+              <span>Audit AAOIFI</span>
+            </Link>
             <a href="#pipeline" className="nl">Architecture</a>
             <a href="#outcomes" className="nl">Plateforme</a>
             <a href="#pricing"  className="nl">Tarifs</a>
-            <Link href="/marche-live"  className="nl">MASI Live</Link>
-            <Link href="/purification" className="nl">AAOIFI Audit</Link>
           </div>
 
           <div className="nav-ctas">
@@ -422,11 +428,11 @@ export default function EnterpriseLandingPage() {
         <div className="mobile-drawer-overlay animate-in">
           <div className="mobile-drawer-inner">
             <a href="#terminal" className="mobile-nl" onClick={() => setMobileMenuOpen(false)}>Terminal Live</a>
+            <Link href="/marche-live"  className="mobile-nl" onClick={() => setMobileMenuOpen(false)}>⚡ MASI Live</Link>
+            <Link href="/purification" className="mobile-nl" onClick={() => setMobileMenuOpen(false)}>🛡️ Audit AAOIFI</Link>
             <a href="#pipeline" className="mobile-nl" onClick={() => setMobileMenuOpen(false)}>Architecture</a>
             <a href="#outcomes" className="mobile-nl" onClick={() => setMobileMenuOpen(false)}>Plateforme</a>
             <a href="#pricing"  className="mobile-nl" onClick={() => setMobileMenuOpen(false)}>Tarifs</a>
-            <Link href="/marche-live"  className="mobile-nl" onClick={() => setMobileMenuOpen(false)}>MASI Live</Link>
-            <Link href="/purification" className="mobile-nl" onClick={() => setMobileMenuOpen(false)}>AAOIFI Audit</Link>
             <div className="mobile-drawer-divider" />
             {isAuthenticated ? (
               <Link href="/console" onClick={() => setMobileMenuOpen(false)} style={{ textDecoration: 'none' }}>
@@ -755,8 +761,10 @@ export default function EnterpriseLandingPage() {
 
         /* ── TICKER ── */
         .ticker-wrapper {
-          position: fixed; top: 64px; left: 0; right: 0;
-          z-index: 99;
+          position: relative;
+          margin-top: 64px;
+          width: 100%;
+          z-index: 10;
           background: rgba(3,5,8,0.95);
           backdrop-filter: blur(12px);
           border-bottom: 1px solid rgba(255,255,255,0.06);
@@ -791,11 +799,32 @@ export default function EnterpriseLandingPage() {
         .brand-title-row { display: flex; align-items: center; gap: 8px; }
         .brand-name { font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.1rem; color: #fff; letter-spacing: -0.02em; }
         .brand-status-pill { font-size: 8px; color: #10b981; font-weight: 700; border: 1px solid rgba(16,185,129,0.3); padding: 1px 5px; border-radius: 3px; background: rgba(16,185,129,0.06); }
-        .brand-sub { font-size: 7.5px; color: #475569; font-weight: 700; letter-spacing: 0.08rem; margin-top: 1px; }
 
-        .nav-links { display: flex; align-items: center; gap: 1.75rem; }
-        .nl { color: #94a3b8; font-size: 13px; font-weight: 500; text-decoration: none; transition: color 0.2s; }
-        .nl:hover { color: #ffffff; }
+        .nav-links { display: flex; align-items: center; gap: 1.25rem; }
+        .nl, .nl:visited, .nl:link {
+          color: #94a3b8 !important; font-size: 13px; font-weight: 600; text-decoration: none !important;
+          transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 6px;
+          padding: 5px 10px; border-radius: 6px;
+        }
+        .nl:hover, .nl:focus { color: #ffffff !important; background: rgba(255,255,255,0.06); }
+        .nl-icon { opacity: 0.7; transition: opacity 0.2s; }
+        .nl:hover .nl-icon { opacity: 1; }
+
+        .nl-live-badge {
+          display: inline-flex; align-items: center; gap: 6px;
+          background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.25);
+          padding: 4px 10px; border-radius: 20px; color: #34d399 !important;
+        }
+        .nl-live-badge:hover { background: rgba(16,185,129,0.16); border-color: rgba(16,185,129,0.4); color: #ffffff !important; }
+        .live-pulse-dot {
+          width: 6px; height: 6px; border-radius: 50%; background: #10b981;
+          box-shadow: 0 0 8px #10b981; display: inline-block;
+          animation: pulse-dot 2s infinite ease-in-out;
+        }
+        @keyframes pulse-dot {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.4; transform: scale(1.2); }
+        }
 
         .nav-ctas { display: flex; align-items: center; gap: 0.75rem; }
         .nav-skel { width: 140px; height: 32px; }
@@ -816,9 +845,9 @@ export default function EnterpriseLandingPage() {
         .btn-cta-sm:hover { background: #34d399; }
 
         .mobile-hamburger-btn { display: none; background: none; border: 1px solid rgba(255,255,255,0.1); color: #fff; width: 36px; height: 36px; border-radius: 6px; align-items: center; justify-content: center; cursor: pointer; }
-        .mobile-drawer-overlay { position: fixed; top: 96px; left: 0; right: 0; bottom: 0; z-index: 190; background: rgba(3,5,8,0.98); backdrop-filter: blur(20px); padding: 2rem 1.5rem; display: flex; flex-direction: column; }
+        .mobile-drawer-overlay { position: fixed; top: 64px; left: 0; right: 0; bottom: 0; z-index: 190; background: rgba(3,5,8,0.98); backdrop-filter: blur(20px); padding: 2rem 1.5rem; display: flex; flex-direction: column; }
         .mobile-drawer-inner { display: flex; flex-direction: column; gap: 1rem; width: 100%; }
-        .mobile-nl { font-size: 1.05rem; font-weight: 600; color: #f1f5f9; text-decoration: none; padding: 0.75rem 1rem; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
+        .mobile-nl, .mobile-nl:visited, .mobile-nl:link { font-size: 1.05rem; font-weight: 600; color: #f1f5f9 !important; text-decoration: none !important; padding: 0.75rem 1rem; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
         .mobile-drawer-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 0.5rem 0; }
         .mobile-drawer-actions { display: flex; flex-direction: column; gap: 0.75rem; }
         .w-full { width: 100%; justify-content: center; }
@@ -826,7 +855,7 @@ export default function EnterpriseLandingPage() {
         /* ── HERO ── */
         .lp-hero {
           position: relative; overflow: hidden;
-          padding: 148px 2rem 5rem;
+          padding: 3rem 2rem 5rem;
           display: flex; flex-direction: column; align-items: center;
         }
         .hero-grid-bg {
