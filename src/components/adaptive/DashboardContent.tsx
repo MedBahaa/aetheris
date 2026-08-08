@@ -349,6 +349,20 @@ export default function DashboardContent(props: DashboardProps) {
                 Accédez à l’analyse boursière de précision sur le marché marocain (MASI), suivez votre portefeuille en direct et calculez la purification des dividendes selon les normes éthiques AAOIFI.
               </p>
 
+              <div className="hero-cta-buttons" style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
+                <Link href="/login?mode=signup" style={{ textDecoration: 'none' }}>
+                  <button className="hero-btn-primary">
+                    <span>Créer un compte gratuit</span>
+                    <ArrowRight size={16} />
+                  </button>
+                </Link>
+                <Link href="/login" style={{ textDecoration: 'none' }}>
+                  <button className="hero-btn-secondary">
+                    <span>Se connecter à l'espace membre</span>
+                  </button>
+                </Link>
+              </div>
+
               <div className="hero-metrics-strip">
                 <div className="h-metric-item">
                   <span className="hm-label mono">AGENTS IA ACTIFS</span>
@@ -682,8 +696,48 @@ export default function DashboardContent(props: DashboardProps) {
           color: #94a3b8;
           max-width: 750px;
           line-height: 1.6;
-          margin-bottom: 2rem;
+          margin-bottom: 1.5rem;
           font-family: 'Inter', sans-serif;
+        }
+
+        .hero-btn-primary {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.75rem 1.5rem;
+          border-radius: 10px;
+          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+          border: none;
+          color: #000000;
+          font-size: 13px;
+          font-weight: 800;
+          cursor: pointer;
+          transition: all 0.25s var(--ease);
+          box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+        }
+        .hero-btn-primary:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 0 30px rgba(16, 185, 129, 0.5);
+        }
+
+        .hero-btn-secondary {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.75rem 1.5rem;
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          color: #ffffff;
+          font-size: 13px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.25s var(--ease);
+        }
+        .hero-btn-secondary:hover {
+          background: rgba(255, 255, 255, 0.08);
+          border-color: rgba(255, 255, 255, 0.25);
+          transform: translateY(-2px);
         }
 
         .hero-metrics-strip {

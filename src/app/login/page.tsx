@@ -23,8 +23,11 @@ export default function LoginPage() {
   useEffect(() => {
     setMounted(true);
 
-    // Check if session expired from inactivity
+    // Check if session expired from inactivity or signup mode requested
     const params = new URLSearchParams(window.location.search);
+    if (params.get('mode') === 'signup') {
+      setMode('signup');
+    }
     if (params.get('reason') === 'expired') {
       setError("SESSION EXPIRÉE : Votre session s'est fermée automatiquement après une période d'inactivité pour votre sécurité.");
     } else {

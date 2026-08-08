@@ -13,8 +13,9 @@ export default function SessionGuard() {
   const pathname = usePathname();
 
   useEffect(() => {
-    // Ne pas exécuter le guard sur la page de login
-    if (pathname === '/login') return;
+    // Ne pas exécuter le guard d'expiration sur les pages publiques
+    const publicPages = ['/', '/login', '/marche-live', '/offline'];
+    if (publicPages.includes(pathname)) return;
 
     // 1. Vérifier si l'inactivité maximale est dépassée
     const checkInactivity = async () => {
@@ -26,7 +27,6 @@ export default function SessionGuard() {
         if (inactiveTime > MAX_INACTIVITY_MS) {
           console.warn('[SessionGuard] Session expirée après inactivité de', Math.round(inactiveTime / 60000), 'minutes.');
           
-          // Purger la session Supabase et le cache local
           try {
             await supabase.auth.signOut();
           } catch (err) {
@@ -36,41 +36,34 @@ export default function SessionGuard() {
           localStorage.removeItem(LAST_ACTIVITY_KEY);
           localStorage.removeItem('aetheris_user_profile');
           
-          // Redirection vers la page de login avec paramètre d'expiration
           window.location.href = '/login?reason=expired';
           return;
         }
       }
 
-      // Enregistrer l'activité actuelle
       localStorage.setItem(LAST_ACTIVITY_KEY, now.toString());
     };
 
-    // Vérifier l'inactivité au chargement du composant
     checkInactivity();
 
-    // 2. Mettre à jour l'horodatage d'activité sur les interactions utilisateur
     const updateActivity = () => {
       localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
     };
 
-    // Événements d'activité utilisateur (souris, clavier, tactile, défilement)
     const events = ['mousedown', 'mousemove', 'keydown', 'touchstart', 'scroll', 'click'];
     
-    // Throttle pour ne pas surcharger localStorage
     let throttleTimeout: NodeJS.Timeout | null = null;
     const handleUserActivity = () => {
       if (!throttleTimeout) {
         throttleTimeout = setTimeout(() => {
           updateActivity();
           throttleTimeout = null;
-        }, 30000); // Met à jour maximum 1 fois toutes les 30 secondes
+        }, 30000);
       }
     };
 
     events.forEach(evt => window.addEventListener(evt, handleUserActivity, { passive: true }));
 
-    // Re-vérifier l'inactivité lorsque l'onglet redevient visible (ex: retour après avoir quitté le téléphone)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         checkInactivity();
@@ -78,7 +71,6 @@ export default function SessionGuard() {
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Nettoyage des évènements
     return () => {
       events.forEach(evt => window.removeEventListener(evt, handleUserActivity));
       document.removeEventListener('visibilitychange', handleVisibilityChange);
