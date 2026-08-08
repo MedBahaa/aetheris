@@ -28,6 +28,7 @@ export interface DashboardProps {
   handleSearch: (e: React.FormEvent, overrideQuery?: string, forceRefresh?: boolean, overrideAgent?: AgentType) => void;
   executeSearch: (ticker: string, forceRefresh?: boolean) => void;
   handleSelectFromHistory: (a: CompanyAnalysis) => void;
+  handleAgentChange?: (agent: AgentType) => void;
 
   // Refs
   searchRef: React.RefObject<HTMLDivElement | null>;
