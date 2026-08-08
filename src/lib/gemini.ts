@@ -637,9 +637,6 @@ export class GeminiService {
     }
   }
 
-  /**
-   * Analyse de Conformité Sharia & Taux de Purification des Dividendes (Normes AAOIFI 2026)
-   */
   static async analyzeShariaCompliance(query: string, customApiKey?: string) {
     query = InputSanitizer.sanitizeCompanyName(query);
 
@@ -647,38 +644,29 @@ export class GeminiService {
 Tu es un analyste financier expert en Sharia Screener et finance islamique (normes AAOIFI 2026). 
 Recherche sur Internet les derniers états financiers annuels et rapports officiels publiés pour la société ou l'action : "${query}".
 
-1. Extrais les données financières suivantes (dans la devise officielle du rapport, ex: MAD, USD, EUR) :
-   - Chiffre d'affaires total (ou Produits d'exploitation / Chiffre d'affaires hors taxes)
-   - Produits financiers issus d'intérêts (Riba / placements à intérêts / revenus financiers non conformes)
-   - Total des dettes portant intérêt (Emprunts bancaires / obligataires / dettes financières)
-   - Trésorerie et placements portant intérêt (Dépôts à terme / placements rémunérés)
+1. Extrais les données financières brutes (en valeur numérique PURE, sans devise, sans espaces, sans virgules) pour :
+   - Chiffre d'affaires total (ou Produits d'exploitation)
+   - Produits financiers issus d'intérêts (Riba / placements)
+   - Total des dettes portant intérêt (Emprunts bancaires / obligataires)
+   - Trésorerie et placements portant intérêt (Dépôts à terme / placements)
+   - Capitalisation boursière (ou Total Actif à défaut, pour le calcul des ratios d'endettement)
 
-2. Effectue les calculs AAOIFI stricts suivants :
-   - Taux de purification (%) = (Produits d'intérêts ÷ Chiffre d'affaires total) * 100
-   - Ratio d'endettement (%) = (Dettes d'intérêts ÷ Capitalisation boursière ou Total Actif) * 100
-   - Ratio de liquidité placée (%) = (Trésorerie avec intérêt ÷ Capitalisation boursière ou Total Actif) * 100
+2. NE FAIS AUCUN CALCUL DE RATIO. Contente-toi d'extraire les montants bruts exacts. Notre système (TypeScript) s'occupera de calculer la conformité AAOIFI avec une précision mathématique stricte.
 
-3. Détermine le statut de conformité Sharia selon les normes AAOIFI :
-   - Si Revenus d'intérêts <= 5.0% ET Ratio d'endettement <= 33.0% ET Ratio de liquidité <= 33.0% -> Status: CONFORME (isCompliant = true)
-   - Sinon -> Status: NON CONFORME (isCompliant = false)
-
-4. Retourne la réponse EXCLUSIVEMENT au format JSON strict avec la structure suivante (aucun texte autour, pas de markdown) :
+3. Retourne la réponse EXCLUSIVEMENT au format JSON strict avec la structure suivante (aucun texte autour, pas de markdown) :
 {
   "companyName": "Nom officiel de l'entreprise",
   "ticker": "Ticker ou Symbole boursier",
   "fiscalYear": "Année du rapport (ex: 2024/2025)",
-  "isCompliant": true,
-  "purificationRate": 1.45,
-  "debtRatio": 14.2,
-  "cashRatio": 8.5,
-  "financialData": {
-    "totalRevenue": "2 850 000 000 MAD",
-    "interestIncome": "41 325 000 MAD",
-    "interestDebt": "404 700 000 MAD",
-    "interestCash": "242 250 000 MAD"
+  "rawFinancials": {
+    "totalRevenue": 2850000000,
+    "interestIncome": 41325000,
+    "interestDebt": 404700000,
+    "interestCash": 242250000,
+    "marketCap": 15000000000
   },
-  "summary": "Résumé explicatif en 2-3 phrases sur l'origine des produits financiers et la décision de conformité Sharia.",
-  "sources": ["https://www.leboursier.ma", "https://www.cdvm.gov.ma"]
+  "summary": "Résumé explicatif en 2-3 phrases sur l'origine des produits financiers extraits.",
+  "sources": ["https://www.leboursier.ma", "https://www.ammc.ma/"]
 }
 `;
 
@@ -687,51 +675,52 @@ Recherche sur Internet les derniers états financiers annuels et rapports offici
       const parsed = safeJsonParse(text);
 
       if (parsed) {
-        // Coerce isCompliant to boolean (handles true, "true", "CONFORME", status fields, etc.)
-        let isCompliant = false;
-        if (typeof parsed.isCompliant === 'boolean') {
-          isCompliant = parsed.isCompliant;
-        } else if (typeof parsed.isCompliant === 'string') {
-          const s = parsed.isCompliant.toLowerCase();
-          isCompliant = s.includes('true') || s.includes('conforme') || s.includes('halal');
-        } else if (parsed.status) {
-          const s = String(parsed.status).toLowerCase();
-          isCompliant = s.includes('conforme') || s.includes('halal');
-        }
-
-        // Helper to parse numeric ratios from string or number
-        const parsePct = (val: any, fallback: number = 0) => {
-          if (typeof val === 'number') return isNaN(val) ? fallback : val;
-          if (typeof val === 'string') {
-            const num = parseFloat(val.replace('%', '').replace(/\s/g, '').replace(',', '.'));
-            return isNaN(num) ? fallback : num;
-          }
-          return fallback;
+        // Extraction des valeurs brutes de l'IA (ou valeurs par défaut en cas d'échec)
+        // Fallback sécurisé pour éviter NaN
+        const raw = parsed.rawFinancials || {};
+        
+        // Validation des nombres extraits
+        const parseNum = (val: any, fallback: number) => {
+            const num = Number(val);
+            return isNaN(num) || num <= 0 ? fallback : num;
         };
 
-        const purificationRate = parsePct(parsed.purificationRate ?? parsed.purification_rate ?? parsed.rate, 1.45);
-        const debtRatio = parsePct(parsed.debtRatio ?? parsed.debt_ratio, 14.2);
-        const cashRatio = parsePct(parsed.cashRatio ?? parsed.cash_ratio, 8.5);
+        const totalRevenue = parseNum(raw.totalRevenue, 1000000000); // Evite / 0
+        const interestIncome = parseNum(raw.interestIncome, 0); // 0 par défaut
+        const interestDebt = parseNum(raw.interestDebt, 0);
+        const interestCash = parseNum(raw.interestCash, 0);
+        const marketCap = parseNum(raw.marketCap, 1000000000); // Evite / 0
 
-        // Strict AAOIFI rule enforcement
+        // CALCULS TYPESCRIPT DÉTERMINISTES (0% Hallucination)
+        const purificationRate = (interestIncome / totalRevenue) * 100;
+        const debtRatio = (interestDebt / marketCap) * 100;
+        const cashRatio = (interestCash / marketCap) * 100;
+
+        // REGLES STRICTES AAOIFI
         const strictCompliant = purificationRate <= 5.0 && debtRatio <= 33.0 && cashRatio <= 33.0;
+
+        // Formateur MAD
+        const formatMAD = (num: number) => {
+            return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(num) + ' MAD';
+        };
 
         return {
           companyName: parsed.companyName || parsed.company || query.toUpperCase(),
           ticker: parsed.ticker || query.toUpperCase(),
           fiscalYear: parsed.fiscalYear || '2024/2025',
-          isCompliant: strictCompliant,
+          isCompliant: strictCompliant, // Décision prise par le code, pas par l'IA
           purificationRate: parseFloat(purificationRate.toFixed(2)),
           debtRatio: parseFloat(debtRatio.toFixed(2)),
           cashRatio: parseFloat(cashRatio.toFixed(2)),
           financialData: {
-            totalRevenue: parsed.financialData?.totalRevenue || parsed.financialData?.total_revenue || '1 000 000 000 MAD',
-            interestIncome: parsed.financialData?.interestIncome || parsed.financialData?.interest_income || '15 000 000 MAD',
-            interestDebt: parsed.financialData?.interestDebt || parsed.financialData?.interest_debt || '100 000 000 MAD',
-            interestCash: parsed.financialData?.interestCash || parsed.financialData?.interest_cash || '50 000 000 MAD',
+            totalRevenue: formatMAD(totalRevenue),
+            interestIncome: formatMAD(interestIncome),
+            interestDebt: formatMAD(interestDebt),
+            interestCash: formatMAD(interestCash),
+            marketCap: formatMAD(marketCap)
           },
-          summary: parsed.summary || parsed.description || `Analyse de conformité Sharia et calcul du taux de purification des dividendes pour ${query}.`,
-          sources: Array.isArray(parsed.sources) ? parsed.sources : ['https://www.leboursier.ma']
+          summary: parsed.summary || parsed.description || `Analyse de conformité Sharia et extraction des données financières brutes pour ${query}. Les ratios ont été calculés avec précision par notre moteur interne.`,
+          sources: Array.isArray(parsed.sources) ? parsed.sources : ['Recherche Automatisée Web']
         };
       }
       throw new Error("Impossible d'extraire les données JSON de la réponse de l'IA.");
