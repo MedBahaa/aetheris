@@ -1,7 +1,12 @@
 'use client';
 
 import React from 'react';
-import { Search, Loader2, Sparkles, Activity, Zap, ShieldCheck, AlertCircle, X, Globe, RefreshCcw } from 'lucide-react';
+import { 
+  Search, Loader2, Sparkles, Activity, Zap, ShieldCheck, 
+  AlertCircle, X, Globe, RefreshCcw, Landmark, Briefcase, Scale, ArrowRight,
+  TrendingUp, ChevronRight, XCircle
+} from 'lucide-react';
+import Link from 'next/link';
 import AnalysisReport from '@/components/AnalysisReport';
 import TechnicalReport from '@/components/TechnicalReport';
 import StrategyReport from '@/components/StrategyReport';
@@ -12,12 +17,101 @@ export default function DashboardContent(props: DashboardProps) {
   const {
     query, setQuery, loading, analysis, activeAgent, terminalLogs, error, setError,
     suggestions, showSuggestions, setShowSuggestions, selectedIndex, setSelectedIndex,
-    handleSearch, executeSearch, searchRef, logContainerRef
+    handleSearch, executeSearch, searchRef, logContainerRef, setActiveAgent, handleAgentChange
   } = props;
+
+  const onAgentChange = handleAgentChange || setActiveAgent;
+
+  // Quick Action Popular Moroccan Tickers
+  const popularTickers = [
+    { symbol: 'ATW', name: 'Attijariwafa Bank', sector: 'Bancaire' },
+    { symbol: 'BCP', name: 'Banque Centrale', sector: 'Bancaire' },
+    { symbol: 'IAM', name: 'Maroc Telecom', sector: 'Telecom' },
+    { symbol: 'MSA', name: 'Marsa Maroc', sector: 'Logistique' },
+    { symbol: 'TGCC', name: 'TGCC BTP', sector: 'BTP' },
+    { symbol: 'SNEP', name: 'SNEP', sector: 'Chimie' },
+    { symbol: 'BOA', name: 'Bank of Africa', sector: 'Bancaire' },
+  ];
+
+  // SAAS Core Pillars
+  const saasServices = [
+    {
+      id: 'terminal',
+      title: 'Terminal Multi-Agents IA',
+      desc: 'Synthèse boursière avec 4 agents dédiés (Sentiment, Quant, Fonda & Stratégie Alpha).',
+      badge: 'IA PRO',
+      color: 'emerald',
+      icon: <BrainIcon size={20} />,
+      link: null,
+      onClick: () => executeSearch('ATW')
+    },
+    {
+      id: 'marche',
+      title: 'Flux de Marché MASI',
+      desc: 'Cotations en direct, carnets d’ordres, devises et matières premières (Brent, Or).',
+      badge: 'LIVE 24/7',
+      color: 'blue',
+      icon: <Globe size={20} />,
+      link: '/marche-live',
+      onClick: null
+    },
+    {
+      id: 'portfolio',
+      title: 'Portefeuille Intelligent',
+      desc: 'Suivi consolidé du P&L, calcul du rendement et gestion de capital en temps réel.',
+      badge: 'GESTION',
+      color: 'amber',
+      icon: <Briefcase size={20} />,
+      link: '/portfolio',
+      onClick: null
+    },
+    {
+      id: 'purification',
+      title: 'Purification AAOIFI',
+      desc: 'Screening Shariah-Compliant et calculateur d’étanchéité des dividendes du MASI.',
+      badge: 'AAOIFI',
+      color: 'purple',
+      icon: <Scale size={20} />,
+      link: '/purification',
+      onClick: null
+    }
+  ];
+
+  // Agent descriptions for the Tab Switcher
+  const agentDetails = {
+    STRATEGY: {
+      name: 'Stratégie Alpha',
+      badge: 'PREMIUM',
+      color: '#a855f7',
+      desc: 'Synthèse d’investissement globale, score d’opportunité et recommandation achat/vente/conservation.',
+      icon: <ShieldCheck size={18} />
+    },
+    SENTIMENT: {
+      name: 'Veille Narrative',
+      badge: 'RSS & NLP',
+      color: '#10b981',
+      desc: 'Scraping d’actualités boursières, analyse de sentiment NLP et impact médiatique sur les cours.',
+      icon: <Zap size={18} />
+    },
+    TECHNICAL: {
+      name: 'Trading Quant',
+      badge: 'INDICATEURS',
+      color: '#3b82f6',
+      desc: 'Calculs RSI, MACD, moyennes mobiles, points pivots et retracements de Fibonacci en temps réel.',
+      icon: <Activity size={18} />
+    },
+    FUNDAMENTAL: {
+      name: 'Analyse Fonda',
+      badge: 'RATIOS',
+      color: '#f59e0b',
+      desc: 'Santé financière, PER, dividendes, ratios de solvabilité et valorisation intrinsèque.',
+      icon: <Landmark size={18} />
+    }
+  };
 
   return (
     <div className="dashboard-container">
-      {/* INSTITUTIONAL_SEARCH_CONSOLE */}
+      {/* INSTITUTIONAL SEARCH CONSOLE */}
       <div className="search-console-wrapper animate-fade-in" ref={searchRef}>
         <form onSubmit={(e) => handleSearch(e, undefined, false)} className="terminal-search-form glass-heavy">
           <div className="input-terminal-group">
@@ -41,12 +135,21 @@ export default function DashboardContent(props: DashboardProps) {
                   setShowSuggestions(false);
                 }
               }}
-              placeholder={`RECHERCHER UN ACTIF (${activeAgent === 'STRATEGY' ? 'STRATÉGIE' : activeAgent === 'SENTIMENT' ? 'SENTIMENTS' : 'TECHNIQUE'})...`}
+              placeholder={`RECHERCHER UN ACTIF MASI (ex: ATW, IAM, BCP)...`}
               className="terminal-input"
               spellCheck="false"
               disabled={loading}
               autoComplete="off"
             />
+            {query && (
+              <button 
+                type="button" 
+                onClick={() => setQuery('')} 
+                className="clear-query-btn"
+              >
+                <XCircle size={15} />
+              </button>
+            )}
           </div>
           <button 
             type="submit"
@@ -55,21 +158,39 @@ export default function DashboardContent(props: DashboardProps) {
           >
             {loading ? <Loader2 className="animate-spin" size={16} /> : (activeAgent === 'STRATEGY' ? <Sparkles size={16} /> : <Zap size={16} />)}
             <span className="btn-label-text">
-              {activeAgent === 'SENTIMENT' ? 'Historique Sentiments' : 
-               activeAgent === 'TECHNICAL' ? 'Historique Technique' : 
-               activeAgent === 'FUNDAMENTAL' ? 'Historique Fondamentaux' : 
-               'Historique Stratégies'}
+              {activeAgent === 'SENTIMENT' ? 'Analyse Sentiment' : 
+               activeAgent === 'TECHNICAL' ? 'Analyse Technique' : 
+               activeAgent === 'FUNDAMENTAL' ? 'Analyse Fondamentale' : 
+               'Lancer Stratégie'}
             </span>
           </button>
         </form>
 
         <div className="input-glow-bar"></div>
 
-        {/* SUGGESTION_DROPDOWN */}
+        {/* QUICK POPULAR CHIPS */}
+        <div className="quick-chips-row">
+          <span className="chips-label mono">ACTIFS POPULAIRES:</span>
+          <div className="chips-list">
+            {popularTickers.map(ticker => (
+              <button 
+                key={ticker.symbol}
+                onClick={() => executeSearch(ticker.symbol)}
+                className="chip-btn"
+                title={`Lancer l'analyse pour ${ticker.name}`}
+              >
+                <span className="chip-symbol mono">{ticker.symbol}</span>
+                <span className="chip-name">{ticker.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* SUGGESTION DROPDOWN */}
         {showSuggestions && suggestions.length > 0 && (
           <div className="suggestion-dropdown glass-heavy animate-slide-up">
             <div className="suggestion-header">
-              <Globe size={10} className="text-dim" />
+              <Globe size={12} className="text-dim" />
               <span className="mono text-dim">RÉSULTATS DE RECHERCHE [{suggestions.length}]</span>
             </div>
             <div className="suggestion-list">
@@ -95,7 +216,7 @@ export default function DashboardContent(props: DashboardProps) {
         )}
       </div>
 
-      {/* Dynamic Display */}
+      {/* DYNAMIC DISPLAY AREA */}
       <div className="display-area">
         {error && (
           <div className={`error-banner glass-heavy ${error.includes('quota') ? 'quota' : ''} animate-fade-in`}>
@@ -112,12 +233,12 @@ export default function DashboardContent(props: DashboardProps) {
           </div>
         )}
 
-         {loading && !analysis ? (
+        {loading && !analysis ? (
           <div className="terminal-system-loader glass-heavy animate-fade-in">
             <div className="terminal-header">
               <div className="term-circles">
                 <span className="circle-pulse"></span>
-                <span className="mono text-[10px] font-bold text-emerald tracking-wider">SYSTEM ACTIVE</span>
+                <span className="mono text-[10px] font-bold text-emerald tracking-wider">MOTEUR ACTIF</span>
               </div>
               <span className="mono text-[10px] font-black opacity-85 uppercase tracking-widest">{activeAgent} AGENT</span>
             </div>
@@ -167,15 +288,15 @@ export default function DashboardContent(props: DashboardProps) {
                 
                 <div className="radar-animation-box">
                   <div className="radar-sweep"></div>
-                  <span className="radar-text mono">SCANNING DATASTREAM</span>
+                  <span className="radar-text mono">SCANNING MASI DATASTREAM</span>
                 </div>
               </div>
             </div>
 
             <div className="loader-meta-group">
               <div className="progress-info-row">
-                <span className="mono text-[9px] text-slate-500 font-bold uppercase tracking-wider">COMPILING STOCK REPORT</span>
-                <span className="mono text-[9px] text-emerald font-bold animate-pulse tracking-wider">SECURE PROCESSING</span>
+                <span className="mono text-[9px] text-slate-500 font-bold uppercase tracking-wider">GÉNÉRATION DU RAPPORT BOURSIER</span>
+                <span className="mono text-[9px] text-emerald font-bold animate-pulse tracking-wider">ANALYSE SÉCURISÉE</span>
               </div>
               <div className="progress-bar-container">
                 <div className={`p-bar-fill ${activeAgent.toLowerCase()}`}></div>
@@ -211,59 +332,207 @@ export default function DashboardContent(props: DashboardProps) {
             {analysis.type === 'STRATEGY' && <StrategyReport analysis={analysis} />}
           </div>
         ) : (
-          <div className="empty-state-terminal">
-            <div className="grid-watermark"></div>
-            
-            <div className="landing-title-group">
-              <h2 className="terminal-h1">AETHERIS</h2>
-              <div className="terminal-h2-group">
-                 <span className="mono">SYSTÈME OPÉRATIONNEL | VERSION 2.0</span>
-                 <div className="status-blink active"></div>
+          /* SAAS LANDING COMMAND CENTER (MAIN PAGE INITIAL VIEW) */
+          <div className="saas-landing-container animate-fade-in">
+            {/* HERO SECTION */}
+            <div className="hero-saas-card glass-heavy">
+              <div className="hero-top-badge">
+                <span className="live-dot"></span>
+                <span className="mono">AETHERIS OS 2.0 • BOURSE DE CASABLANCA</span>
+              </div>
+              
+              <h1 className="hero-title">
+                Terminal d’Intelligence Financière <span className="hero-highlight">Multi-Agents IA</span>
+              </h1>
+
+              <p className="hero-subtitle">
+                Accédez à l’analyse boursière de précision sur le marché marocain (MASI), suivez votre portefeuille en direct et calculez la purification des dividendes selon les normes éthiques AAOIFI.
+              </p>
+
+              <div className="hero-metrics-strip">
+                <div className="h-metric-item">
+                  <span className="hm-label mono">AGENTS IA ACTIFS</span>
+                  <span className="hm-val text-emerald">4 SPÉCIALISÉS</span>
+                </div>
+                <div className="h-metric-divider"></div>
+                <div className="h-metric-item">
+                  <span className="hm-label mono">MARCHÉ COUVERT</span>
+                  <span className="hm-val text-blue">MASI CASABLANCA</span>
+                </div>
+                <div className="h-metric-divider"></div>
+                <div className="h-metric-item">
+                  <span className="hm-label mono">FINANCE ETHIQUE</span>
+                  <span className="hm-val text-purple">AAOIFI COMPLIANT</span>
+                </div>
               </div>
             </div>
 
-            <div className="feature-terminal-grid">
-               {[
-                 { label: 'STRATÉGIE ALPHA', icon: <ShieldCheck size={18}/> },
-                 { label: 'ANALYSE NARRATIVE', icon: <Zap size={18}/> },
-                 { label: 'FLUX QUANTITATIF', icon: <Activity size={18}/> }
-               ].map((item, i) => (
-                 <div key={i} className="terminal-f-card glass">
-                   <div className="f-icon-box">{item.icon}</div>
-                   <span className="f-label mono">{item.label}</span>
-                 </div>
-               ))}
+            {/* CORE SAAS PILLARS SECTION */}
+            <div className="saas-section-header">
+              <div className="section-title-group">
+                <Sparkles size={16} className="text-emerald" />
+                <h3 className="section-title">NOS 4 SERVICES PRINCIPAUX</h3>
+              </div>
+              <span className="section-sub mono">ÉCOSYSTÈME COMPLET D'INTELLIGENCE FINANCIÈRE</span>
+            </div>
+
+            <div className="services-grid">
+              {saasServices.map((service) => (
+                <div key={service.id} className="service-card glass-heavy">
+                  <div className="service-card-header">
+                    <div className={`service-icon-box ${service.color}`}>
+                      {service.icon}
+                    </div>
+                    <span className={`service-badge mono ${service.color}`}>
+                      {service.badge}
+                    </span>
+                  </div>
+
+                  <h4 className="service-title">{service.title}</h4>
+                  <p className="service-desc">{service.desc}</p>
+
+                  <div className="service-card-action">
+                    {service.link ? (
+                      <Link href={service.link} style={{ textDecoration: 'none' }}>
+                        <button className="service-btn">
+                          <span>Accéder au service</span>
+                          <ArrowRight size={14} />
+                        </button>
+                      </Link>
+                    ) : (
+                      <button className="service-btn" onClick={service.onClick || undefined}>
+                        <span>Lancer une analyse</span>
+                        <ArrowRight size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* INTERACTIVE AGENT SELECTOR SHOWCASE */}
+            <div className="agent-showcase-box glass-heavy">
+              <div className="showcase-header">
+                <div className="sh-title">
+                  <Activity size={16} className="text-emerald" />
+                  <span>SÉLECTEUR DE MODE D'ANALYSE IA</span>
+                </div>
+                <span className="sh-sub mono">CHOISISSEZ L'AGENT QUI CONDUIT VOTRE RECHERCHE</span>
+              </div>
+
+              <div className="agent-tabs-grid">
+                {(['STRATEGY', 'SENTIMENT', 'TECHNICAL', 'FUNDAMENTAL'] as const).map((agentKey) => {
+                  const details = agentDetails[agentKey];
+                  const isActive = activeAgent === agentKey;
+                  return (
+                    <button
+                      key={agentKey}
+                      onClick={() => onAgentChange(agentKey)}
+                      className={`agent-select-card ${isActive ? 'active' : ''}`}
+                      style={{
+                        borderColor: isActive ? details.color : 'rgba(255, 255, 255, 0.06)'
+                      }}
+                    >
+                      <div className="ac-top">
+                        <div className="ac-icon" style={{ color: details.color }}>
+                          {details.icon}
+                        </div>
+                        <span className="ac-badge mono">{details.badge}</span>
+                      </div>
+                      <h4 className="ac-name">{details.name}</h4>
+                      <p className="ac-desc">{details.desc}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* FEATURED STOCKS SCANNER */}
+            <div className="featured-stocks-box glass-heavy">
+              <div className="fs-header">
+                <TrendingUp size={16} className="text-emerald" />
+                <h4 className="fs-title">VALEURS PHARES À ANALYSER SUR LE MASI</h4>
+              </div>
+
+              <div className="featured-grid">
+                {popularTickers.slice(0, 6).map((item) => (
+                  <div key={item.symbol} className="featured-card" onClick={() => executeSearch(item.symbol)}>
+                    <div className="fc-main">
+                      <span className="fc-symbol mono">{item.symbol}</span>
+                      <span className="fc-name">{item.name}</span>
+                    </div>
+                    <div className="fc-action">
+                      <span className="fc-sector mono">{item.sector}</span>
+                      <div className="fc-go-btn">
+                        <ChevronRight size={14} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
       </div>
 
+      {/* CSS STYLING */}
       <style jsx>{`
         .mono { font-family: 'JetBrains Mono', monospace; font-size: 10px; }
-        .bold { font-weight: 850; }
-
         .dashboard-container { width: 100%; max-width: var(--max-width); margin: 0 auto; }
 
         /* Search Console */
-        .search-console-wrapper { margin-bottom: 5rem; position: relative; }
+        .search-console-wrapper { margin-bottom: 2rem; position: relative; }
         .terminal-search-form { display: flex; align-items: stretch; gap: 1rem; padding: 0.5rem; border-radius: 1rem; position: relative; z-index: 2; transition: all 0.4s var(--ease); }
         .terminal-search-form:focus-within { border-color: rgba(16, 185, 129, 0.3); box-shadow: 0 0 30px rgba(16, 185, 129, 0.1); }
         
         .input-glow-bar { position: absolute; bottom: -1px; left: 10%; right: 10%; height: 1px; background: linear-gradient(to right, transparent, var(--accent-emerald), transparent); opacity: 0.3; filter: blur(2px); }
 
-        .input-terminal-group { display: flex; align-items: center; gap: 1.25rem; flex: 1; padding: 0 1.25rem; }
+        .input-terminal-group { display: flex; align-items: center; gap: 1rem; flex: 1; padding: 0 1.25rem; }
         .search-symbol { color: #475569; }
         .terminal-input { background: none; border: none; color: var(--text-main); width: 100%; outline: none; font-family: 'Inter', sans-serif; font-weight: 500; font-size: 0.95rem; padding: 0.75rem 0; letter-spacing: -0.01em; }
-        .terminal-input::placeholder { color: var(--text-dim); font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; letter-spacing: 0.05rem; }
-
+        .terminal-input::placeholder { color: #64748b; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; letter-spacing: 0.05rem; }
         
+        .clear-query-btn { background: transparent; border: none; color: #64748b; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 4px; transition: color 0.2s; }
+        .clear-query-btn:hover { color: #ef4444; }
+
         .action-btn-terminal { display: flex; align-items: center; gap: 0.75rem; padding: 0 1.75rem; border-radius: 0.6rem; border: none; font-size: 10px; font-weight: 950; letter-spacing: 0.15rem; cursor: pointer; transition: all 0.3s var(--ease); font-family: 'JetBrains Mono', monospace; }
         .action-btn-terminal.strategy { background: #fff; color: #000; }
         .action-btn-terminal.sentiment { background: var(--accent-emerald); color: #000; }
         .action-btn-terminal.technical { background: var(--accent-blue); color: #000; }
         .action-btn-terminal.fundamental { background: #f59e0b; color: #000; }
         .action-btn-terminal:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(0,0,0,0.4); }
-        
+
+        /* Quick Chips Row */
+        .quick-chips-row {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          margin-top: 0.85rem;
+          overflow-x: auto;
+          padding-bottom: 0.35rem;
+        }
+        .chips-label { color: #475569; font-weight: 800; font-size: 9px; letter-spacing: 0.08rem; flex-shrink: 0; }
+        .chips-list { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+        .chip-btn {
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          border-radius: 6px;
+          padding: 0.25rem 0.6rem;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .chip-btn:hover {
+          background: rgba(16, 185, 129, 0.08);
+          border-color: rgba(16, 185, 129, 0.3);
+          transform: translateY(-1px);
+        }
+        .chip-symbol { color: #10b981; font-weight: 900; font-size: 9.5px; }
+        .chip-name { color: #94a3b8; font-size: 10.5px; font-weight: 500; }
+
+        /* Suggestions */
         .suggestion-dropdown {
           position: absolute;
           top: 100%;
@@ -299,17 +568,13 @@ export default function DashboardContent(props: DashboardProps) {
           background: rgba(255, 255, 255, 0.03);
           border-left-color: var(--accent-emerald);
         }
-        
         .item-main { display: flex; align-items: center; gap: 1.25rem; flex: 1; }
         .item-symbol { font-size: 0.8rem; font-weight: 900; color: #64748b; width: 65px; }
         .item-name { font-size: 0.9rem; color: #f8fafc; font-weight: 600; font-family: 'Inter', sans-serif; letter-spacing: -0.01em; }
         .item-meta { display: flex; align-items: center; gap: 1rem; }
         .item-sector { font-size: 9px; color: #334155; font-weight: 700; letter-spacing: 0.05rem; }
-        .sector-dot { width: 4px; height: 4px; border-radius: 50%; opacity: 0.5; }
-        .sector-dot.strategy { background: var(--accent-blue); }
-        .sector-dot.sentiment { background: var(--accent-emerald); }
-        .sector-dot.technical { background: var(--accent-cyan); }
 
+        /* Display Area */
         .display-area { min-height: 500px; width: 100%; display: flex; flex-direction: column; justify-content: flex-start; position: relative; }
         
         .error-banner { display: flex; align-items: flex-start; gap: 1.5rem; padding: 1.75rem; margin-bottom: 3rem; border-radius: 1.5rem; position: relative; }
@@ -318,17 +583,14 @@ export default function DashboardContent(props: DashboardProps) {
         .error-content h4 { color: #fff; font-size: 1rem; font-weight: 800; margin-bottom: 0.5rem; font-family: 'Outfit', sans-serif; }
         .error-content p { color: #94a3b8; font-size: 0.85rem; line-height: 1.6; font-family: 'Inter', sans-serif; }
         
-        /* Global Refresh Button */
         .global-refresh-btn { position: absolute; top: -1rem; right: 0; padding: 0.5rem 1rem; border-radius: 100px; border: 1px solid var(--border-glass); background: rgba(15, 23, 42, 0.4); display: flex; align-items: center; gap: 0.5rem; cursor: pointer; transition: all 0.3s var(--ease); z-index: 10;}
         .global-refresh-btn:hover { background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3); transform: translateY(-2px); }
-        .global-refresh-btn .mono { font-size: 9px; font-weight: 800; color: #f8fafc; }
 
-        /* Terminal Loader Improved */
+        /* Terminal System Loader */
         .terminal-system-loader { width: 100%; max-width: 760px; margin: 4rem auto; border-radius: 0.75rem; overflow: hidden; border: 1px solid var(--border-glass); box-shadow: 0 30px 60px rgba(0,0,0,0.5); background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(10px); }
         .terminal-header { background: rgba(255,255,255,0.02); padding: 0.85rem 1.25rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-glass); }
         .term-circles { display: flex; align-items: center; gap: 0.6rem; }
         
-        /* Terminal Content Grid Layout */
         .terminal-content-grid { display: grid; grid-template-columns: 1.8fr 1fr; border-bottom: 1px solid var(--border-glass); }
         .terminal-logs-column { border-right: 1px solid var(--border-glass); background: rgba(0,0,0,0.15); }
         
@@ -338,73 +600,459 @@ export default function DashboardContent(props: DashboardProps) {
         .stat-val { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #cbd5e1; }
         .badge-processing { background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); color: var(--accent-emerald); font-size: 8px; font-weight: 900; padding: 0.15rem 0.5rem; border-radius: 4px; letter-spacing: 0.05rem; animation: blink 1.5s infinite; }
         
-        /* Radar Scanning Animation */
         .radar-animation-box { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(255,255,255,0.01); border: 1px solid var(--border-glass); border-radius: 0.5rem; margin-top: 0.5rem; min-height: 85px; position: relative; overflow: hidden; }
         .radar-sweep { position: absolute; inset: 0; background: linear-gradient(180deg, transparent, rgba(16, 185, 129, 0.05) 50%, transparent); animation: sweep 2s linear infinite; }
         .radar-text { z-index: 1; color: #475569; font-weight: 900; letter-spacing: 0.1rem; font-size: 8px; }
         
         @keyframes sweep { 0% { transform: translateY(-100%); } 100% { transform: translateY(100%); } }
         
-        /* Terminal Body & Logs */
         .terminal-body { padding: 1.5rem; height: 320px; overflow-y: auto; position: relative; scroll-behavior: smooth; }
-        .terminal-body::-webkit-scrollbar { width: 4px; }
-        .terminal-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 10px; }
-        
         .log-line { display: flex; align-items: flex-start; gap: 0.75rem; color: #64748b; font-size: 10.5px; margin-bottom: 0.75rem; line-height: 1.5; }
         .log-icon { color: var(--accent-emerald); font-weight: bold; width: 12px; flex-shrink: 0; }
         .log-text { flex: 1; }
-        
-        .log-line.current { color: #f1f5f9; font-weight: 600; opacity: 1; }
-        .log-line.current .log-icon { color: var(--accent-emerald); }
+        .log-line.current { color: #f1f5f9; font-weight: 600; }
         .log-line.system-log { color: var(--accent-cyan); }
-        .log-line.system-log .log-icon { color: var(--accent-cyan); }
-        
         .circle-pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-emerald); box-shadow: 0 0 8px var(--accent-emerald); animation: pulse-glow 1.5s infinite; }
-        @keyframes pulse-glow { 0%, 100% { opacity: 0.5; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.1); } }
-        
-        .loading-spin { display: inline-block; animation: spin 1s linear infinite; color: var(--accent-emerald) !important; }
-        .pending-line { margin-top: 1rem; border-top: 1px dashed rgba(255,255,255,0.05); padding-top: 1rem; }
-        
-        .terminal-cursor { width: 6px; height: 12px; background: var(--accent-emerald); display: inline-block; vertical-align: middle; animation: blink 1s step-end infinite; margin-left: 4px; }
         
         .loader-meta-group { padding: 1.25rem 1.5rem; background: rgba(255,255,255,0.01); }
         .progress-info-row { display: flex; justify-content: space-between; margin-bottom: 0.6rem; }
         .progress-bar-container { height: 3px; width: 100%; background: rgba(255,255,255,0.04); border-radius: 2px; overflow: hidden; }
-        .p-bar-fill { height: 100%; transition: width 0.3s var(--ease); box-shadow: 0 0 10px currentColor; }
+        .p-bar-fill { height: 100%; transition: width 0.3s var(--ease); }
         .p-bar-fill.strategy { background: var(--accent-blue); width: 100%; animation: load-progress 15s linear; }
         .p-bar-fill.sentiment { background: var(--accent-emerald); width: 100%; animation: load-progress 10s linear; }
         .p-bar-fill.technical { background: var(--accent-cyan); width: 100%; animation: load-progress 12s linear; }
 
         @keyframes load-progress { from { width: 0%; } to { width: 95%; } }
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
-        /* Empty State */
-        .empty-state-terminal { position: relative; padding: 4rem 0 8rem; display: flex; flex-direction: column; align-items: center; gap: 6rem; }
-        .grid-watermark { position: absolute; inset: -100px; background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0); background-size: 40px 40px; pointer-events: none; opacity: 0.5; }
-        
-        .landing-title-group { text-align: center; z-index: 1; transition: transform 0.8s var(--ease); }
-        .empty-state-terminal:hover .landing-title-group { transform: scale(1.02); }
-        .terminal-h1 { font-family: 'Outfit', sans-serif; font-size: 7.5rem; font-weight: 900; color: var(--text-main); letter-spacing: -0.06em; line-height: 0.9; margin: 0; filter: drop-shadow(0 0 30px rgba(16, 185, 129, 0.1)); }
-        .terminal-h2-group { display: flex; align-items: center; justify-content: center; gap: 1.5rem; color: var(--text-dim); margin-top: 1rem; }
-        .status-blink.active { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-emerald); box-shadow: 0 0 10px var(--accent-emerald); }
+        /* SAAS LANDING MAIN CONTAINER */
+        .saas-landing-container {
+          display: flex;
+          flex-direction: column;
+          gap: 2rem;
+          padding-bottom: 4rem;
+        }
 
-        .feature-terminal-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; width: 100%; max-width: 900px; z-index: 1; }
-        .terminal-f-card { background: rgba(255,255,255,0.01); border: 1px solid var(--border-glass); padding: 2rem; border-radius: 1.25rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 1.25rem; transition: all 0.4s var(--ease); }
-        .terminal-f-card:hover { background: rgba(255,255,255,0.03); transform: translateY(-5px); border-color: rgba(255,255,255,0.1); }
-        .f-icon-box { color: #1e293b; transition: color 0.3s; }
-        .terminal-f-card:hover .f-icon-box { color: #fff; }
-        .f-label { font-size: 10px; color: #475569; font-weight: 900; letter-spacing: 0.15rem; }
+        .hero-saas-card {
+          padding: 2.5rem;
+          border-radius: 1.25rem;
+          background: linear-gradient(135deg, rgba(16, 185, 129, 0.04) 0%, rgba(59, 130, 246, 0.02) 50%, rgba(0, 0, 0, 0.4) 100%);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          position: relative;
+          overflow: hidden;
+        }
 
-        @keyframes spin { to { transform: rotate(360deg); } }
-        
+        .hero-top-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.35rem 0.75rem;
+          border-radius: 100px;
+          background: rgba(16, 185, 129, 0.08);
+          border: 1px solid rgba(16, 185, 129, 0.2);
+          color: #10b981;
+          margin-bottom: 1.25rem;
+        }
+
+        .live-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: #10b981;
+          box-shadow: 0 0 8px #10b981;
+        }
+
+        .hero-title {
+          font-family: 'Outfit', sans-serif;
+          font-size: 2.5rem;
+          font-weight: 900;
+          color: #ffffff;
+          letter-spacing: -0.03em;
+          line-height: 1.15;
+          margin-bottom: 1rem;
+        }
+
+        .hero-highlight {
+          background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+        }
+
+        .hero-subtitle {
+          font-size: 0.95rem;
+          color: #94a3b8;
+          max-width: 750px;
+          line-height: 1.6;
+          margin-bottom: 2rem;
+          font-family: 'Inter', sans-serif;
+        }
+
+        .hero-metrics-strip {
+          display: flex;
+          align-items: center;
+          gap: 1.5rem;
+          padding-top: 1.5rem;
+          border-top: 1px solid rgba(255, 255, 255, 0.06);
+          flex-wrap: wrap;
+        }
+
+        .h-metric-item {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+
+        .hm-label {
+          font-size: 8.5px;
+          color: #475569;
+          font-weight: 850;
+          letter-spacing: 0.08rem;
+        }
+
+        .hm-val {
+          font-size: 0.9rem;
+          font-weight: 800;
+          font-family: 'JetBrains Mono', monospace;
+        }
+
+        .h-metric-divider {
+          width: 1px;
+          height: 24px;
+          background: rgba(255, 255, 255, 0.08);
+        }
+
+        /* SAAS Section Header */
+        .saas-section-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-top: 1rem;
+          margin-bottom: 0.5rem;
+        }
+
+        .section-title-group {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .section-title {
+          font-family: 'Outfit', sans-serif;
+          font-size: 1.1rem;
+          font-weight: 900;
+          color: #ffffff;
+          letter-spacing: -0.01em;
+          margin: 0;
+        }
+
+        .section-sub {
+          color: #475569;
+          font-size: 9px;
+          font-weight: 800;
+          letter-spacing: 0.08rem;
+        }
+
+        /* Services Grid */
+        .services-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 1.25rem;
+        }
+
+        .service-card {
+          padding: 1.5rem;
+          border-radius: 1rem;
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          background: rgba(13, 17, 23, 0.6);
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          transition: all 0.3s var(--ease);
+        }
+
+        .service-card:hover {
+          transform: translateY(-4px);
+          border-color: rgba(16, 185, 129, 0.25);
+          box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+        }
+
+        .service-card-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 1.25rem;
+        }
+
+        .service-icon-box {
+          width: 40px;
+          height: 40px;
+          border-radius: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .service-icon-box.emerald { background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); }
+        .service-icon-box.blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.2); }
+        .service-icon-box.amber { background: rgba(245, 158, 11, 0.1); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.2); }
+        .service-icon-box.purple { background: rgba(168, 85, 247, 0.1); color: #a855f7; border: 1px solid rgba(168, 85, 247, 0.2); }
+
+        .service-badge {
+          font-size: 8px;
+          font-weight: 900;
+          padding: 2px 6px;
+          border-radius: 4px;
+          letter-spacing: 0.05rem;
+        }
+
+        .service-badge.emerald { color: #10b981; background: rgba(16, 185, 129, 0.08); }
+        .service-badge.blue { color: #3b82f6; background: rgba(59, 130, 246, 0.08); }
+        .service-badge.amber { color: #f59e0b; background: rgba(245, 158, 11, 0.08); }
+        .service-badge.purple { color: #a855f7; background: rgba(168, 85, 247, 0.08); }
+
+        .service-title {
+          font-family: 'Outfit', sans-serif;
+          font-size: 1.05rem;
+          font-weight: 800;
+          color: #ffffff;
+          margin-bottom: 0.5rem;
+        }
+
+        .service-desc {
+          font-size: 0.8rem;
+          color: #94a3b8;
+          line-height: 1.5;
+          margin-bottom: 1.5rem;
+          flex: 1;
+        }
+
+        .service-btn {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          width: 100%;
+          padding: 0.65rem 1rem;
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          color: #cbd5e1;
+          font-size: 11px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .service-btn:hover {
+          background: rgba(16, 185, 129, 0.1);
+          border-color: rgba(16, 185, 129, 0.3);
+          color: #ffffff;
+        }
+
+        /* Agent Showcase Box */
+        .agent-showcase-box {
+          padding: 1.75rem;
+          border-radius: 1.25rem;
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          background: rgba(9, 13, 22, 0.7);
+        }
+
+        .showcase-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 1.25rem;
+        }
+
+        .sh-title {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-family: 'Outfit', sans-serif;
+          font-weight: 800;
+          color: #ffffff;
+          font-size: 1rem;
+        }
+
+        .sh-sub { color: #475569; font-size: 8.5px; font-weight: 800; letter-spacing: 0.08rem; }
+
+        .agent-tabs-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 1rem;
+        }
+
+        .agent-select-card {
+          padding: 1.25rem;
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          text-align: left;
+          cursor: pointer;
+          transition: all 0.25s;
+        }
+
+        .agent-select-card:hover {
+          background: rgba(255, 255, 255, 0.04);
+          transform: translateY(-2px);
+        }
+
+        .agent-select-card.active {
+          background: rgba(255, 255, 255, 0.05);
+          box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .ac-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 0.75rem;
+        }
+
+        .ac-badge {
+          font-size: 7.5px;
+          color: #64748b;
+          font-weight: 900;
+          letter-spacing: 0.05rem;
+        }
+
+        .ac-name {
+          font-family: 'Outfit', sans-serif;
+          font-size: 0.95rem;
+          font-weight: 800;
+          color: #ffffff;
+          margin-bottom: 0.35rem;
+        }
+
+        .ac-desc {
+          font-size: 0.75rem;
+          color: #94a3b8;
+          line-height: 1.4;
+        }
+
+        /* Featured Stocks Box */
+        .featured-stocks-box {
+          padding: 1.75rem;
+          border-radius: 1.25rem;
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          background: rgba(9, 13, 22, 0.7);
+        }
+
+        .fs-header {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          margin-bottom: 1.25rem;
+        }
+
+        .fs-title {
+          font-family: 'Outfit', sans-serif;
+          font-size: 1rem;
+          font-weight: 800;
+          color: #ffffff;
+          margin: 0;
+        }
+
+        .featured-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 1rem;
+        }
+
+        .featured-card {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 1rem 1.25rem;
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .featured-card:hover {
+          background: rgba(16, 185, 129, 0.05);
+          border-color: rgba(16, 185, 129, 0.25);
+          transform: translateY(-2px);
+        }
+
+        .fc-main {
+          display: flex;
+          flex-direction: column;
+          gap: 0.2rem;
+        }
+
+        .fc-symbol {
+          font-size: 0.9rem;
+          font-weight: 900;
+          color: #10b981;
+        }
+
+        .fc-name {
+          font-size: 0.8rem;
+          color: #e2e8f0;
+          font-weight: 600;
+        }
+
+        .fc-action {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+        }
+
+        .fc-sector {
+          font-size: 8px;
+          color: #64748b;
+          font-weight: 800;
+        }
+
+        .fc-go-btn {
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.04);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #94a3b8;
+          transition: all 0.2s;
+        }
+
+        .featured-card:hover .fc-go-btn {
+          background: #10b981;
+          color: #000000;
+        }
+
+        @media (max-width: 1024px) {
+          .services-grid { grid-template-columns: repeat(2, 1fr); }
+          .agent-tabs-grid { grid-template-columns: repeat(2, 1fr); }
+          .featured-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
         @media (max-width: 768px) {
-          .terminal-h1 { font-size: 4rem; }
-          .feature-terminal-grid { grid-template-columns: 1fr; }
-          .terminal-content-grid { grid-template-columns: 1fr; }
-          .terminal-search-form { flex-direction: column; gap: 1rem; }
-          .action-btn-terminal { padding: 1rem; justify-content: center; width: 100%; }
+          .hero-title { font-size: 1.8rem; }
+          .services-grid { grid-template-columns: 1fr; }
+          .agent-tabs-grid { grid-template-columns: 1fr; }
+          .featured-grid { grid-template-columns: 1fr; }
+          .terminal-search-form { flex-direction: column; gap: 0.75rem; }
+          .action-btn-terminal { padding: 0.85rem; justify-content: center; width: 100%; }
         }
       `}</style>
     </div>
+  );
+}
+
+function BrainIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 0 5.61 4 4 0 0 0 2.526 5.77 3 3 0 1 0 5.997.125" />
+      <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1 0 5.61 4 4 0 0 1-2.526 5.77 3 3 0 1 1-5.997.125" />
+      <path d="M12 3v18" />
+      <path d="M12 7.5h4" />
+      <path d="M12 12h5" />
+      <path d="M12 16.5h4" />
+      <path d="M8 7.5h4" />
+      <path d="M7 12h5" />
+      <path d="M8 16.5h4" />
+    </svg>
   );
 }
