@@ -377,18 +377,9 @@ export default function EnterpriseLandingPage() {
           </Link>
 
           <div className="nav-links">
-            <a href="#terminal" className="nl">
-              <TerminalIcon size={13} className="nl-icon" />
-              <span>Terminal Live</span>
-            </a>
-            <Link href="/marche-live" className="nl nl-live-badge">
-              <span className="live-pulse-dot" />
-              <span>MASI Live</span>
-            </Link>
-            <Link href="/purification" className="nl">
-              <ShieldCheck size={13} className="nl-icon text-emerald" />
-              <span>Audit AAOIFI</span>
-            </Link>
+            <a href="#terminal" className="nl">Terminal Live</a>
+            <Link href="/marche-live" className="nl">MASI Live</Link>
+            <Link href="/purification" className="nl">Audit AAOIFI</Link>
             <a href="#pipeline" className="nl">Architecture</a>
             <a href="#outcomes" className="nl">Plateforme</a>
             <a href="#pricing"  className="nl">Tarifs</a>
@@ -445,10 +436,10 @@ export default function EnterpriseLandingPage() {
               
               <div className="mobile-sublinks">
                 <Link href="/marche-live" className="mobile-sublink" onClick={() => setMobileMenuOpen(false)}>
-                  <Zap size={14} className="text-orange-500" /> MASI Live
+                  MASI Live
                 </Link>
                 <Link href="/purification" className="mobile-sublink" onClick={() => setMobileMenuOpen(false)}>
-                  <ShieldCheck size={14} className="text-blue-500" /> Audit AAOIFI
+                  Audit AAOIFI
                 </Link>
               </div>
 
