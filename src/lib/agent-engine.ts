@@ -411,17 +411,47 @@ export class AetherisOrchestrator {
           dataQuality.score = Math.max(0, dataQuality.score - 20);
           result.dataQuality = dataQuality;
           
-          // Ultime fallback manuel pour éviter un blocage client
-          const safeString = (val: any, fallback: string) => typeof val === 'string' ? val : (val ? JSON.stringify(val) : fallback);
+          // Ultime fallback manuel: Retourner un squelette 100% typé au lieu de "...result" pour éviter les crashs React
+          const safeString = (val: any, fallback: string) => typeof val === 'string' ? val : fallback;
           return {
-            ...result,
-            globalSentiment: safeString(result.globalSentiment, 'NEUTRE'),
-            probableImpact: safeString(result.probableImpact, 'Impact inconnu.'),
-            recommendedAction: safeString(result.recommendedAction, 'ATTENDRE'),
+            id: safeString(result?.id, Math.random().toString()),
+            date: safeString(result?.date, new Date().toLocaleString()),
+            companyName: safeString(result?.companyName, searchName),
             type: type as any,
-            companyName: safeString(result.companyName, searchName),
-            id: safeString(result.id, Math.random().toString()),
-            date: safeString(result.date, new Date().toLocaleString())
+            globalSentiment: 'NEUTRE',
+            probableImpact: 'Impact inconnu suite à une corruption des données IA.',
+            recommendedAction: 'ATTENDRE',
+            globalScore: 50,
+            confidenceLevel: 'Modéré',
+            news: [],
+            signals: ['Erreur de format IA - Signaux non disponibles'],
+            technicalTrend: 'Neutre',
+            momentumScore: '50/100',
+            marketSituation: 'L\'IA a généré un format de données invalide.',
+            strategyPlan: 'Veuillez relancer l\'analyse. Les données reçues sont corrompues.',
+            dataQuality: { score: 10, warnings: ['Format de données invalide (Crash interface évité)'] },
+            orchestrator: {
+              finalAction: 'ATTENDRE',
+              idealEntryPoint: 'MARKET',
+              takeProfit: 'N/A',
+              stopLoss: 'N/A',
+              risk: 'Modéré',
+              why: 'Impossible de parser la stratégie suite à une erreur de formatage Gemini.',
+              keyPoints: ['Analyse indisponible', 'Format JSON corrompu'],
+              isAI: true
+            },
+            horizons: {
+              shortTerm: {
+                finalAction: 'ATTENDRE',
+                idealEntryPoint: 'MARKET',
+                takeProfit: 'N/A',
+                stopLoss: 'N/A',
+                risk: 'Modéré',
+                why: 'Analyse indisponible',
+                keyPoints: ['Erreur de parsing'],
+                isAI: true
+              }
+            }
           } as CompanyAnalysis;
         }
         
