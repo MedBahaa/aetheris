@@ -120,9 +120,11 @@ export default function AnalysisReport({ analysis }: AnalysisReportProps) {
         
         <div className="log-stack">
           {Array.isArray(analysis.news) && analysis.news.length > 0 ? (
-            analysis.news.map((item, index) => (
-              <div key={item.id} className={`log-entry glass ${expandedNews === item.id ? 'active' : ''}`}>
-                <div className="log-row" onClick={() => toggleNews(item.id)}>
+            analysis.news.map((item, index) => {
+              if (!item) return null;
+              return (
+              <div key={item.id || index} className={`log-entry glass ${expandedNews === item.id ? 'active' : ''}`}>
+                <div className="log-row" onClick={() => toggleNews(item.id || String(index))}>
                    <div className="log-main">
                       <span className="log-idx mono">[{String(index + 1).padStart(3, '0')}]</span>
                       <p className="log-summary">{item.summary}</p>
