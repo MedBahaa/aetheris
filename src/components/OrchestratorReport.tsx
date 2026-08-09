@@ -58,15 +58,15 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
             
             <div className="badge-row">
               <div className="action-badge-new">
-                <span className="badge-bg-text">{data.finalAction}</span>
-                <span className="badge-main-text">{data.finalAction}</span>
+                <span className="badge-bg-text">{typeof data.finalAction === 'object' ? JSON.stringify(data.finalAction) : data.finalAction}</span>
+                <span className="badge-main-text">{typeof data.finalAction === 'object' ? JSON.stringify(data.finalAction) : data.finalAction}</span>
               </div>
               
               {data.idealEntryPoint && (
                 <div className="tactical-badge glass-heavy animate-pulse">
                   <span className="t-label mono-label">SEUIL D'ENTRÉE OPTIMISÉ</span>
 
-                  <span className="t-val mono">{data.idealEntryPoint}</span>
+                  <span className="t-val mono">{typeof data.idealEntryPoint === 'object' ? JSON.stringify(data.idealEntryPoint) : data.idealEntryPoint}</span>
                 </div>
               )}
 
@@ -88,7 +88,7 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
                 <span className="gauge-label mono-label">INDEX DE CONFIANCE ALPHA</span>
 
                 <span className={`gauge-value mono ${analysis.confidenceLevel === 'Élevé' ? 'emerald' : 'amber'}`}>
-                  {analysis.confidenceLevel}
+                  {typeof analysis.confidenceLevel === 'object' ? JSON.stringify(analysis.confidenceLevel) : analysis.confidenceLevel}
                 </span>
               </div>
               <div className="segmented-bar">
@@ -107,7 +107,7 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
                 <span className="gauge-label mono-label">VECTEUR DE RISQUE ESTIMÉ</span>
 
                 <span className={`gauge-value mono ${data.risk === 'Faible' ? 'emerald' : 'amber'}`}>
-                  {data.risk}
+                  {typeof data.risk === 'object' ? JSON.stringify(data.risk) : data.risk}
                 </span>
               </div>
               <div className="risk-scale">

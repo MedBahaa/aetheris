@@ -412,15 +412,16 @@ export class AetherisOrchestrator {
           result.dataQuality = dataQuality;
           
           // Ultime fallback manuel pour éviter un blocage client
+          const safeString = (val: any, fallback: string) => typeof val === 'string' ? val : (val ? JSON.stringify(val) : fallback);
           return {
             ...result,
-            globalSentiment: result.globalSentiment || 'NEUTRE',
-            probableImpact: result.probableImpact || 'Impact inconnu.',
-            recommendedAction: result.recommendedAction || 'ATTENDRE',
-            type: result.type || 'STRATEGY',
-            companyName: result.companyName || searchName,
-            id: result.id || Math.random().toString(),
-            date: result.date || new Date().toLocaleString()
+            globalSentiment: safeString(result.globalSentiment, 'NEUTRE'),
+            probableImpact: safeString(result.probableImpact, 'Impact inconnu.'),
+            recommendedAction: safeString(result.recommendedAction, 'ATTENDRE'),
+            type: type as any,
+            companyName: safeString(result.companyName, searchName),
+            id: safeString(result.id, Math.random().toString()),
+            date: safeString(result.date, new Date().toLocaleString())
           } as CompanyAnalysis;
         }
         
