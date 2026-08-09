@@ -257,7 +257,6 @@ export default function DashboardContent(props: DashboardProps) {
             {analysis.type === 'STRATEGY' && <StrategyReport analysis={analysis} />}
           </div>
         ) : (
-        ) : (
           <div className="console-empty-state animate-fade-in glass-heavy" style={{ padding: '4rem 2rem', textAlign: 'center', borderRadius: '12px', marginTop: '2rem' }}>
             <Activity size={32} className="text-emerald" style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
             <h3 className="mono text-lg mb-2" style={{ color: '#fff' }}>CONSOLE D'ANALYSE PRÊTE</h3>
