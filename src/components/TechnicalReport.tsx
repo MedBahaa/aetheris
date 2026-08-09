@@ -113,7 +113,7 @@ export default function TechnicalReport({ analysis }: TechnicalReportProps) {
               style={{ width: `${dataQuality.score}%` }}
             ></div>
           </div>
-          {dataQuality.warnings?.map((w, i) => (
+          {Array.isArray(dataQuality.warnings) && dataQuality.warnings.map((w, i) => (
             <div key={i} className="dq-warning-item">
               <span className="dq-dot">•</span>
               <span className="dq-text">{w}</span>
@@ -272,12 +272,12 @@ export default function TechnicalReport({ analysis }: TechnicalReportProps) {
            </div>
 
            <div className="signal-log-stack">
-              {analysis.signals?.map((signal, idx) => {
+              {Array.isArray(analysis.signals) && analysis.signals.map((signal, idx) => {
                 const classified = classifySignal(signal);
                 return (
                   <div key={idx} className={`log-row glass log-${classified.type}`}>
                      <div className={`l-dot ${classified.type}`}></div>
-                     <div className="l-content">{signal}</div>
+                     <div className="l-content">{typeof signal === 'object' ? JSON.stringify(signal) : signal}</div>
                      <div className={`l-status ${classified.type}`}>{classified.label}</div>
                   </div>
                 );

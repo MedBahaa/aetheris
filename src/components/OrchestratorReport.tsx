@@ -71,7 +71,7 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
               )}
 
               <div className="rationale-box">
-                <p className="why-text">&ldquo;{data.why}&rdquo;</p>
+                <p className="why-text">&ldquo;{typeof data.why === 'object' ? JSON.stringify(data.why) : data.why}&rdquo;</p>
                 <div className="expert-seal">
                   {data.isAI ? <BarChart3 size={11} /> : <Zap size={11} />}
                   <span className="mono-label">{data.isAI ? 'ANALYSTE IA SENIOR' : 'MOTEUR AETHERIS CORE'}</span>
@@ -124,11 +124,10 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
         </div>
       </div>
 
-      {/* BLOC : CONTRADICTION / ALERTE */}
       {data.contradictionDetected && (
         <div className="alert-ribbon glass animate-pulse">
            <AlertCircle size={16} className="amber-icon" />
-           <p className="mono-small"><strong>NOTE DE CONTEXTE :</strong> {data.contradictionDetected}</p>
+           <p className="mono-small"><strong>NOTE DE CONTEXTE :</strong> {typeof data.contradictionDetected === 'object' ? JSON.stringify(data.contradictionDetected) : data.contradictionDetected}</p>
         </div>
       )}
 
@@ -158,14 +157,14 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
                <span className="c-label mono-label">SIGNAL D'ENTRÉE</span>
 
                <div className="val-box">
-                  <span className="c-val mono">{data.idealEntryPoint || 'MARKET'}</span>
+                  <span className="c-val mono">{typeof data.idealEntryPoint === 'object' ? JSON.stringify(data.idealEntryPoint) : data.idealEntryPoint || 'MARKET'}</span>
                </div>
             </div>
             <div className="t-coord tp">
                <span className="c-label mono-label">CIBLE DE PROFIT (TAKE PROFIT)</span>
 
                <div className="val-box">
-                  <span className="c-val mono text-emerald">{data.takeProfit || 'N/A'}</span>
+                  <span className="c-val mono text-emerald">{typeof data.takeProfit === 'object' ? JSON.stringify(data.takeProfit) : data.takeProfit || 'N/A'}</span>
                   <span className="target-tick">▲</span>
                </div>
             </div>
@@ -173,7 +172,7 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
                <span className="c-label mono-label">ARRÊT DE PROTECTION (STOP LOSS)</span>
 
                <div className="val-box">
-                  <span className="c-val mono text-rose">{data.stopLoss || 'N/A'}</span>
+                  <span className="c-val mono text-rose">{typeof data.stopLoss === 'object' ? JSON.stringify(data.stopLoss) : data.stopLoss || 'N/A'}</span>
                   <span className="target-tick down">▼</span>
                </div>
             </div>
@@ -191,7 +190,7 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
 
           <div className="strategy-narrative glass">
             <Crosshair size={12} className="opacity-30" />
-            <p className="narrative-text">{data.strategyPlan || analysis.strategyPlan || 'Analyse tactique en cours...'}</p>
+            <p className="narrative-text">{typeof data.strategyPlan === 'object' ? JSON.stringify(data.strategyPlan) : data.strategyPlan || analysis.strategyPlan || 'Analyse tactique en cours...'}</p>
           </div>
       </div>
 
@@ -202,7 +201,7 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
           <h4 className="card-title">Facteurs de Décision Multi-Agents</h4>
         </div>
         <div className="keys-grid">
-          {data.keyPoints && data.keyPoints.length > 0 ? (
+          {Array.isArray(data.keyPoints) && data.keyPoints.length > 0 ? (
             data.keyPoints.map((point, i) => (
               <div key={i} className="key-item glass">
                  <div className="item-marker"></div>
