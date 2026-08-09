@@ -244,7 +244,7 @@ export default function DashboardContent(props: DashboardProps) {
                 <Zap size={18} className="text-emerald" />
                 <div className="alert-diag-body">
                   <strong>CONVERGENCE DE SIGNAUX DÉTECTÉE</strong>
-                  <span className="mono text-xs">SCORE SENTIMENT IA ({analysis.globalScore?.toFixed(2)}) & INDICATEURS TECHNIQUES VALIDÉS</span>
+                  <span className="mono text-xs">SCORE SENTIMENT IA ({Number(analysis.globalScore || 0).toFixed(2)}) & INDICATEURS TECHNIQUES VALIDÉS</span>
                 </div>
               </div>
             )}

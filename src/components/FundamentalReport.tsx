@@ -92,7 +92,7 @@ export default function FundamentalReport({ analysis }: FundamentalReportProps) 
             <div className="m-val-row">
               <span className="m-val mono">
                 {fundamentals.marketCap && fundamentals.marketCap !== 'N/A' 
-                  ? `${fundamentals.marketCap.replace(/\B(?=(\d{3})+(?!\d))/g, " ")}` 
+                  ? `${String(fundamentals.marketCap).replace(/\B(?=(\d{3})+(?!\d))/g, " ")}` 
                   : 'N/A'}
                 <span className="m-cur">MAD</span>
               </span>
