@@ -174,131 +174,6 @@ function TickerTape() {
 }
 
 /* ─────────────────────────────────────────
-   INSTITUTIONAL TERMINAL UI DEMO
-───────────────────────────────────────── */
-function InstitutionalTerminal() {
-  const [selectedTicker, setSelectedTicker] = useState('ATW');
-  const [logLines, setLogLines] = useState<string[]>([]);
-
-  useEffect(() => {
-    const lines = [
-      `> SYSTEM_INIT: AETHERIS ALPHA NODE 0x8F`,
-      `> CONNECTING TO BVC STREAM... [OK]`,
-      `> PARSING ORDER BOOK FOR ${selectedTicker}...`,
-      `> DETECTING BUY WALL AT 510.00 (14.2K VOL)`,
-      `> RUNNING QUANT MODEL: RSI(14)=58.3 MACD=BULL`,
-      `> RUNNING SHARIAH CHECK: DEBT_RATIO=24.1% [PASS]`,
-      `> ALPHA SYNTHESIS: 94% CONFIDENCE LONG`,
-      `> TARGET_12M: 606.00 MAD (+18.4%)`,
-      `> SYSTEM STANDBY...`
-    ];
-    let i = 0;
-    setLogLines([]);
-    const interval = setInterval(() => {
-      if (i < lines.length) {
-        setLogLines(prev => [...prev, lines[i]]);
-        i++;
-      } else {
-        clearInterval(interval);
-      }
-    }, 400);
-    return () => clearInterval(interval);
-  }, [selectedTicker]);
-
-  const orderBook = {
-    asks: [
-      { price: '515.50', vol: '1.2K', depth: '15%' },
-      { price: '514.00', vol: '4.5K', depth: '35%' },
-      { price: '513.50', vol: '2.1K', depth: '20%' },
-      { price: '513.00', vol: '8.4K', depth: '55%' },
-      { price: '512.50', vol: '3.0K', depth: '25%' },
-    ].reverse(),
-    bids: [
-      { price: '512.00', vol: '14.2K', depth: '85%' },
-      { price: '511.50', vol: '5.1K', depth: '40%' },
-      { price: '511.00', vol: '9.3K', depth: '65%' },
-      { price: '510.00', vol: '22.0K', depth: '100%' },
-      { price: '509.50', vol: '1.5K', depth: '10%' },
-    ]
-  };
-
-  const currentAsset = TICKERS.find(t => t.symbol === selectedTicker) || TICKERS[0];
-
-  return (
-    <div className="bbg-terminal">
-      <div className="bbg-header mono">
-        <div className="bbg-h-left">
-          <span className="live-dot-green" style={{ width: '8px', height: '8px' }} />
-          <span>AETHERIS TERMINAL [BETA 2.8] - BVC DIRECT ACCESS</span>
-        </div>
-        <div className="bbg-h-right">SYS.UPTIME: 99.99% • LATENCY: 14ms</div>
-      </div>
-
-      <div className="bbg-main-grid">
-        <div className="bbg-pane bbg-watchlist">
-          <div className="bbg-pane-head mono">MARKET WATCH</div>
-          <div className="bbg-list">
-            {TICKERS.slice(0, 7).map(t => (
-              <button 
-                key={t.symbol} 
-                className={`bbg-list-item mono ${selectedTicker === t.symbol ? 'active' : ''}`}
-                onClick={() => setSelectedTicker(t.symbol)}
-              >
-                <div className="bbg-sym">{t.symbol}</div>
-                <div className={`bbg-price ${t.up ? 'up' : 'down'}`}>{t.price}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="bbg-pane bbg-orderbook">
-          <div className="bbg-pane-head mono">{selectedTicker} - ORDER BOOK L2</div>
-          <div className="bbg-ob-wrapper mono">
-            <div className="bbg-ob-section asks">
-              {orderBook.asks.map((ask, i) => (
-                <div key={i} className="bbg-ob-row">
-                  <div className="ob-bg ask-bg" style={{ width: ask.depth }} />
-                  <span className="ob-price ask-price">{ask.price}</span>
-                  <span className="ob-vol">{ask.vol}</span>
-                </div>
-              ))}
-            </div>
-            
-            <div className="bbg-ob-spread">
-              <span className="spread-label">LAST TRADED:</span>
-              <span className={`spread-val ${currentAsset.up ? 'up' : 'down'}`}>{currentAsset.price} MAD</span>
-              <span className={`spread-chg ${currentAsset.up ? 'up' : 'down'}`}>{currentAsset.change}</span>
-            </div>
-
-            <div className="bbg-ob-section bids">
-              {orderBook.bids.map((bid, i) => (
-                <div key={i} className="bbg-ob-row">
-                  <div className="ob-bg bid-bg" style={{ width: bid.depth }} />
-                  <span className="ob-price bid-price">{bid.price}</span>
-                  <span className="ob-vol">{bid.vol}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="bbg-pane bbg-ai-feed">
-          <div className="bbg-pane-head mono">ALPHA AI LOG FEED</div>
-          <div className="bbg-log-container mono">
-            {logLines.map((line, i) => (
-              <div key={i} className={`bbg-log-line ${line.includes('[PASS]') || line.includes('LONG') ? 'highlight' : ''}`}>
-                {line}
-              </div>
-            ))}
-            <div className="bbg-cursor" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────
    MAIN ENTERPRISE LANDING PAGE
 ───────────────────────────────────────── */
 export default function EnterpriseLandingPage() {
@@ -372,7 +247,6 @@ export default function EnterpriseLandingPage() {
           </Link>
 
           <div className="nav-links">
-            <a href="#terminal" className="nl">Terminal Live</a>
             <Link href="/marche-live" className="nl">Live Market</Link>
             <a href="#pipeline" className="nl">Architecture</a>
             <a href="#outcomes" className="nl">Plateforme</a>
@@ -426,11 +300,7 @@ export default function EnterpriseLandingPage() {
 
           <div className="mobile-drawer-inner">
             <div className="mobile-links-container">
-              <a href="#terminal" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Terminal Live</a>
-              <Link href="/marche-live" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>
-                Live Market
-              </Link>
-
+              <Link href="/marche-live" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Live Market</Link>
               <a href="#pipeline" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Architecture</a>
               <a href="#outcomes" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Plateforme</a>
               <a href="#pricing" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Tarifs</a>
@@ -502,11 +372,6 @@ export default function EnterpriseLandingPage() {
               </button>
             </form>
           </div>
-        </div>
-
-        {/* ════════════════════ TERMINAL AT THE CENTER ════════════════════ */}
-        <div id="terminal" className="hero-terminal-container animate-in">
-          <InstitutionalTerminal />
         </div>
       </section>
 
@@ -779,31 +644,6 @@ export default function EnterpriseLandingPage() {
           background-size: 180px;
         }
 
-        /* ── TICKER ── */
-        .ticker-wrapper {
-          position: relative;
-          margin-top: 64px;
-          width: 100%;
-          z-index: 10;
-          background: rgba(3,5,8,0.95);
-          backdrop-filter: blur(12px);
-          border-bottom: 1px solid rgba(255,255,255,0.06);
-          height: 32px; overflow: hidden;
-        }
-        .ticker-tape-container { position: relative; height: 32px; display: flex; align-items: center; overflow: hidden; }
-        .ticker-tape-container::before, .ticker-tape-container::after { content: ''; position: absolute; top: 0; bottom: 0; width: 80px; z-index: 2; pointer-events: none; }
-        .ticker-tape-container::before { left: 0; background: linear-gradient(90deg, #030508 0%, transparent 100%); }
-        .ticker-tape-container::after  { right: 0; background: linear-gradient(-90deg, #030508 0%, transparent 100%); }
-        .ticker-tape-inner { overflow: hidden; width: 100%; }
-        .ticker-tape-track { display: flex; gap: 0; white-space: nowrap; animation: ticker-scroll 45s linear infinite; will-change: transform; transform: translate3d(0, 0, 0); }
-        @keyframes ticker-scroll { 0% { transform: translate3d(0, 0, 0); } 100% { transform: translate3d(-50%, 0, 0); } }
-        .ticker-item { display: inline-flex; align-items: center; gap: 6px; padding: 0 1.25rem; font-size: 11px; }
-        .ticker-sym { color: #f8fafc; font-weight: 700; }
-        .ticker-price { color: #64748b; }
-        .ticker-chg { display: inline-flex; align-items: center; gap: 2px; font-weight: 600; }
-        .chg-up { color: #10b981; } .chg-down { color: #ef4444; }
-        .ticker-sep { color: #1e293b; }
-
         /* ── NAVBAR ── */
         .lp-nav {
           position: fixed; top: 0; left: 0; right: 0; height: 64px; z-index: 200;
@@ -821,30 +661,8 @@ export default function EnterpriseLandingPage() {
         .brand-status-pill { font-size: 8px; color: #10b981; font-weight: 700; border: 1px solid rgba(16,185,129,0.3); padding: 1px 5px; border-radius: 3px; background: rgba(16,185,129,0.06); }
 
         .nav-links { display: flex; align-items: center; gap: 1.25rem; }
-        .nl, .nl:visited, .nl:link {
-          color: #94a3b8 !important; font-size: 13px; font-weight: 600; text-decoration: none !important;
-          transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 6px;
-          padding: 5px 10px; border-radius: 6px;
-        }
+        .nl { font-family: 'Inter', sans-serif; font-size: 13.5px; font-weight: 700; color: #cbd5e1; text-decoration: none; transition: color 0.2s; padding: 5px 10px; border-radius: 6px; }
         .nl:hover, .nl:focus { color: #ffffff !important; background: rgba(255,255,255,0.06); }
-        .nl-icon { opacity: 0.7; transition: opacity 0.2s; }
-        .nl:hover .nl-icon { opacity: 1; }
-
-        .nl-live-badge {
-          display: inline-flex; align-items: center; gap: 6px;
-          background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.25);
-          padding: 4px 10px; border-radius: 20px; color: #34d399 !important;
-        }
-        .nl-live-badge:hover { background: rgba(16,185,129,0.16); border-color: rgba(16,185,129,0.4); color: #ffffff !important; }
-        .live-pulse-dot {
-          width: 6px; height: 6px; border-radius: 50%; background: #10b981;
-          box-shadow: 0 0 8px #10b981; display: inline-block;
-          animation: pulse-dot 2s infinite ease-in-out;
-        }
-        @keyframes pulse-dot {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.4; transform: scale(1.2); }
-        }
 
         .nav-ctas { display: flex; align-items: center; gap: 0.75rem; }
         .mobile-hamburger-btn { display: none; background: none; border: none; color: #fff; cursor: pointer; padding: 0.5rem; }
@@ -861,8 +679,6 @@ export default function EnterpriseLandingPage() {
         .mobile-links-container { display: flex; flex-direction: column; gap: 0.75rem; }
         .mobile-card-link { background: #0c111a; border: 1px solid rgba(255,255,255,0.03); border-radius: 8px; padding: 1rem 1.25rem; color: #fff; font-weight: 700; font-size: 1rem; text-decoration: none; transition: background 0.2s; }
         .mobile-card-link:active { background: rgba(255,255,255,0.06); }
-        .mobile-sublinks { display: flex; flex-direction: column; gap: 0.25rem; }
-        .mobile-sublink { display: flex; align-items: center; gap: 10px; padding: 0.6rem 1.25rem 0.6rem 1.5rem; color: #cbd5e1; font-weight: 600; font-size: 0.95rem; text-decoration: none; }
         
         .mobile-drawer-divider { height: 1px; background: rgba(255,255,255,0.05); margin: 1.25rem 0; }
         .mobile-drawer-actions { display: flex; flex-direction: column; gap: 0.75rem; }
@@ -887,7 +703,6 @@ export default function EnterpriseLandingPage() {
         .btn-cta-sm:hover { background: #34d399; }
 
         .mobile-hamburger-btn { display: flex; background: none; border: 1px solid rgba(255,255,255,0.1); color: #fff; width: 36px; height: 36px; border-radius: 6px; align-items: center; justify-content: center; cursor: pointer; }
-        .w-full { width: 100%; justify-content: center; }
 
         /* ── HERO ── */
         .lp-hero {
@@ -965,47 +780,6 @@ export default function EnterpriseLandingPage() {
           cursor: pointer; transition: background 0.2s;
         }
         .inst-search-btn:hover { background: rgba(255,255,255,0.12); }
-
-        /* ── NEW BLOOMBERG TERMINAL ── */
-        .bbg-terminal { background: #000; border: 1px solid #1e293b; border-radius: 4px; overflow: hidden; font-family: 'JetBrains Mono', monospace; position: relative; box-shadow: 0 30px 90px rgba(0,0,0,0.9); }
-        .bbg-terminal::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(0,0,0,0.1), rgba(0,0,0,0.1) 1px, transparent 1px, transparent 2px); pointer-events: none; z-index: 50; }
-        .bbg-header { display: flex; justify-content: space-between; padding: 6px 12px; background: #04080e; border-bottom: 1px solid #1e293b; font-size: 10px; color: #94a3b8; }
-        .bbg-h-left { display: flex; align-items: center; gap: 8px; font-weight: 700; color: #10b981; }
-        
-        .bbg-main-grid { display: grid; grid-template-columns: 220px 1fr 300px; min-height: 400px; }
-        @media (max-width: 1024px) { .bbg-main-grid { grid-template-columns: 1fr; } }
-        
-        .bbg-pane { border-right: 1px solid #1e293b; display: flex; flex-direction: column; }
-        .bbg-pane:last-child { border-right: none; }
-        .bbg-pane-head { background: #080c14; padding: 6px 12px; font-size: 10px; font-weight: 700; color: #cbd5e1; border-bottom: 1px solid #1e293b; }
-        
-        .bbg-list { display: flex; flex-direction: column; flex: 1; }
-        .bbg-list-item { display: flex; justify-content: space-between; padding: 10px 12px; background: none; border: none; border-bottom: 1px solid rgba(255,255,255,0.05); color: #fff; font-size: 11px; cursor: pointer; text-align: left; }
-        .bbg-list-item:hover { background: rgba(255,255,255,0.05); }
-        .bbg-list-item.active { background: rgba(16,185,129,0.1); border-left: 2px solid #10b981; }
-        .bbg-price.up { color: #10b981; } .bbg-price.down { color: #ef4444; }
-        
-        .bbg-ob-wrapper { display: flex; flex-direction: column; height: 100%; background: #020408; }
-        .bbg-ob-section { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; }
-        .bbg-ob-section.asks { justify-content: flex-end; }
-        .bbg-ob-section.bids { justify-content: flex-start; }
-        .bbg-ob-row { display: flex; justify-content: space-between; padding: 4px 12px; font-size: 11px; position: relative; }
-        .ob-bg { position: absolute; right: 0; top: 0; bottom: 0; opacity: 0.15; z-index: 0; }
-        .ask-bg { background: #ef4444; } .bid-bg { background: #10b981; }
-        .ob-price, .ob-vol { position: relative; z-index: 1; }
-        .ask-price { color: #ef4444; } .bid-price { color: #10b981; }
-        .ob-vol { color: #94a3b8; }
-        
-        .bbg-ob-spread { display: flex; justify-content: space-between; padding: 8px 12px; background: #080c14; border-top: 1px solid #1e293b; border-bottom: 1px solid #1e293b; font-size: 12px; font-weight: 700; }
-        .spread-label { color: #64748b; }
-        .spread-val.up { color: #10b981; } .spread-val.down { color: #ef4444; }
-        .spread-chg.up { color: #10b981; } .spread-chg.down { color: #ef4444; }
-        
-        .bbg-log-container { padding: 12px; flex: 1; background: #000; font-size: 11px; color: #10b981; line-height: 1.6; display: flex; flex-direction: column; gap: 4px; overflow: hidden; text-align: left; }
-        .bbg-log-line { opacity: 0.8; }
-        .bbg-log-line.highlight { color: #fff; font-weight: 700; background: rgba(16,185,129,0.2); display: inline-block; padding: 0 4px; }
-        .bbg-cursor { width: 6px; height: 12px; background: #10b981; animation: blink 1s step-end infinite; margin-top: 4px; }
-        @keyframes blink { 50% { opacity: 0; } }
 
         /* ── SECTIONS ── */
         .lp-section { padding: 4.5rem 1.5rem; }
