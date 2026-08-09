@@ -422,7 +422,7 @@ export class AetherisOrchestrator {
             probableImpact: 'Impact inconnu suite à une corruption des données IA.',
             recommendedAction: 'ATTENDRE',
             globalScore: 50,
-            confidenceLevel: 'Modéré',
+            confidenceLevel: 'Moyen',
             news: [],
             signals: ['Erreur de format IA - Signaux non disponibles'],
             technicalTrend: 'Neutre',
@@ -435,7 +435,7 @@ export class AetherisOrchestrator {
               idealEntryPoint: 'MARKET',
               takeProfit: 'N/A',
               stopLoss: 'N/A',
-              risk: 'Modéré',
+              risk: 'Moyen',
               why: 'Impossible de parser la stratégie suite à une erreur de formatage Gemini.',
               keyPoints: ['Analyse indisponible', 'Format JSON corrompu'],
               isAI: true
@@ -446,13 +446,13 @@ export class AetherisOrchestrator {
                 idealEntryPoint: 'MARKET',
                 takeProfit: 'N/A',
                 stopLoss: 'N/A',
-                risk: 'Modéré',
+                risk: 'Moyen',
                 why: 'Analyse indisponible',
                 keyPoints: ['Erreur de parsing'],
                 isAI: true
               }
             }
-          } as CompanyAnalysis;
+          } as unknown as CompanyAnalysis;
         }
         
         const finalResult = revalidation.data;
