@@ -359,20 +359,6 @@ export default function EnterpriseLandingPage() {
             </a>
           </div>
 
-          {/* Quick Search */}
-          <div className="hero-search-wrapper animate-in">
-            <form className="inst-search-form" onSubmit={handleSearch}>
-              <Search size={16} className="text-muted" />
-              <input
-                className="inst-search-input mono"
-                placeholder="RECHERCHER UN SYMBOLE (EX: ATW, IAM, BCP, TGCC, MANAGEM)..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-              />
-              <button type="submit" className="inst-search-btn mono">
-                RECHERCHER
-              </button>
-            </form>
           </div>
         </div>
       </section>
@@ -764,24 +750,6 @@ export default function EnterpriseLandingPage() {
           font-size: 13.5px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-family: 'Inter', sans-serif; text-decoration: none;
         }
         .btn-ghost-lg:hover { background: rgba(255,255,255,0.07); color: #fff; }
-
-        /* Search Form in Hero */
-        .hero-search-wrapper { width: 100%; max-width: 720px; }
-        .inst-search-form {
-          display: flex; align-items: center; gap: 8px;
-          background: rgba(9,13,20,0.9); border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 6px; padding: 4px 6px 4px 14px;
-        }
-        .inst-search-input {
-          flex: 1; background: none; border: none; color: #fff; font-size: 12px; outline: none;
-        }
-        .inst-search-input::placeholder { color: #334155; }
-        .inst-search-btn {
-          padding: 0.6rem 1.25rem; border-radius: 4px; background: rgba(255,255,255,0.06);
-          border: 1px solid rgba(255,255,255,0.1); color: #fff; font-size: 11px; font-weight: 700;
-          cursor: pointer; transition: background 0.2s;
-        }
-        .inst-search-btn:hover { background: rgba(255,255,255,0.12); }
 
         /* ── SECTIONS ── */
         .lp-section { padding: 4.5rem 1.5rem; }
