@@ -178,141 +178,120 @@ function TickerTape() {
 ───────────────────────────────────────── */
 function InstitutionalTerminal() {
   const [selectedTicker, setSelectedTicker] = useState('ATW');
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'QUANT' | 'AAOIFI'>('OVERVIEW');
+  const [logLines, setLogLines] = useState<string[]>([]);
+
+  useEffect(() => {
+    const lines = [
+      `> SYSTEM_INIT: AETHERIS ALPHA NODE 0x8F`,
+      `> CONNECTING TO BVC STREAM... [OK]`,
+      `> PARSING ORDER BOOK FOR ${selectedTicker}...`,
+      `> DETECTING BUY WALL AT 510.00 (14.2K VOL)`,
+      `> RUNNING QUANT MODEL: RSI(14)=58.3 MACD=BULL`,
+      `> RUNNING SHARIAH CHECK: DEBT_RATIO=24.1% [PASS]`,
+      `> ALPHA SYNTHESIS: 94% CONFIDENCE LONG`,
+      `> TARGET_12M: 606.00 MAD (+18.4%)`,
+      `> SYSTEM STANDBY...`
+    ];
+    let i = 0;
+    setLogLines([]);
+    const interval = setInterval(() => {
+      if (i < lines.length) {
+        setLogLines(prev => [...prev, lines[i]]);
+        i++;
+      } else {
+        clearInterval(interval);
+      }
+    }, 400);
+    return () => clearInterval(interval);
+  }, [selectedTicker]);
+
+  const orderBook = {
+    asks: [
+      { price: '515.50', vol: '1.2K', depth: '15%' },
+      { price: '514.00', vol: '4.5K', depth: '35%' },
+      { price: '513.50', vol: '2.1K', depth: '20%' },
+      { price: '513.00', vol: '8.4K', depth: '55%' },
+      { price: '512.50', vol: '3.0K', depth: '25%' },
+    ].reverse(),
+    bids: [
+      { price: '512.00', vol: '14.2K', depth: '85%' },
+      { price: '511.50', vol: '5.1K', depth: '40%' },
+      { price: '511.00', vol: '9.3K', depth: '65%' },
+      { price: '510.00', vol: '22.0K', depth: '100%' },
+      { price: '509.50', vol: '1.5K', depth: '10%' },
+    ]
+  };
+
+  const currentAsset = TICKERS.find(t => t.symbol === selectedTicker) || TICKERS[0];
 
   return (
-    <div className="inst-terminal-box">
-      {/* Top Terminal Bar */}
-      <div className="it-topbar">
-        <div className="it-left-controls">
-          <span className="it-dot red" /><span className="it-dot yellow" /><span className="it-dot green" />
-          <span className="it-title mono">AETHERIS ALPHA TERMINAL — MASI LIVE SYSTEM v2.0</span>
+    <div className="bbg-terminal">
+      <div className="bbg-header mono">
+        <div className="bbg-h-left">
+          <span className="live-dot-green" style={{ width: '8px', height: '8px' }} />
+          <span>AETHERIS TERMINAL [BETA 2.8] - BVC DIRECT ACCESS</span>
         </div>
-        <div className="it-right-status mono">
-          <span className="live-dot-green" />
-          <span>CONNECTED • BVC FEED 100% ONLINE</span>
-        </div>
+        <div className="bbg-h-right">SYS.UPTIME: 99.99% • LATENCY: 14ms</div>
       </div>
 
-      {/* Terminal Main Grid */}
-      <div className="it-grid">
-        {/* Left Ticker Selector */}
-        <div className="it-sidebar">
-          <div className="it-sidebar-head mono">WATCHLIST MASI</div>
-          <div className="it-ticker-list">
-            {TICKERS.slice(0, 5).map(t => (
+      <div className="bbg-main-grid">
+        <div className="bbg-pane bbg-watchlist">
+          <div className="bbg-pane-head mono">MARKET WATCH</div>
+          <div className="bbg-list">
+            {TICKERS.slice(0, 7).map(t => (
               <button 
-                key={t.symbol}
+                key={t.symbol} 
+                className={`bbg-list-item mono ${selectedTicker === t.symbol ? 'active' : ''}`}
                 onClick={() => setSelectedTicker(t.symbol)}
-                className={`it-ticker-row ${selectedTicker === t.symbol ? 'active' : ''}`}
               >
-                <div>
-                  <div className="it-tsym mono">{t.symbol}</div>
-                  <div className="it-tname">{t.name}</div>
-                </div>
-                <div className="text-right">
-                  <div className="it-tprice mono">{t.price}</div>
-                  <div className={`it-tchg mono ${t.up ? 'chg-up' : 'chg-down'}`}>{t.change}</div>
-                </div>
+                <div className="bbg-sym">{t.symbol}</div>
+                <div className={`bbg-price ${t.up ? 'up' : 'down'}`}>{t.price}</div>
               </button>
             ))}
           </div>
         </div>
 
-        {/* Center Workspace */}
-        <div className="it-workspace">
-          {/* Asset Header */}
-          <div className="it-asset-head">
-            <div>
-              <div className="it-asset-title-row">
-                <h2 className="it-asset-name">{selectedTicker} — Attijariwafa Bank</h2>
-                <span className="it-badge-pass mono">AAOIFI CONFORME</span>
-              </div>
-              <div className="it-asset-sub mono">SECTEUR : BANCAIRE • CAPITALISATION : 108.4 B MAD</div>
+        <div className="bbg-pane bbg-orderbook">
+          <div className="bbg-pane-head mono">{selectedTicker} - ORDER BOOK L2</div>
+          <div className="bbg-ob-wrapper mono">
+            <div className="bbg-ob-section asks">
+              {orderBook.asks.map((ask, i) => (
+                <div key={i} className="bbg-ob-row">
+                  <div className="ob-bg ask-bg" style={{ width: ask.depth }} />
+                  <span className="ob-price ask-price">{ask.price}</span>
+                  <span className="ob-vol">{ask.vol}</span>
+                </div>
+              ))}
+            </div>
+            
+            <div className="bbg-ob-spread">
+              <span className="spread-label">LAST TRADED:</span>
+              <span className={`spread-val ${currentAsset.up ? 'up' : 'down'}`}>{currentAsset.price} MAD</span>
+              <span className={`spread-chg ${currentAsset.up ? 'up' : 'down'}`}>{currentAsset.change}</span>
             </div>
 
-            {/* Tab Toggles */}
-            <div className="it-tab-toggles">
-              <button className={`it-tab-btn ${activeTab === 'OVERVIEW' ? 'active' : ''}`} onClick={() => setActiveTab('OVERVIEW')}>SYNTHÈSE ALPHA</button>
-              <button className={`it-tab-btn ${activeTab === 'QUANT' ? 'active' : ''}`} onClick={() => setActiveTab('QUANT')}>INDICATEURS QUANT</button>
-              <button className={`it-tab-btn ${activeTab === 'AAOIFI' ? 'active' : ''}`} onClick={() => setActiveTab('AAOIFI')}>AUDIT AAOIFI</button>
+            <div className="bbg-ob-section bids">
+              {orderBook.bids.map((bid, i) => (
+                <div key={i} className="bbg-ob-row">
+                  <div className="ob-bg bid-bg" style={{ width: bid.depth }} />
+                  <span className="ob-price bid-price">{bid.price}</span>
+                  <span className="ob-vol">{bid.vol}</span>
+                </div>
+              ))}
             </div>
           </div>
+        </div>
 
-          {/* Tab Content */}
-          {activeTab === 'OVERVIEW' && (
-            <div className="it-tab-content">
-              <div className="it-cards-row">
-                <div className="it-card">
-                  <div className="it-card-lbl mono">SIGNAL ALPHA SYNTHÈSE</div>
-                  <div className="it-card-val text-emerald mono">ACHAT FORT</div>
-                  <div className="it-card-sub mono">SCORE CONFIANCE : 94%</div>
-                </div>
-                <div className="it-card">
-                  <div className="it-card-lbl mono">OBJECTIF DE COURS (12M)</div>
-                  <div className="it-card-val mono">606.00 MAD</div>
-                  <div className="it-card-sub text-emerald mono">+18.4% POTENTIEL</div>
-                </div>
-                <div className="it-card">
-                  <div className="it-card-lbl mono">SENTIMENT MÉDIATIQUE NLP</div>
-                  <div className="it-card-val text-emerald mono">+0.78 POSITIF</div>
-                  <div className="it-card-sub mono">SCRAPING 42 SOURCES</div>
-                </div>
+        <div className="bbg-pane bbg-ai-feed">
+          <div className="bbg-pane-head mono">ALPHA AI LOG FEED</div>
+          <div className="bbg-log-container mono">
+            {logLines.map((line, i) => (
+              <div key={i} className={`bbg-log-line ${line.includes('[PASS]') || line.includes('LONG') ? 'highlight' : ''}`}>
+                {line}
               </div>
-
-              {/* Thesis Box */}
-              <div className="it-thesis-box">
-                <div className="it-tb-title mono">THÈSE D'INVESTISSEMENT SYNTHÉTISÉE PAR L'AGENT ALPHA :</div>
-                <p className="it-tb-text">
-                  "Résultats du T4 tirés par l'expansion du produit net bancaire (+8.2%) et une maîtrise rigoureuse du coût du risque. L'indicateur RSI(14) à 58.3 montre une dynamique haussière saine sans surachat. Ratio d'endettement à 24.1% conforme aux exigences éthiques AAOIFI."
-                </p>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'QUANT' && (
-            <div className="it-tab-content">
-              <div className="it-cards-row">
-                <div className="it-card">
-                  <div className="it-card-lbl mono">RSI (14 JOURS)</div>
-                  <div className="it-card-val mono">58.30</div>
-                  <div className="it-card-sub mono">ZONE NEUTRE-HAUSSIÈRE</div>
-                </div>
-                <div className="it-card">
-                  <div className="it-card-lbl mono">MACD (12, 26, 9)</div>
-                  <div className="it-card-val text-emerald mono">CROISEMENT BULL</div>
-                  <div className="it-card-sub mono">HISTOGRAMME +2.45</div>
-                </div>
-                <div className="it-card">
-                  <div className="it-card-lbl mono">MOMENTUM MM20 / MM50</div>
-                  <div className="it-card-val text-emerald mono">AU-DESSUS MM20</div>
-                  <div className="it-card-sub mono">SUPPORT : 498.00 MAD</div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'AAOIFI' && (
-            <div className="it-tab-content">
-              <div className="it-cards-row">
-                <div className="it-card">
-                  <div className="it-card-lbl mono">CRITÈRE D'ACTIVITÉ</div>
-                  <div className="it-card-val text-emerald mono">CONFORME</div>
-                  <div className="it-card-sub mono">AAOIFI STANDARD FAS-2</div>
-                </div>
-                <div className="it-card">
-                  <div className="it-card-lbl mono">RATIO D'ENDETTEMENT</div>
-                  <div className="it-card-val text-emerald mono">24.10%</div>
-                  <div className="it-card-sub mono">SEUIL MAXIMAL &lt; 30%</div>
-                </div>
-                <div className="it-card">
-                  <div className="it-card-lbl mono">PURIFICATION DIVIDENDES</div>
-                  <div className="it-card-val text-amber mono">0.42%</div>
-                  <div className="it-card-sub mono">0.42 MAD POUR 100 MAD</div>
-                </div>
-              </div>
-            </div>
-          )}
+            ))}
+            <div className="bbg-cursor" />
+          </div>
         </div>
       </div>
     </div>
@@ -394,8 +373,7 @@ export default function EnterpriseLandingPage() {
 
           <div className="nav-links">
             <a href="#terminal" className="nl">Terminal Live</a>
-            <Link href="/marche-live" className="nl">MASI Live</Link>
-            <Link href="/purification" className="nl">Audit AAOIFI</Link>
+            <Link href="/marche-live" className="nl">Live Market</Link>
             <a href="#pipeline" className="nl">Architecture</a>
             <a href="#outcomes" className="nl">Plateforme</a>
             <a href="#pricing"  className="nl">Tarifs</a>
@@ -450,10 +428,7 @@ export default function EnterpriseLandingPage() {
             <div className="mobile-links-container">
               <a href="#terminal" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Terminal Live</a>
               <Link href="/marche-live" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>
-                MASI Live
-              </Link>
-              <Link href="/purification" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>
-                Audit AAOIFI
+                Live Market
               </Link>
 
               <a href="#pipeline" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Architecture</a>
@@ -991,59 +966,46 @@ export default function EnterpriseLandingPage() {
         }
         .inst-search-btn:hover { background: rgba(255,255,255,0.12); }
 
-        /* ── TERMINAL AT THE CENTER ── */
-        .hero-terminal-container { width: 100%; max-width: 1150px; position: relative; z-index: 10; }
-        .inst-terminal-box {
-          background: #080c14; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
-          overflow: hidden; box-shadow: 0 30px 90px rgba(0,0,0,0.9);
-        }
-        .it-topbar {
-          display: flex; align-items: center; justify-content: space-between;
-          padding: 10px 16px; background: #0c101b; border-bottom: 1px solid rgba(255,255,255,0.06);
-        }
-        .it-left-controls { display: flex; align-items: center; gap: 6px; }
-        .it-dot { width: 10px; height: 10px; border-radius: 50%; }
-        .it-dot.red { background: #ff5f57; } .it-dot.yellow { background: #febc2e; } .it-dot.green { background: #28c840; }
-        .it-title { font-size: 10px; color: #64748b; margin-left: 8px; font-weight: 600; }
-        .it-right-status { display: flex; align-items: center; gap: 6px; font-size: 9.5px; color: #10b981; font-weight: 700; }
-
-        .it-grid { display: grid; grid-template-columns: 240px 1fr; min-height: 380px; }
-        .it-sidebar { border-right: 1px solid rgba(255,255,255,0.06); background: rgba(5,8,14,0.6); }
-        .it-sidebar-head { padding: 12px 14px; font-size: 9px; color: #475569; font-weight: 800; border-bottom: 1px solid rgba(255,255,255,0.04); letter-spacing: 0.05rem; }
-        .it-ticker-list { display: flex; flex-direction: column; }
-        .it-ticker-row {
-          display: flex; align-items: center; justify-content: space-between;
-          padding: 12px 14px; background: none; border: none; border-bottom: 1px solid rgba(255,255,255,0.03);
-          cursor: pointer; text-align: left; transition: background 0.15s;
-        }
-        .it-ticker-row:hover { background: rgba(255,255,255,0.03); }
-        .it-ticker-row.active { background: rgba(16,185,129,0.08); border-left: 2px solid #10b981; }
-        .it-tsym { font-size: 12px; font-weight: 800; color: #fff; }
-        .it-tname { font-size: 10px; color: #64748b; }
-        .it-tprice { font-size: 11px; color: #cbd5e1; }
-        .it-tchg { font-size: 10px; font-weight: 600; }
-
-        .it-workspace { padding: 1rem; display: flex; flex-direction: column; gap: 1.25rem; }
-        @media (min-width: 768px) { .it-workspace { padding: 1.5rem; } }
-        .it-asset-head { display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 1rem; flex-wrap: wrap; gap: 1rem; }
-        .it-asset-title-row { display: flex; align-items: center; gap: 10px; }
-        .it-asset-name { font-family: 'Outfit', sans-serif; font-size: 1.35rem; font-weight: 800; color: #fff; margin: 0; }
-        .it-badge-pass { font-size: 9px; font-weight: 800; color: #10b981; background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.25); padding: 2px 7px; border-radius: 3px; }
-        .it-asset-sub { font-size: 9.5px; color: #64748b; margin-top: 3px; }
-
-        .it-tab-toggles { display: flex; gap: 4px; background: rgba(255,255,255,0.03); padding: 3px; border-radius: 4px; }
-        .it-tab-btn { background: none; border: none; color: #64748b; font-size: 10px; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 5px 10px; border-radius: 3px; cursor: pointer; }
-        .it-tab-btn.active { background: rgba(255,255,255,0.08); color: #fff; }
-
-        .it-cards-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
-        .it-card { background: rgba(12,17,27,0.7); border: 1px solid rgba(255,255,255,0.05); padding: 1rem; border-radius: 6px; }
-        .it-card-lbl { font-size: 9px; color: #475569; font-weight: 700; margin-bottom: 4px; }
-        .it-card-val { font-size: 1.25rem; font-weight: 800; color: #fff; }
-        .it-card-sub { font-size: 9.5px; margin-top: 2px; }
-
-        .it-thesis-box { background: rgba(12,17,27,0.5); border: 1px solid rgba(255,255,255,0.05); padding: 1.1rem; border-radius: 6px; }
-        .it-tb-title { font-size: 9.5px; color: #10b981; font-weight: 800; margin-bottom: 6px; }
-        .it-tb-text { font-size: 12.5px; color: #94a3b8; line-height: 1.6; margin: 0; font-style: italic; }
+        /* ── NEW BLOOMBERG TERMINAL ── */
+        .bbg-terminal { background: #000; border: 1px solid #1e293b; border-radius: 4px; overflow: hidden; font-family: 'JetBrains Mono', monospace; position: relative; box-shadow: 0 30px 90px rgba(0,0,0,0.9); }
+        .bbg-terminal::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(0,0,0,0.1), rgba(0,0,0,0.1) 1px, transparent 1px, transparent 2px); pointer-events: none; z-index: 50; }
+        .bbg-header { display: flex; justify-content: space-between; padding: 6px 12px; background: #04080e; border-bottom: 1px solid #1e293b; font-size: 10px; color: #94a3b8; }
+        .bbg-h-left { display: flex; align-items: center; gap: 8px; font-weight: 700; color: #10b981; }
+        
+        .bbg-main-grid { display: grid; grid-template-columns: 220px 1fr 300px; min-height: 400px; }
+        @media (max-width: 1024px) { .bbg-main-grid { grid-template-columns: 1fr; } }
+        
+        .bbg-pane { border-right: 1px solid #1e293b; display: flex; flex-direction: column; }
+        .bbg-pane:last-child { border-right: none; }
+        .bbg-pane-head { background: #080c14; padding: 6px 12px; font-size: 10px; font-weight: 700; color: #cbd5e1; border-bottom: 1px solid #1e293b; }
+        
+        .bbg-list { display: flex; flex-direction: column; flex: 1; }
+        .bbg-list-item { display: flex; justify-content: space-between; padding: 10px 12px; background: none; border: none; border-bottom: 1px solid rgba(255,255,255,0.05); color: #fff; font-size: 11px; cursor: pointer; text-align: left; }
+        .bbg-list-item:hover { background: rgba(255,255,255,0.05); }
+        .bbg-list-item.active { background: rgba(16,185,129,0.1); border-left: 2px solid #10b981; }
+        .bbg-price.up { color: #10b981; } .bbg-price.down { color: #ef4444; }
+        
+        .bbg-ob-wrapper { display: flex; flex-direction: column; height: 100%; background: #020408; }
+        .bbg-ob-section { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; }
+        .bbg-ob-section.asks { justify-content: flex-end; }
+        .bbg-ob-section.bids { justify-content: flex-start; }
+        .bbg-ob-row { display: flex; justify-content: space-between; padding: 4px 12px; font-size: 11px; position: relative; }
+        .ob-bg { position: absolute; right: 0; top: 0; bottom: 0; opacity: 0.15; z-index: 0; }
+        .ask-bg { background: #ef4444; } .bid-bg { background: #10b981; }
+        .ob-price, .ob-vol { position: relative; z-index: 1; }
+        .ask-price { color: #ef4444; } .bid-price { color: #10b981; }
+        .ob-vol { color: #94a3b8; }
+        
+        .bbg-ob-spread { display: flex; justify-content: space-between; padding: 8px 12px; background: #080c14; border-top: 1px solid #1e293b; border-bottom: 1px solid #1e293b; font-size: 12px; font-weight: 700; }
+        .spread-label { color: #64748b; }
+        .spread-val.up { color: #10b981; } .spread-val.down { color: #ef4444; }
+        .spread-chg.up { color: #10b981; } .spread-chg.down { color: #ef4444; }
+        
+        .bbg-log-container { padding: 12px; flex: 1; background: #000; font-size: 11px; color: #10b981; line-height: 1.6; display: flex; flex-direction: column; gap: 4px; overflow: hidden; text-align: left; }
+        .bbg-log-line { opacity: 0.8; }
+        .bbg-log-line.highlight { color: #fff; font-weight: 700; background: rgba(16,185,129,0.2); display: inline-block; padding: 0 4px; }
+        .bbg-cursor { width: 6px; height: 12px; background: #10b981; animation: blink 1s step-end infinite; margin-top: 4px; }
+        @keyframes blink { 50% { opacity: 0; } }
 
         /* ── SECTIONS ── */
         .lp-section { padding: 4.5rem 1.5rem; }
