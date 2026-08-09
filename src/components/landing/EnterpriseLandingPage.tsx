@@ -328,6 +328,7 @@ export default function EnterpriseLandingPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeOutcome, setActiveOutcome] = useState(0);
   const [scrolled, setScrolled] = useState(false);
+  const [scrollProgress, setScrollProgress] = useState(0);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -340,7 +341,13 @@ export default function EnterpriseLandingPage() {
       setIsAuthenticated(!!s?.user);
     });
 
-    const onScroll = () => setScrolled(window.scrollY > 20);
+    const onScroll = () => {
+      setScrolled(window.scrollY > 20);
+      const doc = document.documentElement;
+      const winScroll = doc.scrollTop || document.body.scrollTop;
+      const height = doc.scrollHeight - doc.clientHeight;
+      setScrollProgress((winScroll / height) * 100);
+    };
     window.addEventListener('scroll', onScroll, { passive: true });
 
     return () => {
@@ -361,6 +368,15 @@ export default function EnterpriseLandingPage() {
 
   return (
     <div className="lp-root">
+      {/* Scroll Progress Bar */}
+      <div 
+        style={{
+          position: 'fixed', top: 0, left: 0, height: '3px', 
+          background: 'linear-gradient(90deg, #10b981, #3b82f6)', 
+          width: `${scrollProgress}%`, zIndex: 999999,
+          transition: 'width 0.1s ease-out'
+        }} 
+      />
       <div className="noise-overlay" aria-hidden />
 
       {/* ════════════════════ NAVBAR ════════════════════ */}
@@ -468,6 +484,8 @@ export default function EnterpriseLandingPage() {
 
       {/* ════════════════════ HERO SECTION ════════════════════ */}
       <section className="lp-hero">
+        <div className="hero-orb-1" />
+        <div className="hero-orb-2" />
         <div className="hero-grid-bg" aria-hidden />
 
         <div className="hero-content">
@@ -694,6 +712,24 @@ export default function EnterpriseLandingPage() {
         </div>
       </section>
 
+      {/* ════════════════════ PRE-FOOTER CTA ════════════════════ */}
+      <section className="lp-section lp-dark-section">
+        <div className="lp-container">
+          <div className="pre-footer-box animate-in">
+            <div className="pf-orb" />
+            <h2 className="section-h2" style={{ marginBottom: '1rem', position: 'relative', zIndex: 10 }}>Prêt à dominer le MASI ?</h2>
+            <p className="section-p" style={{ marginBottom: '2rem', color: '#cbd5e1', position: 'relative', zIndex: 10 }}>
+              Rejoignez l'élite des investisseurs. Accédez aux signaux quantitatifs et aux audits AAOIFI en temps réel.
+            </p>
+            <Link href="/login?mode=signup" style={{ position: 'relative', zIndex: 10 }}>
+              <button className="btn-primary-lg">
+                Créer un compte gratuit <ArrowRight size={16} />
+              </button>
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* ════════════════════ FOOTER ════════════════════ */}
       <footer className="lp-footer">
         <div className="footer-inner">
@@ -784,8 +820,8 @@ export default function EnterpriseLandingPage() {
         .ticker-tape-container::before { left: 0; background: linear-gradient(90deg, #030508 0%, transparent 100%); }
         .ticker-tape-container::after  { right: 0; background: linear-gradient(-90deg, #030508 0%, transparent 100%); }
         .ticker-tape-inner { overflow: hidden; width: 100%; }
-        .ticker-tape-track { display: flex; gap: 0; white-space: nowrap; animation: ticker-scroll 45s linear infinite; }
-        @keyframes ticker-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        .ticker-tape-track { display: flex; gap: 0; white-space: nowrap; animation: ticker-scroll 45s linear infinite; will-change: transform; transform: translate3d(0, 0, 0); }
+        @keyframes ticker-scroll { 0% { transform: translate3d(0, 0, 0); } 100% { transform: translate3d(-50%, 0, 0); } }
         .ticker-item { display: inline-flex; align-items: center; gap: 6px; padding: 0 1.25rem; font-size: 11px; }
         .ticker-sym { color: #f8fafc; font-weight: 700; }
         .ticker-price { color: #64748b; }
@@ -902,7 +938,15 @@ export default function EnterpriseLandingPage() {
           color: #10b981; font-size: 10px; font-weight: 700; letter-spacing: 0.05rem;
           margin-bottom: 1.5rem;
         }
-        .live-dot-green { width: 6px; height: 6px; border-radius: 50%; background: #10b981; display: inline-block; }
+        .live-dot-green { width: 6px; height: 6px; border-radius: 50%; background: #10b981; display: inline-block; box-shadow: 0 0 8px #10b981; animation: pulse-opacity 2s ease-in-out infinite; }
+        @keyframes pulse-opacity { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.1); } }
+        
+        .hero-orb-1 { position: absolute; top: -100px; left: 15%; width: 400px; height: 400px; background: rgba(16,185,129,0.15); border-radius: 50%; filter: blur(100px); animation: pulse-orb 8s ease-in-out infinite alternate; pointer-events: none; z-index: 1; }
+        .hero-orb-2 { position: absolute; top: 20%; right: 10%; width: 300px; height: 300px; background: rgba(59,130,246,0.12); border-radius: 50%; filter: blur(90px); animation: pulse-orb 10s ease-in-out infinite alternate-reverse; pointer-events: none; z-index: 1; }
+        @keyframes pulse-orb { 0% { transform: scale(1) translate(0, 0); opacity: 0.4; } 100% { transform: scale(1.2) translate(30px, 30px); opacity: 0.8; } }
+        
+        .pre-footer-box { text-align: center; padding: 4rem 2rem; background: rgba(12,17,27,0.5); border: 1px solid rgba(16,185,129,0.2); border-radius: 12px; position: relative; overflow: hidden; }
+        .pf-orb { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 300px; height: 300px; background: rgba(16,185,129,0.15); filter: blur(80px); border-radius: 50%; z-index: 0; pointer-events: none; }
 
         .hero-h1 {
           font-family: 'Outfit', sans-serif; font-size: clamp(2.4rem, 4.5vw, 3.8rem);
@@ -917,9 +961,10 @@ export default function EnterpriseLandingPage() {
         .btn-primary-lg {
           display: inline-flex; align-items: center; gap: 8px; padding: 0.85rem 1.75rem; border-radius: 6px;
           background: #10b981; border: none; color: #000; font-size: 13.5px; font-weight: 800;
-          cursor: pointer; transition: all 0.2s; font-family: 'Inter', sans-serif;
+          cursor: pointer; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); font-family: 'Inter', sans-serif;
         }
-        .btn-primary-lg:hover { background: #34d399; }
+        .btn-primary-lg:hover { background: #34d399; transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(16,185,129,0.4); }
+        .btn-primary-lg:active { transform: translateY(0) scale(0.98); opacity: 0.8; box-shadow: none; }
 
         .btn-ghost-lg {
           display: inline-flex; align-items: center; gap: 8px; padding: 0.85rem 1.75rem; border-radius: 6px;
@@ -1007,7 +1052,7 @@ export default function EnterpriseLandingPage() {
         .section-head { text-align: center; margin-bottom: 3.5rem; }
         .section-eyebrow { font-size: 9.5px; font-weight: 800; color: #10b981; letter-spacing: 0.15rem; margin-bottom: 1rem; display: block; text-transform: uppercase; }
         .section-h2 { font-family: 'Outfit', sans-serif; font-size: clamp(2.2rem, 5.5vw, 3.8rem); font-weight: 800; color: #fff; letter-spacing: -0.03em; margin-bottom: 1.25rem; line-height: 1.1; }
-        .section-p { font-size: 1.05rem; color: #94a3b8; max-width: 600px; margin: 0 auto; line-height: 1.7; }
+        .section-p { font-size: 1.05rem; color: #cbd5e1; max-width: 600px; margin: 0 auto; line-height: 1.7; }
         @media (min-width: 768px) {
           .lp-section { padding: 8rem 2rem; }
           .section-head { margin-bottom: 5rem; }
@@ -1015,8 +1060,11 @@ export default function EnterpriseLandingPage() {
 
         /* ── PIPELINE STAGES ── */
         .pipeline-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1rem; }
-        .pipeline-card { background: rgba(12,17,27,0.7); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 1.5rem; display: flex; flex-direction: column; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        .pipeline-card { background: rgba(12,17,27,0.7); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 1.5rem; display: flex; flex-direction: column; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); position: relative; overflow: hidden; }
+        .pipeline-card::before { content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%; background: linear-gradient(90deg, transparent, rgba(16,185,129,0.05), transparent); transition: left 0.5s ease; z-index: 0; pointer-events: none; }
+        .pipeline-card:hover::before { left: 150%; }
         .pipeline-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px -10px rgba(16,185,129,0.15); border-color: rgba(16,185,129,0.25); background: rgba(16,185,129,0.03); }
+        .pc-top, .pc-title, .pc-subtitle, .pc-desc, .pc-metrics { position: relative; z-index: 1; }
         .pc-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
         .pc-step { font-size: 11px; font-weight: 800; color: #10b981; }
         .pc-icon { color: #64748b; }
@@ -1056,7 +1104,8 @@ export default function EnterpriseLandingPage() {
           background: rgba(12,17,27,0.7); border: 1px solid rgba(255,255,255,0.07);
           border-radius: 8px; padding: 2.5rem; display: flex; flex-direction: column; position: relative;
         }
-        .pricing-card.pc-featured { border-color: rgba(16,185,129,0.3); background: rgba(12,17,27,0.9); }
+        .pricing-card.pc-featured { border-color: rgba(16,185,129,0.5); background: rgba(12,17,27,0.9); box-shadow: 0 0 40px rgba(16,185,129,0.15); }
+        @media (min-width: 768px) { .pricing-card.pc-featured { transform: scale(1.05); z-index: 10; } }
         .pc-popular-tag { position: absolute; top: -12px; right: 20px; background: #10b981; color: #000; font-size: 9px; font-weight: 800; padding: 3px 10px; border-radius: 3px; display: flex; align-items: center; gap: 4px; }
         .pc-header { margin-bottom: 1.5rem; }
         .pc-title { font-family: 'Outfit', sans-serif; font-size: 1.4rem; font-weight: 800; color: #fff; margin-bottom: 0.3rem; }

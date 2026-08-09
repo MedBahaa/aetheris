@@ -61,6 +61,8 @@ svg, canvas, img {
 html {
   overflow-x: hidden;
   width: 100%;
+  scroll-behavior: smooth;
+  scroll-padding-top: 80px;
 }
 
 body {
