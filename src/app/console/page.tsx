@@ -32,7 +32,7 @@ function ConsoleHome() {
   const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [subscriptionTier, setSubscriptionTier] = useState<string>('free');
+  const [subscriptionTier, setSubscriptionTier] = useState<string | null>(null);
   const [showPaywallModal, setShowPaywallModal] = useState(false);
   
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -141,7 +141,7 @@ function ConsoleHome() {
     if (!finalQuery || isPending) return;
 
     const agentToUse = overrideAgent || activeAgent;
-    if (agentToUse === 'STRATEGY' && subscriptionTier !== 'premium') {
+    if (agentToUse === 'STRATEGY' && subscriptionTier === 'free') {
       setLoading(false);
       setShowPaywallModal(true);
       return;
@@ -185,7 +185,12 @@ function ConsoleHome() {
         }, 500);
       } catch (err: any) {
         console.error(err);
-        setError(err.message || "Une erreur est survenue lors de l'analyse.");
+        const msg = err.message || '';
+        if (msg.includes('PAYWALL_BLOCKED')) {
+          setShowPaywallModal(true);
+        } else {
+          setError(msg || "Une erreur est survenue lors de l'analyse.");
+        }
         setLoading(false);
         clearInterval(interval);
       }
