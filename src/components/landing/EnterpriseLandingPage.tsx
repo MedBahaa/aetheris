@@ -236,15 +236,15 @@ export default function EnterpriseLandingPage() {
       {/* ════════════════════ NAVBAR ════════════════════ */}
       <nav className={`lp-nav${scrolled ? ' nav-scrolled' : ''}`} role="navigation">
         <div className="nav-inner">
-          <Link href="/" className="nav-brand" aria-label="Aetheris — Accueil">
-            <div className="brand-orb">
-              <Zap size={16} fill="#000" strokeWidth={0} />
-            </div>
-            <div className="brand-title-row">
-              <span className="brand-name">AETHERIS</span>
-              <span className="brand-status-pill mono">v2.8</span>
-            </div>
-          </Link>
+            <Link href="/" className="brand-logo">
+              <div className="logo-icon-box">
+                <Zap size={18} fill="currentColor" strokeWidth={0} />
+              </div>
+              <div className="brand-title-row">
+                <span className="brand-name">AETHERIS</span>
+                <span className="brand-status-pill mono">v2.8</span>
+              </div>
+            </Link>
 
           <div className="nav-links">
             <a href="/marche-live" className="nl">Live Market</a>
@@ -287,8 +287,8 @@ export default function EnterpriseLandingPage() {
         <div className="mobile-drawer-overlay animate-in">
           <div className="mobile-drawer-header">
             <Link href="/" className="brand-logo" onClick={() => setMobileMenuOpen(false)}>
-              <div className="brand-orb">
-                <Zap size={16} fill="#000" strokeWidth={0} />
+              <div className="logo-icon-box">
+                <Zap size={18} fill="currentColor" strokeWidth={0} />
               </div>
               <div className="brand-title-row">
                 <span className="brand-name">AETHERIS</span>
@@ -604,6 +604,11 @@ export default function EnterpriseLandingPage() {
       {/* ════════════════════ INSTITUTIONAL FINTECH STYLES ════════════════════ */}
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
+        .brand-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+        .logo-icon-box { background: #10b981; color: #000; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(16,185,129,0.2); }
+        .brand-title-row { display: flex; align-items: center; gap: 8px; }
+        .brand-name { font-family: 'Outfit', sans-serif; font-weight: 900; font-size: 1.25rem; color: #fff; letter-spacing: -0.5px; }
+        .brand-status-pill { font-size: 8.5px; color: #10b981; font-weight: 800; border: 1px solid rgba(16,185,129,0.3); padding: 2px 6px; border-radius: 4px; background: rgba(16,185,129,0.06); }
       `}</style>
 
       <style jsx>{`
@@ -640,12 +645,6 @@ export default function EnterpriseLandingPage() {
         }
         .lp-nav.nav-scrolled { background: rgba(3,5,8,0.75); backdrop-filter: blur(24px); box-shadow: 0 4px 20px rgba(0,0,0,0.8); }
         .nav-inner { width: 100%; max-width: 1400px; margin: 0 auto; padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; }
-        .nav-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
-        .brand-orb { width: 32px; height: 32px; border-radius: 6px; background: #10b981; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-        .brand-orb.sm { width: 26px; height: 26px; border-radius: 5px; }
-        .brand-title-row { display: flex; align-items: center; gap: 8px; }
-        .brand-name { font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.1rem; color: #fff; letter-spacing: -0.02em; }
-        .brand-status-pill { font-size: 8px; color: #10b981; font-weight: 700; border: 1px solid rgba(16,185,129,0.3); padding: 1px 5px; border-radius: 3px; background: rgba(16,185,129,0.06); }
 
         .nav-links { display: flex; align-items: center; gap: 1.25rem; }
         .nl { font-size: 13.5px; font-weight: 700; color: #cbd5e1; text-decoration: none; transition: color 0.2s; padding: 5px 10px; border-radius: 6px; }
@@ -656,10 +655,6 @@ export default function EnterpriseLandingPage() {
         .mobile-drawer-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999; background: #030508; padding: 1.5rem; display: flex; flex-direction: column; }
         
         .mobile-drawer-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
-        .mobile-logo-brand { display: flex; align-items: center; gap: 8px; }
-        .mobile-logo-icon-bg { background: #10b981; border-radius: 6px; padding: 6px; display: flex; align-items: center; justify-content: center; }
-        .mobile-brand-name { font-family: 'Outfit', sans-serif; font-weight: 900; font-size: 1.2rem; color: #fff; letter-spacing: -0.5px; }
-        .mobile-version-badge { font-size: 8.5px; font-weight: 800; color: #10b981; border: 1px solid rgba(16,185,129,0.3); padding: 2px 6px; border-radius: 4px; }
         .mobile-close-btn { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: #fff; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.2s; }
         
         .mobile-drawer-inner { display: flex; flex-direction: column; width: 100%; }
