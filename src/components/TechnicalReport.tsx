@@ -112,7 +112,7 @@ export default function TechnicalReport({ analysis }: TechnicalReportProps) {
               style={{ width: `${dataQuality.score}%` }}
             ></div>
           </div>
-          {dataQuality.warnings.map((w, i) => (
+          {dataQuality.warnings?.map((w, i) => (
             <div key={i} className="dq-warning-item">
               <span className="dq-dot">•</span>
               <span className="dq-text">{w}</span>

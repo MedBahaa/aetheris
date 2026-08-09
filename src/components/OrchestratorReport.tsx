@@ -202,12 +202,19 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
           <h4 className="card-title">Facteurs de Décision Multi-Agents</h4>
         </div>
         <div className="keys-grid">
-          {data.keyPoints.map((point, i) => (
-            <div key={i} className="key-item glass">
-               <div className="item-marker"></div>
-               <p>{point}</p>
+          {data.keyPoints && data.keyPoints.length > 0 ? (
+            data.keyPoints.map((point, i) => (
+              <div key={i} className="key-item glass">
+                 <div className="item-marker"></div>
+                 <p>{point}</p>
+              </div>
+            ))
+          ) : (
+            <div className="key-item glass">
+              <div className="item-marker" style={{ background: 'var(--slate-500)' }}></div>
+              <p className="text-muted">Analyse des facteurs clés en cours de génération ou données limitées.</p>
             </div>
-          ))}
+          )}
         </div>
       </div>
 
