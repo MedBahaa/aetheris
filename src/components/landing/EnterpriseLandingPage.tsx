@@ -359,7 +359,6 @@ export default function EnterpriseLandingPage() {
             </a>
           </div>
 
-          </div>
         </div>
       </section>
 
