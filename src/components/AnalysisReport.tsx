@@ -128,8 +128,8 @@ export default function AnalysisReport({ analysis }: AnalysisReportProps) {
                       <p className="log-summary">{item.summary}</p>
                    </div>
                    <div className="log-actions">
-                       <span className={`action-tag mono ${item.sentiment.toLowerCase()}`}>
-                         {item.sentiment.replace(/_/g, ' ').charAt(0).toUpperCase() + item.sentiment.replace(/_/g, ' ').slice(1).toLowerCase()}
+                       <span className={`action-tag mono ${item.sentiment ? String(item.sentiment).toLowerCase() : 'neutre'}`}>
+                         {item.sentiment ? String(item.sentiment).replace(/_/g, ' ').charAt(0).toUpperCase() + String(item.sentiment).replace(/_/g, ' ').slice(1).toLowerCase() : 'Neutre'}
                        </span>
                       <button className="log-toggle">
                         {expandedNews === item.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}

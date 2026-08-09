@@ -28,8 +28,9 @@ const TrendBadge = ({ trend }: { trend: string }) => {
 /**
  * Classifie intelligemment chaque signal pour déterminer son type et badge
  */
-function classifySignal(signal: string): { type: 'bullish' | 'bearish' | 'warning' | 'info' | 'neutral'; label: string } {
-  const s = signal.toLowerCase();
+function classifySignal(signal: string | null | undefined): { type: 'bullish' | 'bearish' | 'warning' | 'info' | 'neutral'; label: string } {
+  if (!signal) return { type: 'info', label: 'INCONNU' };
+  const s = String(signal).toLowerCase();
   
   // Signaux bearish / alertes
   if (s.includes('❌') || s.includes('indisponible') || s.includes('impossible') || s.includes('erreur')) {
