@@ -247,10 +247,10 @@ export default function EnterpriseLandingPage() {
           </Link>
 
           <div className="nav-links">
-            <Link href="/marche-live" className="nl">Live Market</Link>
-            <Link href="#pipeline" className="nl">Architecture</Link>
-            <Link href="#outcomes" className="nl">Plateforme</Link>
-            <Link href="#pricing"  className="nl">Tarifs</Link>
+            <a href="/marche-live" className="nl">Live Market</a>
+            <a href="#pipeline" className="nl">Architecture</a>
+            <a href="#outcomes" className="nl">Plateforme</a>
+            <a href="#pricing"  className="nl">Tarifs</a>
           </div>
 
           <div className="nav-ctas">
@@ -302,10 +302,10 @@ export default function EnterpriseLandingPage() {
 
           <div className="mobile-drawer-inner">
             <div className="mobile-links-container">
-              <Link href="/marche-live" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Live Market</Link>
-              <Link href="#pipeline" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Architecture</Link>
-              <Link href="#outcomes" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Plateforme</Link>
-              <Link href="#pricing" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Tarifs</Link>
+              <a href="/marche-live" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Live Market</a>
+              <a href="#pipeline" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Architecture</a>
+              <a href="#outcomes" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Plateforme</a>
+              <a href="#pricing" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Tarifs</a>
             </div>
 
             <div className="mobile-drawer-divider" />
@@ -663,8 +663,8 @@ export default function EnterpriseLandingPage() {
         .brand-status-pill { font-size: 8px; color: #10b981; font-weight: 700; border: 1px solid rgba(16,185,129,0.3); padding: 1px 5px; border-radius: 3px; background: rgba(16,185,129,0.06); }
 
         .nav-links { display: flex; align-items: center; gap: 1.25rem; }
-        .nl { font-family: 'Inter', sans-serif; font-size: 13.5px; font-weight: 700; color: #cbd5e1; text-decoration: none; transition: color 0.2s; padding: 5px 10px; border-radius: 6px; }
-        .nl:hover, .nl:focus { color: #ffffff !important; background: rgba(255,255,255,0.06); }
+        .nl { font-size: 13.5px; font-weight: 700; color: #cbd5e1; text-decoration: none; transition: color 0.2s; padding: 5px 10px; border-radius: 6px; }
+        .nl:hover { color: #fff; } .nl:focus { color: #ffffff !important; background: rgba(255,255,255,0.06); }
 
         .nav-ctas { display: flex; align-items: center; gap: 0.75rem; }
         .mobile-hamburger-btn { display: none; background: none; border: none; color: #fff; cursor: pointer; padding: 0.5rem; }
