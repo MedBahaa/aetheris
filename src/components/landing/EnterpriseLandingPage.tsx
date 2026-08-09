@@ -248,9 +248,9 @@ export default function EnterpriseLandingPage() {
 
           <div className="nav-links">
             <Link href="/marche-live" className="nl">Live Market</Link>
-            <a href="#pipeline" className="nl">Architecture</a>
-            <a href="#outcomes" className="nl">Plateforme</a>
-            <a href="#pricing"  className="nl">Tarifs</a>
+            <Link href="#pipeline" className="nl">Architecture</Link>
+            <Link href="#outcomes" className="nl">Plateforme</Link>
+            <Link href="#pricing"  className="nl">Tarifs</Link>
           </div>
 
           <div className="nav-ctas">
@@ -286,13 +286,15 @@ export default function EnterpriseLandingPage() {
       {mobileMenuOpen && (
         <div className="mobile-drawer-overlay animate-in">
           <div className="mobile-drawer-header">
-            <div className="mobile-logo-brand">
-              <div className="mobile-logo-icon-bg">
-                <Zap size={14} className="text-black" />
+            <Link href="/" className="brand-logo" onClick={() => setMobileMenuOpen(false)}>
+              <div className="brand-orb">
+                <Zap size={16} fill="#000" strokeWidth={0} />
               </div>
-              <span className="mobile-brand-name">AETHERIS</span>
-              <span className="mobile-version-badge">v2.8</span>
-            </div>
+              <div className="brand-title-row">
+                <span className="brand-name">AETHERIS</span>
+                <span className="brand-status-pill mono">v2.8</span>
+              </div>
+            </Link>
             <button className="mobile-close-btn" onClick={() => setMobileMenuOpen(false)}>
               <X size={18} />
             </button>
@@ -301,9 +303,9 @@ export default function EnterpriseLandingPage() {
           <div className="mobile-drawer-inner">
             <div className="mobile-links-container">
               <Link href="/marche-live" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Live Market</Link>
-              <a href="#pipeline" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Architecture</a>
-              <a href="#outcomes" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Plateforme</a>
-              <a href="#pricing" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Tarifs</a>
+              <Link href="#pipeline" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Architecture</Link>
+              <Link href="#outcomes" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Plateforme</Link>
+              <Link href="#pricing" className="mobile-card-link" onClick={() => setMobileMenuOpen(false)}>Tarifs</Link>
             </div>
 
             <div className="mobile-drawer-divider" />
