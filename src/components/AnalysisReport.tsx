@@ -175,7 +175,7 @@ export default function AnalysisReport({ analysis }: AnalysisReportProps) {
                   </div>
                 )}
               </div>
-            ))
+            )})
           ) : (
             <div className="empty-log glass">
               <Info size={24} className="opacity-20" />
