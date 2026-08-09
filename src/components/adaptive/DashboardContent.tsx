@@ -20,8 +20,6 @@ export default function DashboardContent(props: DashboardProps) {
     handleSearch, executeSearch, searchRef, logContainerRef, setActiveAgent, handleAgentChange
   } = props;
 
-  const onAgentChange = handleAgentChange || setActiveAgent;
-
   // Quick Action Popular Moroccan Tickers
   const popularTickers = [
     { symbol: 'ATW', name: 'Attijariwafa Bank', sector: 'Bancaire' },

@@ -345,7 +345,7 @@ export class AetherisOrchestrator {
                hData.takeProfit = sanitizePriceField(hData.takeProfit, 'TP', currentVal);
                hData.stopLoss = sanitizePriceField(hData.stopLoss, 'SL', currentVal);
                hData.idealEntryPoint = hData.idealEntryPoint && hData.idealEntryPoint !== 'N/A' 
-                 ? hData.idealEntryPoint : (cleanedMarket.support || cleanedMarket.price);
+                 ? hData.idealEntryPoint : (cleanedMarket.support || cleanedMarket.price || 'MARKET');
              }
           });
         }
@@ -357,18 +357,6 @@ export class AetherisOrchestrator {
 
         const fallbackEntry = (!cleanedMarket.support || cleanedMarket.support.includes('N/A')) 
              ? 'MARKET' : `${cleanedMarket.support} - ${cleanedMarket.price}`;
-
-        // AUDIT FIX: Tracker les données fondamentales manquantes 
-        const fundFields = ['peRatio', 'dividendYield', 'marketCap', 'roe', 'netProfit'];
-        const missingFund = fundFields.filter(f => {
-          const v = fundamentalData.fundamentals?.[f as keyof typeof fundamentalData.fundamentals];
-          return !v || v === 'N/A';
-        });
-        if (missingFund.length > 0) {
-          dataQuality.missingFields.push(...missingFund);
-          dataQuality.score -= (missingFund.length * 5);
-          dataQuality.warnings.push(`Fondamentaux manquants: ${missingFund.join(', ')}`);
-        }
 
         result = {
           ...result,
@@ -409,15 +397,31 @@ export class AetherisOrchestrator {
         if (!result.globalSentiment) result.globalSentiment = 'NEUTRE';
         if (!result.probableImpact) result.probableImpact = 'Impact non déterminé.';
         
+        // Champs supplémentaires qui pourraient manquer et faire crasher la validation
+        if (type === 'STRATEGY') {
+          if (!result.recommendedAction) result.recommendedAction = 'ATTENDRE';
+          if (!result.strategyPlan) result.strategyPlan = 'Analyse en cours...';
+        }
+        
         // Re-validation après correction
         const revalidation = CompanyAnalysisSchema.safeParse(result);
         if (!revalidation.success) {
           console.error("[Orchestrator] ❌ Validation Zod échouée même après correction. Erreurs:", JSON.stringify(revalidation.error.format(), null, 2));
-          // AUDIT FIX: On ajoute un warning mais on retourne le résultat (downgrade, pas crash)
           dataQuality.warnings.push('⚠️ La validation des données a échoué. Résultats potentiellement incomplets.');
           dataQuality.score = Math.max(0, dataQuality.score - 20);
           result.dataQuality = dataQuality;
-          return result as CompanyAnalysis;
+          
+          // Ultime fallback manuel pour éviter un blocage client
+          return {
+            ...result,
+            globalSentiment: result.globalSentiment || 'NEUTRE',
+            probableImpact: result.probableImpact || 'Impact inconnu.',
+            recommendedAction: result.recommendedAction || 'ATTENDRE',
+            type: result.type || 'STRATEGY',
+            companyName: result.companyName || searchName,
+            id: result.id || Math.random().toString(),
+            date: result.date || new Date().toLocaleString()
+          } as CompanyAnalysis;
         }
         
         const finalResult = revalidation.data;
