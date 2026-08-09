@@ -242,7 +242,6 @@ export default function EnterpriseLandingPage() {
               </div>
               <div className="brand-title-row">
                 <span className="brand-name">AETHERIS</span>
-                <span className="brand-status-pill mono">v2.8</span>
               </div>
             </Link>
 
@@ -292,7 +291,6 @@ export default function EnterpriseLandingPage() {
               </div>
               <div className="brand-title-row">
                 <span className="brand-name">AETHERIS</span>
-                <span className="brand-status-pill mono">v2.8</span>
               </div>
             </Link>
             <button className="mobile-close-btn" onClick={() => setMobileMenuOpen(false)}>
@@ -608,7 +606,6 @@ export default function EnterpriseLandingPage() {
         .logo-icon-box { background: #10b981; color: #000; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(16,185,129,0.2); }
         .brand-title-row { display: flex; align-items: center; gap: 8px; }
         .brand-name { font-family: 'Outfit', sans-serif; font-weight: 900; font-size: 1.25rem; color: #fff; letter-spacing: -0.5px; }
-        .brand-status-pill { font-size: 8.5px; color: #10b981; font-weight: 800; border: 1px solid rgba(16,185,129,0.3); padding: 2px 6px; border-radius: 4px; background: rgba(16,185,129,0.06); }
       `}</style>
 
       <style jsx>{`
