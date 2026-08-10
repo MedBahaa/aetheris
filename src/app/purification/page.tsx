@@ -30,7 +30,7 @@ interface ShariaResult {
   sources: string[];
 }
 
-import { getDividendsAction } from '@/lib/portfolio-actions';
+import { getDividendsAction, getPortfolioTransactionsAction } from '@/lib/portfolio-actions';
 
 export default function PurificationPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -136,13 +136,35 @@ export default function PurificationPage() {
       // Auto-fetch real dividends if available
       try {
         const divs = await getDividendsAction(false);
+        const txs = await getPortfolioTransactionsAction(false);
         const tickerDivs = divs.filter(d => 
           d.symbol.toUpperCase() === json.data.ticker.toUpperCase() || 
           d.symbol.toUpperCase() === searchQuery.toUpperCase()
         );
+        
         if (tickerDivs.length > 0) {
-          const totalDiv = tickerDivs.reduce((sum, d) => sum + (d.total_amount || 0), 0);
-          setDividendAmount(totalDiv.toString());
+          let totalGross = 0;
+          for (const div of tickerDivs) {
+            const divDate = new Date(div.dividend_date).getTime();
+            let qty = 0;
+            const sorted = [...txs]
+              .filter(tx => tx.symbol === div.symbol)
+              .sort((a, b) => new Date(a.buy_date).getTime() - new Date(b.buy_date).getTime());
+            
+            for (const tx of sorted) {
+              if (new Date(tx.buy_date).getTime() > divDate) break;
+              const txType = tx.type || 'BUY';
+              if (txType === 'BUY') qty += tx.quantity;
+              else if (txType === 'SELL') qty = Math.max(0, qty - tx.quantity);
+            }
+            
+            // If they didn't have any transactions but have a dividend recorded, fallback to an assumed quantity?
+            // Usually, dividend shouldn't exist without holding, but just in case:
+            if (qty > 0) {
+              totalGross += (qty * div.amount_per_share);
+            }
+          }
+          setDividendAmount(totalGross > 0 ? totalGross.toString() : '0');
         } else {
           setDividendAmount('0');
         }
@@ -283,18 +305,18 @@ export default function PurificationPage() {
           )}
 
           {/* MODE SELECTOR TABS */}
-          <div className="tab-strip mb-6">
+          <div className="flex p-1 bg-slate-900/50 backdrop-blur-md rounded-2xl mb-8 border border-white/5 w-full md:w-max mx-auto shadow-inner">
             <button 
-              className={`tab-btn ${activeTab === 'AI_SEARCH' ? 'active' : ''}`}
+              className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === 'AI_SEARCH' ? 'bg-slate-800 text-emerald-400 shadow-lg border border-white/5' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
               onClick={() => setActiveTab('AI_SEARCH')}
             >
-              <Sparkles size={14} /> <span>Recherche IA Automatique (Web & Rapports)</span>
+              <Sparkles size={16} /> <span className="hidden md:inline">Recherche IA Automatique (Web & Rapports)</span><span className="md:hidden">IA Auto</span>
             </button>
             <button 
-              className={`tab-btn ${activeTab === 'MANUAL' ? 'active' : ''}`}
+              className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === 'MANUAL' ? 'bg-slate-800 text-emerald-400 shadow-lg border border-white/5' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
               onClick={() => setActiveTab('MANUAL')}
             >
-              <Sliders size={14} /> <span>Calculateur Manuel (Saisie CPC / Bilan)</span>
+              <Sliders size={16} /> <span className="hidden md:inline">Calculateur Manuel (Saisie CPC)</span><span className="md:hidden">Saisie Manuelle</span>
             </button>
           </div>
 
@@ -450,14 +472,14 @@ export default function PurificationPage() {
 
           {/* RESULTS SECTION */}
           {result && !loading && (
-            <div className="flex flex-col gap-6 animate-fade-in">
+            <div className="flex flex-col gap-8 animate-fade-in">
               
               {/* CREDIBILITY DISCLAIMER */}
-              <div className="bg-amber-950/20 border border-amber-500/30 p-4 rounded-xl flex items-start gap-3 text-amber-200/90">
-                <AlertTriangle size={20} className="text-amber-500 flex-shrink-0 mt-0.5" />
+              <div className="bg-slate-900/50 border border-slate-700/50 p-4 rounded-xl flex items-start gap-3 text-slate-300">
+                <AlertTriangle size={20} className="text-amber-500/80 flex-shrink-0 mt-0.5" />
                 <div className="flex flex-col gap-1">
-                  <h4 className="font-bold text-sm text-amber-400">AVERTISSEMENT : DONNÉES GÉNÉRÉES PAR INTELLIGENCE ARTIFICIELLE</h4>
-                  <p className="text-xs">
+                  <h4 className="font-bold text-sm text-slate-200">Avertissement : Données générées par Intelligence Artificielle</h4>
+                  <p className="text-xs opacity-80 leading-relaxed">
                     Les montants financiers ci-dessous ont été extraits automatiquement par l'IA à partir des ressources disponibles sur le web. 
                     Les calculs de conformité AAOIFI ont ensuite été appliqués mathématiquement. <strong>Avant toute décision d'investissement Halal, vous devez impérativement vérifier ces chiffres avec les rapports financiers officiels publiés par l'AMMC</strong>.
                   </p>
@@ -465,103 +487,109 @@ export default function PurificationPage() {
               </div>
 
               {/* COMPLIANCE STATUS & HERO PURIFICATION RATE */}
-              <div className={`glass-heavy p-8 rounded-2xl border flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden ${result.isCompliant ? 'border-emerald-500/50 bg-emerald-950/10 shadow-[0_0_30px_rgba(16,185,129,0.1)]' : 'border-rose-500/50 bg-rose-950/10 shadow-[0_0_30px_rgba(244,63,94,0.1)]'}`}>
+              <div className={`glass-heavy p-8 rounded-3xl border flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden ${result.isCompliant ? 'border-emerald-500/40 bg-emerald-950/20 shadow-[0_0_40px_rgba(16,185,129,0.15)]' : 'border-rose-500/40 bg-rose-950/20 shadow-[0_0_40px_rgba(244,63,94,0.15)]'}`}>
                 {/* Glow effect background */}
-                <div className={`absolute -top-20 -left-20 w-64 h-64 rounded-full blur-[80px] opacity-20 pointer-events-none ${result.isCompliant ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                <div className={`absolute -top-20 -left-20 w-64 h-64 rounded-full blur-[80px] opacity-30 pointer-events-none ${result.isCompliant ? 'bg-emerald-500' : 'bg-rose-500'}`} />
 
-                <div className="flex items-center gap-5 z-10">
-                  <div className={`p-4 rounded-2xl flex-shrink-0 ${result.isCompliant ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
-                    {result.isCompliant ? <CheckCircle2 size={42} /> : <XCircle size={42} />}
+                <div className="flex items-center gap-6 z-10">
+                  <div className={`p-5 rounded-2xl flex-shrink-0 ${result.isCompliant ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
+                    {result.isCompliant ? <CheckCircle2 size={48} /> : <XCircle size={48} />}
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className="mono-tiny opacity-70 tracking-wider">ANALYSE SHARIA • {result.fiscalYear}</span>
-                    <h2 className={`font-black text-3xl md:text-4xl tracking-tight ${result.isCompliant ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    <h2 className={`font-black text-3xl md:text-5xl tracking-tight ${result.isCompliant ? 'text-emerald-400' : 'text-rose-400'}`}>
                       {result.isCompliant ? 'HALAL (CONFORME)' : 'NON CONFORME'}
                     </h2>
-                    <span className="text-sm text-slate-300 font-bold">{result.companyName} ({result.ticker})</span>
+                    <span className="text-base text-slate-300 font-bold tracking-wide">{result.companyName} ({result.ticker})</span>
                   </div>
                 </div>
 
                 {/* HERO PURIFICATION RATE BADGE */}
-                <div className="bg-slate-950 p-5 rounded-2xl border border-white/10 flex flex-col items-center md:items-end gap-1 min-w-[240px] z-10 relative overflow-hidden">
+                <div className="bg-slate-950/80 p-6 rounded-2xl border border-white/10 flex flex-col items-center md:items-end gap-1 min-w-[240px] z-10 relative overflow-hidden backdrop-blur-md">
                    <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
-                  <span className="mono-tiny text-slate-400 tracking-wider">TAUX DE PURIFICATION</span>
-                  <div className="text-4xl font-black mono text-emerald-400 tracking-tighter">
-                    {result.purificationRate.toFixed(2)} %
+                  <span className="mono-tiny text-slate-400 tracking-wider uppercase">Taux de Purification</span>
+                  <div className="text-5xl font-black mono text-emerald-400 tracking-tighter drop-shadow-md">
+                    {result.purificationRate.toFixed(2)}<span className="text-2xl text-emerald-500/50">%</span>
                   </div>
-                  <span className="text-[10px] text-slate-500 text-center md:text-right uppercase font-bold mt-1">
+                  <span className="text-xs text-slate-500 text-center md:text-right font-medium mt-1">
                     Fraction d'intérêts (Riba)
                   </span>
                 </div>
               </div>
 
-              {/* INTERACTIVE DIVIDEND PURIFICATION CALCULATOR */}
-              <div className="glass-heavy p-6 rounded-2xl border border-emerald-500/30">
-                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                  <h3 className="mono font-bold text-base text-emerald-400 flex items-center gap-2">
-                    <Coins size={18} /> CALCULATEUR D'AUMÔNE / PURIFICATION DES DIVIDENDES
-                  </h3>
-                  <button onClick={copyToClipboard} className="action-btn-terminal white">
-                    {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                    <span>{copied ? 'COPIÉ !' : 'COPIER LE BILAN'}</span>
-                  </button>
-                </div>
+              {/* EXTRACTED FINANCIAL DATA & SUMMARY */}
+              <div className="glass-heavy p-6 rounded-3xl border border-white/5 flex flex-col gap-5">
+                <h3 className="mono font-bold text-sm text-slate-300 flex items-center gap-2">
+                  <BookOpen size={16} className="text-emerald-500" /> 1. DONNÉES FINANCIÈRES EXTRAITES DU CPC ET BILAN
+                </h3>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center mb-4">
-                  <div className="form-group md:col-span-1">
-                    <label className="mono-tiny opacity-70">MON DIVIDENDE BRUT REÇU (MAD)</label>
-                    <input 
-                      type="number" 
-                      value={dividendAmount} 
-                      onChange={e => setDividendAmount(e.target.value)}
-                      placeholder="Ex: 6024"
-                      className="terminal-input-field text-lg font-mono font-bold text-white"
-                    />
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                  <div className="bg-slate-900/50 p-4 rounded-2xl border border-white/5 flex flex-col justify-center">
+                    <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider mb-1">Chiffre d'Affaires</span>
+                    <span className="mono font-bold text-slate-200 text-sm">{result.financialData.totalRevenue}</span>
                   </div>
-
-                  {/* COMPUTED RESULT BOXES */}
-                  <div className="bg-slate-950/80 p-4 rounded-xl border border-emerald-500/30 flex flex-col gap-1">
-                    <span className="mono-tiny text-emerald-400 font-bold">🟢 PART HALAL CONSERVÉE ({(100 - result.purificationRate).toFixed(2)} %)</span>
-                    <span className="text-xl font-bold mono text-white">
-                      +{halalAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD
-                    </span>
-                    <span className="text-[10px] text-slate-400">Revenu net utilisable sans restriction</span>
+                  <div className="bg-slate-900/50 p-4 rounded-2xl border border-white/5 flex flex-col justify-center">
+                    <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider mb-1">Produits d'Intérêts</span>
+                    <span className="mono font-bold text-rose-400 text-sm">{result.financialData.interestIncome}</span>
                   </div>
-
-                  <div className="bg-slate-950/80 p-4 rounded-xl border border-rose-500/40 flex flex-col gap-1">
-                    <span className="mono-tiny text-rose-400 font-bold">🤲 MONTANT À PURIFIER / AUMÔNE ({result.purificationRate.toFixed(2)} %)</span>
-                    <span className="text-xl font-bold mono text-rose-400">
-                      -{purificationAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD
-                    </span>
-                    <span className="text-[10px] text-slate-400">À distribuer aux œuvres caritatives</span>
+                  <div className="bg-slate-900/50 p-4 rounded-2xl border border-white/5 flex flex-col justify-center">
+                    <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider mb-1">Dettes Bancaires</span>
+                    <span className="mono font-bold text-amber-400 text-sm">{result.financialData.interestDebt}</span>
+                  </div>
+                  <div className="bg-slate-900/50 p-4 rounded-2xl border border-white/5 flex flex-col justify-center">
+                    <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider mb-1">Trésorerie Placée</span>
+                    <span className="mono font-bold text-slate-300 text-sm">{result.financialData.interestCash}</span>
+                  </div>
+                  <div className="bg-emerald-950/20 p-4 rounded-2xl border border-emerald-500/20 flex flex-col justify-center col-span-2 lg:col-span-1 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 rounded-full blur-xl"></div>
+                    <span className="text-emerald-500/70 text-[10px] uppercase font-bold tracking-wider mb-1">Capitalisation Base</span>
+                    <span className="mono font-bold text-emerald-400 text-sm z-10">{result.financialData.marketCap}</span>
                   </div>
                 </div>
 
-                <p className="text-xs text-slate-400 bg-slate-950/50 p-3 rounded-lg border border-white/5">
-                  💡 <strong>Principe AAOIFI :</strong> La purification consiste à verser la fraction du dividende provenant d'intérêts bancaires (Riba) à des œuvres caritatives sans chercher de récompense spirituelle, afin de nettoyer le reste de vos gains.
-                </p>
+                <div className="bg-slate-900/30 p-4 rounded-xl border border-white/5 text-sm text-slate-300 leading-relaxed font-light">
+                  <span className="font-bold text-emerald-500 block mb-1 uppercase text-xs tracking-wider">Résumé Explicatif</span>
+                  {result.summary}
+                </div>
+
+                {result.sources && result.sources.length > 0 && (
+                  <div className="flex items-center gap-2 text-xs flex-wrap mt-2">
+                    <span className="text-slate-500 font-bold">SOURCES :</span>
+                    {result.sources.map((src, i) => (
+                      <a 
+                        key={i} 
+                        href={src.startsWith('http') ? src : '#'} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="text-emerald-400/80 hover:text-emerald-400 hover:underline flex items-center gap-1 bg-slate-900/80 px-2.5 py-1.5 rounded-md border border-white/5 transition-colors"
+                      >
+                        <ExternalLink size={12} /> <span>{src.replace('https://', '').replace('http://', '').split('/')[0]}</span>
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* AAOIFI RATIOS TABLE / METRICS GRID */}
-              <div className="glass-heavy p-6 rounded-2xl border border-white/10">
-                <h3 className="mono font-bold text-sm text-slate-200 mb-4 flex items-center gap-2">
-                  <ShieldCheck size={16} /> DÉTAILS DES 3 RATIOS DE CONFORMITÉ AAOIFI
+              <div className="glass-heavy p-6 rounded-3xl border border-white/5">
+                <h3 className="mono font-bold text-sm text-slate-300 mb-5 flex items-center gap-2">
+                  <ShieldCheck size={16} className="text-emerald-500" /> 2. DÉTAILS DES RATIOS DE CONFORMITÉ AAOIFI
                 </h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {/* RATIO 1: INTÉRÊTS / REVENUS */}
-                  <div className="bg-slate-900 p-5 rounded-2xl border border-white/5 flex flex-col gap-3 relative overflow-hidden group hover:border-white/10 transition-colors">
+                  <div className="bg-slate-900/60 p-5 rounded-2xl border border-white/5 flex flex-col gap-3 relative overflow-hidden group hover:border-white/10 transition-colors">
                     <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-400 font-bold uppercase tracking-wider">1. Revenus Non Conformes</span>
-                      <span className="mono text-[10px] text-slate-500 bg-slate-800 px-2 py-1 rounded">MAX 5%</span>
+                      <span className="text-slate-400 font-bold uppercase tracking-wider">Revenus Non Conformes</span>
+                      <span className="mono text-[10px] text-slate-500 bg-slate-800/80 px-2 py-1 rounded">MAX 5%</span>
                     </div>
                     <div className="flex justify-between items-baseline mt-1">
                       <span className="text-3xl font-black mono text-white">{result.purificationRate.toFixed(2)}<span className="text-xl text-slate-500">%</span></span>
-                      <span className={`text-xs font-bold px-2 py-1 rounded ${result.purificationRate <= 5.0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-md ${result.purificationRate <= 5.0 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'}`}>
                         {result.purificationRate <= 5.0 ? '✓ OK' : '✗ DÉPASSÉ'}
                       </span>
                     </div>
-                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden mt-2">
+                    <div className="w-full bg-slate-800/50 h-2 rounded-full overflow-hidden mt-2">
                       <div 
                         className={`h-full transition-all duration-1000 ${result.purificationRate <= 5.0 ? 'bg-emerald-500' : 'bg-rose-500'}`} 
                         style={{ width: `${Math.min((result.purificationRate / 5) * 100, 100)}%` }}
@@ -571,18 +599,18 @@ export default function PurificationPage() {
                   </div>
 
                   {/* RATIO 2: ENDETTEMENT */}
-                  <div className="bg-slate-900 p-5 rounded-2xl border border-white/5 flex flex-col gap-3 relative overflow-hidden group hover:border-white/10 transition-colors">
+                  <div className="bg-slate-900/60 p-5 rounded-2xl border border-white/5 flex flex-col gap-3 relative overflow-hidden group hover:border-white/10 transition-colors">
                     <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-400 font-bold uppercase tracking-wider">2. Endettement Bancaire</span>
-                      <span className="mono text-[10px] text-slate-500 bg-slate-800 px-2 py-1 rounded">MAX 33%</span>
+                      <span className="text-slate-400 font-bold uppercase tracking-wider">Endettement Bancaire</span>
+                      <span className="mono text-[10px] text-slate-500 bg-slate-800/80 px-2 py-1 rounded">MAX 33%</span>
                     </div>
                     <div className="flex justify-between items-baseline mt-1">
                       <span className="text-3xl font-black mono text-white">{result.debtRatio.toFixed(2)}<span className="text-xl text-slate-500">%</span></span>
-                      <span className={`text-xs font-bold px-2 py-1 rounded ${result.debtRatio <= 33.0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-md ${result.debtRatio <= 33.0 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'}`}>
                         {result.debtRatio <= 33.0 ? '✓ OK' : '✗ DÉPASSÉ'}
                       </span>
                     </div>
-                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden mt-2">
+                    <div className="w-full bg-slate-800/50 h-2 rounded-full overflow-hidden mt-2">
                       <div 
                         className={`h-full transition-all duration-1000 ${result.debtRatio <= 33.0 ? 'bg-emerald-500' : 'bg-rose-500'}`} 
                         style={{ width: `${Math.min((result.debtRatio / 33) * 100, 100)}%` }}
@@ -592,18 +620,18 @@ export default function PurificationPage() {
                   </div>
 
                   {/* RATIO 3: TRÉSORERIE */}
-                  <div className="bg-slate-900 p-5 rounded-2xl border border-white/5 flex flex-col gap-3 relative overflow-hidden group hover:border-white/10 transition-colors">
+                  <div className="bg-slate-900/60 p-5 rounded-2xl border border-white/5 flex flex-col gap-3 relative overflow-hidden group hover:border-white/10 transition-colors">
                     <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-400 font-bold uppercase tracking-wider">3. Trésorerie Placée</span>
-                      <span className="mono text-[10px] text-slate-500 bg-slate-800 px-2 py-1 rounded">MAX 33%</span>
+                      <span className="text-slate-400 font-bold uppercase tracking-wider">Trésorerie Placée</span>
+                      <span className="mono text-[10px] text-slate-500 bg-slate-800/80 px-2 py-1 rounded">MAX 33%</span>
                     </div>
                     <div className="flex justify-between items-baseline mt-1">
                       <span className="text-3xl font-black mono text-white">{result.cashRatio.toFixed(2)}<span className="text-xl text-slate-500">%</span></span>
-                      <span className={`text-xs font-bold px-2 py-1 rounded ${result.cashRatio <= 33.0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-md ${result.cashRatio <= 33.0 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'}`}>
                         {result.cashRatio <= 33.0 ? '✓ OK' : '✗ DÉPASSÉ'}
                       </span>
                     </div>
-                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden mt-2">
+                    <div className="w-full bg-slate-800/50 h-2 rounded-full overflow-hidden mt-2">
                       <div 
                         className={`h-full transition-all duration-1000 ${result.cashRatio <= 33.0 ? 'bg-emerald-500' : 'bg-rose-500'}`} 
                         style={{ width: `${Math.min((result.cashRatio / 33) * 100, 100)}%` }}
@@ -614,63 +642,74 @@ export default function PurificationPage() {
                 </div>
               </div>
 
-              {/* EXTRACTED FINANCIAL DATA & SUMMARY */}
-              <div className="glass-heavy p-6 rounded-2xl border border-white/10 flex flex-col gap-4">
-                <h3 className="mono font-bold text-sm text-slate-200 flex items-center gap-2">
-                  <BookOpen size={16} /> DONNÉES FINANCIÈRES EXTRAITES DU CPC ET BILAN
-                </h3>
+              {/* INTERACTIVE DIVIDEND PURIFICATION CALCULATOR */}
+              <div className="glass-heavy p-8 rounded-3xl border border-emerald-500/30 relative overflow-hidden mt-2">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-[100px] pointer-events-none"></div>
+                <div className="flex items-center justify-between mb-6 flex-wrap gap-4 z-10 relative">
+                  <div>
+                    <h3 className="mono font-bold text-lg text-emerald-400 flex items-center gap-3">
+                      <Coins size={22} className="text-emerald-500" /> 3. CALCULATEUR D'AUMÔNE / PURIFICATION DES DIVIDENDES
+                    </h3>
+                    <p className="text-sm text-slate-400 mt-1">Calculez la part exacte de vos dividendes à purifier (Riba).</p>
+                  </div>
+                  <button onClick={copyToClipboard} className="action-btn-terminal white shadow-lg">
+                    {copied ? <Check size={16} className="text-emerald-400" /> : <Copy size={16} />}
+                    <span className="font-bold">{copied ? 'RÉSULTATS COPIÉS !' : 'COPIER LE RAPPORT'}</span>
+                  </button>
+                </div>
 
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-                  <div className="bg-slate-900 p-4 rounded-2xl border border-white/5 flex flex-col justify-center">
-                    <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider mb-1">Chiffre d'Affaires</span>
-                    <span className="mono font-bold text-slate-100 text-sm">{result.financialData.totalRevenue}</span>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center mb-6 z-10 relative">
+                  <div className="form-group lg:col-span-1">
+                    <label className="mono-tiny opacity-70 mb-2 block">MON DIVIDENDE BRUT REÇU (MAD)</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <DollarSign size={18} className="text-emerald-500/50" />
+                      </div>
+                      <input 
+                        type="number" 
+                        value={dividendAmount} 
+                        onChange={e => setDividendAmount(e.target.value)}
+                        placeholder="Ex: 6024"
+                        className="w-full bg-slate-900 border border-emerald-500/30 rounded-xl py-4 pl-12 pr-4 text-2xl font-mono font-bold text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-inner"
+                      />
+                    </div>
                   </div>
-                  <div className="bg-slate-900 p-4 rounded-2xl border border-white/5 flex flex-col justify-center">
-                    <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider mb-1">Produits d'Intérêts</span>
-                    <span className="mono font-bold text-rose-400 text-sm">{result.financialData.interestIncome}</span>
-                  </div>
-                  <div className="bg-slate-900 p-4 rounded-2xl border border-white/5 flex flex-col justify-center">
-                    <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider mb-1">Dettes Bancaires</span>
-                    <span className="mono font-bold text-amber-400 text-sm">{result.financialData.interestDebt}</span>
-                  </div>
-                  <div className="bg-slate-900 p-4 rounded-2xl border border-white/5 flex flex-col justify-center">
-                    <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider mb-1">Trésorerie Placée</span>
-                    <span className="mono font-bold text-slate-200 text-sm">{result.financialData.interestCash}</span>
-                  </div>
-                  <div className="bg-emerald-950/20 p-4 rounded-2xl border border-emerald-500/20 flex flex-col justify-center col-span-2 lg:col-span-1 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 rounded-full blur-xl"></div>
-                    <span className="text-emerald-500/70 text-[10px] uppercase font-bold tracking-wider mb-1">Capitalisation Base</span>
-                    <span className="mono font-bold text-emerald-400 text-sm z-10">{result.financialData.marketCap}</span>
+
+                  {/* COMPUTED RESULT BOXES */}
+                  <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="bg-slate-900/80 p-5 rounded-2xl border border-emerald-500/30 flex flex-col gap-1 shadow-lg">
+                      <span className="mono-tiny text-emerald-500 font-bold flex items-center gap-2">
+                        <CheckCircle2 size={14} /> PART HALAL ({(100 - result.purificationRate).toFixed(2)} %)
+                      </span>
+                      <span className="text-3xl font-black mono text-white tracking-tight mt-1">
+                        +{halalAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xl text-slate-400 font-normal">MAD</span>
+                      </span>
+                      <span className="text-xs text-slate-400 mt-1">Revenu net utilisable sans restriction</span>
+                    </div>
+
+                    <div className="bg-rose-950/20 p-5 rounded-2xl border border-rose-500/40 flex flex-col gap-1 shadow-lg">
+                      <span className="mono-tiny text-rose-400 font-bold flex items-center gap-2">
+                        <AlertTriangle size={14} /> À PURIFIER / AUMÔNE ({result.purificationRate.toFixed(2)} %)
+                      </span>
+                      <span className="text-3xl font-black mono text-rose-400 tracking-tight mt-1">
+                        -{purificationAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xl text-rose-500/50 font-normal">MAD</span>
+                      </span>
+                      <span className="text-xs text-rose-300/60 mt-1">À distribuer aux œuvres caritatives</span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="bg-slate-950/80 p-4 rounded-xl border border-white/5 text-xs text-slate-300 leading-relaxed">
-                  <span className="font-bold text-emerald-400 block mb-1">RÉSUMÉ EXPLICATIF :</span>
-                  {result.summary}
+                <div className="flex items-start gap-3 bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 z-10 relative">
+                  <Scale size={20} className="text-emerald-500/70 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-slate-300 leading-relaxed font-light">
+                    <strong className="text-emerald-400 font-medium">Principe AAOIFI :</strong> La purification consiste à verser la fraction du dividende provenant d'intérêts bancaires (Riba) à des œuvres caritatives sans chercher de récompense spirituelle, afin de nettoyer le reste de vos gains.
+                  </p>
                 </div>
-
-                {result.sources && result.sources.length > 0 && (
-                  <div className="flex items-center gap-2 text-xs flex-wrap">
-                    <span className="text-slate-400 font-bold">SOURCES :</span>
-                    {result.sources.map((src, i) => (
-                      <a 
-                        key={i} 
-                        href={src.startsWith('http') ? src : '#'} 
-                        target="_blank" 
-                        rel="noreferrer"
-                        className="text-emerald-400 hover:underline flex items-center gap-1 bg-slate-950/60 px-2 py-1 rounded border border-white/5"
-                      >
-                        <ExternalLink size={10} /> <span>{src.replace('https://', '').replace('http://', '').split('/')[0]}</span>
-                      </a>
-                    ))}
-                  </div>
-                )}
               </div>
 
             </div>
           )}
-
-        </div>
+</div>
       </main>
 
       <BottomNav />
