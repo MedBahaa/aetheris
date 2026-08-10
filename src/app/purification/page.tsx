@@ -1,22 +1,22 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import { 
-  CheckCircle2, XCircle, Search, Sparkles, Key, Calculator, 
-  BookOpen, ExternalLink, RefreshCw, AlertTriangle, ShieldCheck, 
-  Copy, Check, Coins, ArrowLeft, Sliders, DollarSign, HelpCircle, Scale,
-  Landmark, Globe, PieChart, Activity, Briefcase
+  XCircle, Search, Sparkles, Key, Calculator, BookOpen, ExternalLink, RefreshCw,
+  AlertTriangle, ShieldCheck, Copy, Check, Coins, Sliders
 } from 'lucide-react';
 
 interface ShariaResult {
   companyName: string;
   ticker: string;
   fiscalYear: string;
-  isCompliant: boolean;
+  isCompliant: boolean | null;
+  estimatedCompliance?: boolean;
+  dataQuality: 'MANUAL' | 'UNVERIFIED' | 'INSUFFICIENT';
+  dataWarning?: string;
   purificationRate: number;
   debtRatio: number;
   cashRatio: number;
@@ -45,12 +45,18 @@ export default function PurificationPage() {
   const [result, setResult] = useState<ShariaResult | null>(null);
 
   // Suggestions State
-  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [suggestions, setSuggestions] = useState<{ symbol: string; name: string }[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearchingDebounce, setIsSearchingDebounce] = useState(false);
+  // Kept only to avoid breaking the existing layout while it is being removed.
+  // It is neither persisted nor transmitted to the server.
+  const [customApiKey, setCustomApiKey] = useState('');
+  const [showKeyInput, setShowKeyInput] = useState(false);
+  const saveApiKey = (key: string) => setCustomApiKey(key);
 
   // Fetch suggestions when query changes
   useEffect(() => {
+    const controller = new AbortController();
     const fetchSuggestions = async () => {
       if (query.trim().length < 2) {
         setSuggestions([]);
@@ -58,23 +64,22 @@ export default function PurificationPage() {
       }
       setIsSearchingDebounce(true);
       try {
-        const res = await fetch(`/api/companies/search?q=${encodeURIComponent(query)}`);
+        const res = await fetch(`/api/companies/search?q=${encodeURIComponent(query.trim())}`, { signal: controller.signal });
         const data = await res.json();
         setSuggestions(Array.isArray(data) ? data : []);
       } catch (err) {
-        console.error('Error fetching suggestions:', err);
+        if ((err as Error).name !== 'AbortError') console.error('Error fetching suggestions:', err);
       } finally {
-        setIsSearchingDebounce(false);
+        if (!controller.signal.aborted) setIsSearchingDebounce(false);
       }
     };
     
     const timeoutId = setTimeout(fetchSuggestions, 300);
-    return () => clearTimeout(timeoutId);
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [query]);
-
-  // Custom API Key State
-  const [customApiKey, setCustomApiKey] = useState('');
-  const [showKeyInput, setShowKeyInput] = useState(false);
 
   // Dividend Calculator Input
   const [dividendAmount, setDividendAmount] = useState<string>('0');
@@ -82,25 +87,9 @@ export default function PurificationPage() {
 
   // Manual Input State
   const [manualForm, setManualForm] = useState({
-    companyName: 'Ma Société',
-    ticker: 'CUSTOM',
-    totalRevenue: '1000000',
-    interestIncome: '15000',
-    interestDebt: '200000',
-    interestCash: '100000',
-    marketCap: '1000000'
+    companyName: '', ticker: '', totalRevenue: '', interestIncome: '',
+    interestDebt: '', interestCash: '', marketCap: ''
   });
-
-  // Load custom API key from localStorage on mount
-  useEffect(() => {
-    const savedKey = localStorage.getItem('aetheris_custom_gemini_key');
-    if (savedKey) setCustomApiKey(savedKey);
-  }, []);
-
-  const saveApiKey = (key: string) => {
-    setCustomApiKey(key);
-    localStorage.setItem('aetheris_custom_gemini_key', key);
-  };
 
   // Perform AI Search
   const handleSearch = async (searchTerm?: string) => {
@@ -121,8 +110,7 @@ export default function PurificationPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          query: searchQuery.trim(),
-          customApiKey: customApiKey.trim() || undefined
+          query: searchQuery.trim()
         })
       });
 
@@ -186,11 +174,19 @@ export default function PurificationPage() {
   // Calculate Manual AAOIFI Result
   const handleManualCalculate = (e: React.FormEvent) => {
     e.preventDefault();
-    const revenue = parseFloat(manualForm.totalRevenue) || 0;
-    const interestInc = parseFloat(manualForm.interestIncome) || 0;
-    const debt = parseFloat(manualForm.interestDebt) || 0;
-    const cash = parseFloat(manualForm.interestCash) || 0;
-    const cap = parseFloat(manualForm.marketCap) || 1;
+    const parseAmount = (value: string) => Number(value.replace(/\s/g, '').replace(',', '.'));
+    const revenue = parseAmount(manualForm.totalRevenue);
+    const interestInc = parseAmount(manualForm.interestIncome);
+    const debt = parseAmount(manualForm.interestDebt);
+    const cash = parseAmount(manualForm.interestCash);
+    const cap = parseAmount(manualForm.marketCap);
+
+    if (![revenue, interestInc, debt, cash, cap].every(Number.isFinite) || revenue <= 0 || cap <= 0 || interestInc < 0 || debt < 0 || cash < 0) {
+      setError('Saisissez uniquement des montants positifs ou nuls ; le chiffre d’affaires et le dénominateur doivent être supérieurs à zéro.');
+      return;
+    }
+
+    setError(null);
 
     const purifRate = revenue > 0 ? (interestInc / revenue) * 100 : 0;
     const debtR = (debt / cap) * 100;
@@ -202,6 +198,7 @@ export default function PurificationPage() {
       companyName: manualForm.companyName || 'Saisie Manuelle',
       ticker: manualForm.ticker.toUpperCase() || 'CUSTOM',
       fiscalYear: '2025/2026',
+      dataQuality: 'MANUAL',
       isCompliant,
       purificationRate: parseFloat(purifRate.toFixed(2)),
       debtRatio: parseFloat(debtR.toFixed(2)),
@@ -218,14 +215,22 @@ export default function PurificationPage() {
     });
   };
 
-  // Calculator computations
-  const numericDividend = parseFloat(dividendAmount) || 0;
-  const purifRate = result ? result.purificationRate : 0;
+  // Calculator computations. It is intentionally available only after a
+  // validated manual calculation; AI estimates never create a donation amount.
+  const numericDividend = Math.max(0, parseFloat(dividendAmount) || 0);
+  const purifRate = result?.purificationRate ?? 0;
+  const debtRatio = result?.debtRatio ?? 0;
+  const cashRatio = result?.cashRatio ?? 0;
+  const canCalculate = result?.dataQuality === 'MANUAL';
   const purificationAmount = (numericDividend * purifRate) / 100;
   const halalAmount = numericDividend - purificationAmount;
+  const isManualResult = result?.dataQuality === 'MANUAL';
+  const complianceLabel = !result || !isManualResult
+    ? 'DONNÉES À VÉRIFIER'
+    : result.isCompliant ? 'HALAL (CONFORME)' : 'NON CONFORME';
 
   const copyToClipboard = () => {
-    if (!result) return;
+    if (!result || !canCalculate || !navigator.clipboard) return;
     const text = `ANALYSE SHARIA & PURIFICATION DES DIVIDENDES (${result.companyName} - ${result.ticker})
 - Statut: ${result.isCompliant ? 'CONFORME (HALAL)' : 'NON CONFORME'}
 - Taux de Purification: ${result.purificationRate}%
@@ -234,9 +239,12 @@ export default function PurificationPage() {
 - Montant à Purifier (Aumône): ${purificationAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} MAD
 -- Généré via Aetheris Sharia Screener (AAOIFI 2026)`;
 
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => setError('La copie automatique est indisponible sur cet appareil.'));
   };
 
   return (
@@ -311,7 +319,7 @@ export default function PurificationPage() {
               className={`tab-btn ${activeTab === 'AI_SEARCH' ? 'active' : ''}`}
               onClick={() => setActiveTab('AI_SEARCH')}
             >
-              <Sparkles size={13} /> <span className="hidden md:inline">Recherche IA Automatique (Web & Rapports)</span><span className="md:hidden">IA Auto</span>
+              <Sparkles size={13} /> <span className="hidden md:inline">Estimation IA (à vérifier)</span><span className="md:hidden">IA</span>
             </button>
             <button 
               className={`tab-btn ${activeTab === 'MANUAL' ? 'active' : ''}`}
@@ -348,14 +356,13 @@ export default function PurificationPage() {
                   style={{ height: '36px', padding: '0 20px', whiteSpace: 'nowrap', borderRadius: '12px' }}
                 >
                   {loading ? <RefreshCw className="animate-spin" size={16} /> : <Sparkles size={16} />}
-                  <span className="hidden md:inline">ANALYSER CONFORMITÉ</span>
-                  <span className="md:hidden">ANALYSER</span>
+                  <span>ANALYSER CONFORMITÉ</span>
                 </button>
 
                 {showSuggestions && query.length >= 2 && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-slate-700 rounded-xl overflow-hidden z-50 shadow-2xl">
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '8px', backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', overflow: 'hidden', zIndex: 50, boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
                     {isSearchingDebounce ? (
-                      <div className="p-3 text-xs text-slate-400 font-mono text-center">Recherche en cours...</div>
+                      <div style={{ padding: '12px', fontSize: '12px', color: '#94a3b8', fontFamily: 'monospace', textAlign: 'center' }}>Recherche en cours...</div>
                     ) : suggestions.length > 0 ? (
                       suggestions.map((s, idx) => (
                         <div 
@@ -365,14 +372,16 @@ export default function PurificationPage() {
                             setShowSuggestions(false);
                             handleSearch(s.symbol);
                           }}
-                          className="p-3 hover:bg-slate-800 cursor-pointer border-b border-slate-800/50 last:border-0 flex justify-between items-center transition-colors"
+                          style={{ padding: '12px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                         >
-                          <span className="font-bold text-white mono-tiny">{s.symbol}</span>
-                          <span className="text-xs text-slate-400 truncate ml-2">{s.name}</span>
+                          <span style={{ fontWeight: 'bold', color: 'white', fontSize: '11px', fontFamily: 'monospace' }}>{s.symbol}</span>
+                          <span style={{ fontSize: '12px', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginLeft: '8px' }}>{s.name}</span>
                         </div>
                       ))
                     ) : (
-                      <div className="p-3 text-xs text-slate-400 font-mono text-center">Aucune action trouvée.</div>
+                      <div style={{ padding: '12px', fontSize: '12px', color: '#94a3b8', fontFamily: 'monospace', textAlign: 'center' }}>Aucune action trouvée.</div>
                     )}
                   </div>
                 )}
@@ -457,11 +466,11 @@ export default function PurificationPage() {
               
               {/* COMPLIANCE HERO BADGE */}
               <div className="flex flex-col items-center justify-center mb-8 pb-8 border-b border-white/5">
-                <div className={`p-4 rounded-full mb-3 ${result.isCompliant ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
-                  {result.isCompliant ? <ShieldCheck size={48} /> : <XCircle size={48} />}
+                <div className={`p-4 rounded-full mb-3 ${isManualResult && result.isCompliant ? 'bg-emerald-500/20 text-emerald-400' : isManualResult ? 'bg-rose-500/20 text-rose-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                  {isManualResult && result.isCompliant ? <ShieldCheck size={48} /> : <XCircle size={48} />}
                 </div>
-                <h2 className={`text-4xl font-black mb-1 ${result.isCompliant ? 'text-emerald-400' : 'text-rose-400'}`}>
-                  {result.isCompliant ? 'HALAL (CONFORME)' : 'NON CONFORME'}
+                <h2 className={`text-4xl font-black mb-1 ${isManualResult && result.isCompliant ? 'text-emerald-400' : isManualResult ? 'text-rose-400' : 'text-amber-400'}`}>
+                  {complianceLabel}
                 </h2>
                 <span className="mono-tiny text-slate-400">ANALYSE SHARIA • {result.companyName} ({result.ticker})</span>
                 
@@ -567,7 +576,7 @@ export default function PurificationPage() {
               </div>
 
               {/* 3. CALCULATEUR D'AUMÔNE */}
-              <div className="glass p-6 rounded-2xl bg-slate-900 border border-slate-700">
+              {canCalculate && <div className="glass p-6 rounded-2xl bg-slate-900 border border-slate-700">
                 <div className="flex justify-between items-center mb-6">
                   <div className="flex items-center gap-2 text-emerald-400">
                     <Coins size={18} />
@@ -606,7 +615,7 @@ export default function PurificationPage() {
                     </span>
                   </div>
                 </div>
-              </div>
+              </div>}
 
             </div>
           )}
