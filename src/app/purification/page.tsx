@@ -324,57 +324,58 @@ export default function PurificationPage() {
           {/* SEARCH SECTION */}
           {activeTab === 'AI_SEARCH' ? (
             <div className="controls-bar glass-heavy animate-fade-in" style={{ marginBottom: '2rem' }}>
-              <form onSubmit={e => { e.preventDefault(); handleSearch(); }} className="flex flex-col md:flex-row items-center gap-3 w-full relative">
-                <div className="search-box flex-1 w-full relative m-0">
-                  <Search size={18} className="opacity-40" />
-                  <input 
-                    type="text" 
-                    placeholder="RECHERCHER UNE ACTION (EX: DHO, IAM, AAPL...)"
-                    value={query}
-                    onChange={e => {
-                      setQuery(e.target.value);
-                      setShowSuggestions(true);
-                    }}
-                    onFocus={() => setShowSuggestions(true)}
-                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                    disabled={loading}
-                    autoCapitalize="characters"
-                    style={{ background: 'transparent', border: 'none', color: 'white', width: '100%', paddingLeft: '2.5rem', outline: 'none' }}
-                  />
-                  {showSuggestions && query.length >= 2 && (
-                    <div className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-slate-700 rounded-xl overflow-hidden z-50 shadow-2xl">
-                      {isSearchingDebounce ? (
-                        <div className="p-3 text-xs text-slate-400 font-mono text-center">Recherche en cours...</div>
-                      ) : suggestions.length > 0 ? (
-                        suggestions.map((s, idx) => (
-                          <div 
-                            key={idx} 
-                            onClick={() => {
-                              setQuery(s.symbol);
-                              setShowSuggestions(false);
-                              handleSearch(s.symbol);
-                            }}
-                            className="p-3 hover:bg-slate-800 cursor-pointer border-b border-slate-800/50 last:border-0 flex justify-between items-center transition-colors"
-                          >
-                            <span className="font-bold text-white mono-tiny">{s.symbol}</span>
-                            <span className="text-xs text-slate-400 truncate ml-2">{s.name}</span>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="p-3 text-xs text-slate-400 font-mono text-center">Aucune action trouvée.</div>
-                      )}
-                    </div>
-                  )}
-                </div>
+              <form onSubmit={e => { e.preventDefault(); handleSearch(); }} className="search-box relative flex items-center w-full" style={{ paddingRight: '0.75rem' }}>
+                <Search size={18} className="opacity-40 flex-shrink-0" />
+                <input 
+                  type="text" 
+                  placeholder="RECHERCHER UNE ACTION (EX: DHO, IAM, AAPL...)"
+                  value={query}
+                  onChange={e => {
+                    setQuery(e.target.value);
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                  disabled={loading}
+                  autoCapitalize="characters"
+                  style={{ background: 'transparent', border: 'none', color: 'white', width: '100%', outline: 'none' }}
+                />
+                
                 <button 
                   type="submit" 
                   disabled={loading || !query.trim()}
-                  className="action-btn-terminal strategy"
-                  style={{ height: '42px', padding: '0 20px', whiteSpace: 'nowrap' }}
+                  className="action-btn-terminal strategy flex-shrink-0"
+                  style={{ height: '36px', padding: '0 20px', whiteSpace: 'nowrap', borderRadius: '12px' }}
                 >
                   {loading ? <RefreshCw className="animate-spin" size={16} /> : <Sparkles size={16} />}
-                  <span>ANALYSER CONFORMITÉ</span>
+                  <span className="hidden md:inline">ANALYSER CONFORMITÉ</span>
+                  <span className="md:hidden">ANALYSER</span>
                 </button>
+
+                {showSuggestions && query.length >= 2 && (
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-slate-700 rounded-xl overflow-hidden z-50 shadow-2xl">
+                    {isSearchingDebounce ? (
+                      <div className="p-3 text-xs text-slate-400 font-mono text-center">Recherche en cours...</div>
+                    ) : suggestions.length > 0 ? (
+                      suggestions.map((s, idx) => (
+                        <div 
+                          key={idx} 
+                          onClick={() => {
+                            setQuery(s.symbol);
+                            setShowSuggestions(false);
+                            handleSearch(s.symbol);
+                          }}
+                          className="p-3 hover:bg-slate-800 cursor-pointer border-b border-slate-800/50 last:border-0 flex justify-between items-center transition-colors"
+                        >
+                          <span className="font-bold text-white mono-tiny">{s.symbol}</span>
+                          <span className="text-xs text-slate-400 truncate ml-2">{s.name}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-3 text-xs text-slate-400 font-mono text-center">Aucune action trouvée.</div>
+                    )}
+                  </div>
+                )}
               </form>
             </div>
           ) : (
@@ -476,25 +477,25 @@ export default function PurificationPage() {
                 <table className="institutional-table" style={{ width: '100%', textAlign: 'left' }}>
                   <thead>
                     <tr className="glass-heavy">
-                      <th style={{ padding: '1rem' }}>MÉTRIQUE AAOIFI</th>
-                      <th style={{ padding: '1rem' }}>VALEUR FINANCIÈRE BRUTE</th>
-                      <th style={{ padding: '1rem' }}>RATIO EXTRAIT</th>
-                      <th style={{ padding: '1rem' }}>LIMITE AUTORISÉE</th>
-                      <th style={{ padding: '1rem', textAlign: 'right' }}>STATUT</th>
+                      <th style={{ padding: '1rem', verticalAlign: 'middle' }}>MÉTRIQUE AAOIFI</th>
+                      <th style={{ padding: '1rem', verticalAlign: 'middle' }}>VALEUR FINANCIÈRE BRUTE</th>
+                      <th style={{ padding: '1rem', verticalAlign: 'middle' }}>RATIO EXTRAIT</th>
+                      <th style={{ padding: '1rem', verticalAlign: 'middle' }}>LIMITE AUTORISÉE</th>
+                      <th style={{ padding: '1rem', textAlign: 'right', verticalAlign: 'middle' }}>STATUT</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr className="inst-row border-b border-white/5">
-                      <td data-label="MÉTRIQUE AAOIFI" style={{ padding: '1rem' }}>
+                      <td data-label="MÉTRIQUE AAOIFI" style={{ padding: '1rem', verticalAlign: 'middle' }}>
                         <div className="stock-titles"><span className="stock-symbol-title">Revenus Illicites (Riba)</span></div>
                       </td>
-                      <td data-label="VALEUR BRUTE" style={{ padding: '1rem' }}>
+                      <td data-label="VALEUR BRUTE" style={{ padding: '1rem', verticalAlign: 'middle' }}>
                         <span className="mono text-rose-400">{result.financialData.interestIncome}</span>
                         <div className="text-xs text-slate-500">CA: {result.financialData.totalRevenue}</div>
                       </td>
-                      <td data-label="RATIO EXTRAIT" style={{ padding: '1rem' }}><span className="t-price text-white font-bold">{result.purificationRate.toFixed(2)}%</span></td>
-                      <td data-label="LIMITE AUTORISÉE" style={{ padding: '1rem' }}><span className="mono-tiny text-slate-500 bg-slate-800 px-2 py-1 rounded">MAX 5%</span></td>
-                      <td data-label="STATUT" style={{ padding: '1rem', textAlign: 'right' }}>
+                      <td data-label="RATIO EXTRAIT" style={{ padding: '1rem', verticalAlign: 'middle' }}><span className="t-price text-white font-bold">{result.purificationRate.toFixed(2)}%</span></td>
+                      <td data-label="LIMITE AUTORISÉE" style={{ padding: '1rem', verticalAlign: 'middle' }}><span className="mono-tiny text-slate-500 bg-slate-800 px-2 py-1 rounded">MAX 5%</span></td>
+                      <td data-label="STATUT" style={{ padding: '1rem', textAlign: 'right', verticalAlign: 'middle' }}>
                         <div className={`inline-block pnl-hero-pill ${result.purificationRate <= 5 ? 'bull' : 'bear'}`}>
                           <span className="pnl-percentage font-bold">{result.purificationRate <= 5 ? 'CONFORME' : 'DÉPASSÉ'}</span>
                         </div>
@@ -502,16 +503,16 @@ export default function PurificationPage() {
                     </tr>
                     
                     <tr className="inst-row border-b border-white/5">
-                      <td data-label="MÉTRIQUE AAOIFI" style={{ padding: '1rem' }}>
+                      <td data-label="MÉTRIQUE AAOIFI" style={{ padding: '1rem', verticalAlign: 'middle' }}>
                         <div className="stock-titles"><span className="stock-symbol-title">Endettement Bancaire</span></div>
                       </td>
-                      <td data-label="VALEUR BRUTE" style={{ padding: '1rem' }}>
+                      <td data-label="VALEUR BRUTE" style={{ padding: '1rem', verticalAlign: 'middle' }}>
                         <span className="mono text-amber-400">{result.financialData.interestDebt}</span>
                         <div className="text-xs text-slate-500">Cap: {result.financialData.marketCap}</div>
                       </td>
-                      <td data-label="RATIO EXTRAIT" style={{ padding: '1rem' }}><span className="t-price text-white font-bold">{result.debtRatio.toFixed(2)}%</span></td>
-                      <td data-label="LIMITE AUTORISÉE" style={{ padding: '1rem' }}><span className="mono-tiny text-slate-500 bg-slate-800 px-2 py-1 rounded">MAX 33%</span></td>
-                      <td data-label="STATUT" style={{ padding: '1rem', textAlign: 'right' }}>
+                      <td data-label="RATIO EXTRAIT" style={{ padding: '1rem', verticalAlign: 'middle' }}><span className="t-price text-white font-bold">{result.debtRatio.toFixed(2)}%</span></td>
+                      <td data-label="LIMITE AUTORISÉE" style={{ padding: '1rem', verticalAlign: 'middle' }}><span className="mono-tiny text-slate-500 bg-slate-800 px-2 py-1 rounded">MAX 33%</span></td>
+                      <td data-label="STATUT" style={{ padding: '1rem', textAlign: 'right', verticalAlign: 'middle' }}>
                         <div className={`inline-block pnl-hero-pill ${result.debtRatio <= 33 ? 'bull' : 'bear'}`}>
                           <span className="pnl-percentage font-bold">{result.debtRatio <= 33 ? 'CONFORME' : 'DÉPASSÉ'}</span>
                         </div>
@@ -519,16 +520,16 @@ export default function PurificationPage() {
                     </tr>
 
                     <tr className="inst-row border-b border-white/5">
-                      <td data-label="MÉTRIQUE AAOIFI" style={{ padding: '1rem' }}>
+                      <td data-label="MÉTRIQUE AAOIFI" style={{ padding: '1rem', verticalAlign: 'middle' }}>
                         <div className="stock-titles"><span className="stock-symbol-title">Trésorerie Placée</span></div>
                       </td>
-                      <td data-label="VALEUR BRUTE" style={{ padding: '1rem' }}>
+                      <td data-label="VALEUR BRUTE" style={{ padding: '1rem', verticalAlign: 'middle' }}>
                         <span className="mono text-emerald-400">{result.financialData.interestCash}</span>
                         <div className="text-xs text-slate-500">Cap: {result.financialData.marketCap}</div>
                       </td>
-                      <td data-label="RATIO EXTRAIT" style={{ padding: '1rem' }}><span className="t-price text-white font-bold">{result.cashRatio.toFixed(2)}%</span></td>
-                      <td data-label="LIMITE AUTORISÉE" style={{ padding: '1rem' }}><span className="mono-tiny text-slate-500 bg-slate-800 px-2 py-1 rounded">MAX 33%</span></td>
-                      <td data-label="STATUT" style={{ padding: '1rem', textAlign: 'right' }}>
+                      <td data-label="RATIO EXTRAIT" style={{ padding: '1rem', verticalAlign: 'middle' }}><span className="t-price text-white font-bold">{result.cashRatio.toFixed(2)}%</span></td>
+                      <td data-label="LIMITE AUTORISÉE" style={{ padding: '1rem', verticalAlign: 'middle' }}><span className="mono-tiny text-slate-500 bg-slate-800 px-2 py-1 rounded">MAX 33%</span></td>
+                      <td data-label="STATUT" style={{ padding: '1rem', textAlign: 'right', verticalAlign: 'middle' }}>
                         <div className={`inline-block pnl-hero-pill ${result.cashRatio <= 33 ? 'bull' : 'bear'}`}>
                           <span className="pnl-percentage font-bold">{result.cashRatio <= 33 ? 'CONFORME' : 'DÉPASSÉ'}</span>
                         </div>
@@ -587,7 +588,7 @@ export default function PurificationPage() {
                       onChange={e => setDividendAmount(e.target.value)}
                       placeholder="Ex: 6024"
                       className="terminal-input"
-                      style={{ fontSize: '1.5rem', fontWeight: 800, padding: '1rem', width: '100%', borderRadius: '0.75rem', background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)' }}
+                      style={{ fontSize: '1.5rem', fontWeight: 800, padding: '1rem', width: '100%', borderRadius: '0.75rem', background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', color: '#ffffff' }}
                     />
                   </div>
 
