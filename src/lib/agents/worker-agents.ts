@@ -32,12 +32,15 @@ export const NewsWorker = {
         // 2. Analyse Sémantique réelle via Gemini Flash (Structured JSON)
         const sentimentAnalysis = await GeminiService.analyzeNewsSentiment(company, allNews);
 
+        // BUG FIX #1: Guard against null/missing details array from AI
+        const safeDetails = sentimentAnalysis?.details ?? [];
+
         // Calcul du Score Global avec Dépréciation Temporelle (Time Decay)
         let totalWeight = 0;
         let weightedScoreSum = 0;
 
         allNews.forEach((n, i) => {
-          const detail = sentimentAnalysis.details[i];
+          const detail = safeDetails[i];
           if (!detail) return;
 
           const ageInDays = Math.max(0, (Date.now() - new Date(n.pubDate).getTime()) / (1000 * 60 * 60 * 24));
@@ -45,7 +48,7 @@ export const NewsWorker = {
           const sourceWeight = n.sourceType === 'OFFICIAL' ? 2.0 : n.sourceType === 'SPECIALIZED' ? 1.5 : 1.0;
           
           const weight = sourceWeight * timeDecayWeight;
-          const articleScore = detail.score || 0;
+          const articleScore = typeof detail.score === 'number' ? detail.score : 0;
 
           weightedScoreSum += articleScore * weight;
           totalWeight += weight;
@@ -60,29 +63,36 @@ export const NewsWorker = {
           globalSentiment = 'POSITIF';
         } else if (globalScore > -0.15) {
           globalSentiment = 'NEUTRE';
-        } else if (globalScore > -0.6) {
+        } else if (globalScore >= -0.6) {  // BUG FIX: >= -0.6 so -0.6 itself is NEGATIF not FORTEMENT_NEGATIF
           globalSentiment = 'NEGATIF';
         } else {
           globalSentiment = 'FORTEMENT_NEGATIF';
         }
 
+        // BUG FIX #2: feedsTotal=0 with successCount=0 should NOT be 'FULL'
+        const totalFeeds = collectionMetrics.totalFeeds;
+        const successFeeds = collectionMetrics.successCount;
+        const collectionStatus = totalFeeds === 0 ? 'FAILED' as const :
+                                 successFeeds === totalFeeds ? 'FULL' as const : 'PARTIAL' as const;
+
         return {
           globalScore,
           globalSentiment,
-          probableImpact: sentimentAnalysis.impactSummary,
-          consolidatedSummary: sentimentAnalysis.consolidatedSummary,
+          probableImpact: sentimentAnalysis?.impactSummary || 'Analyse indisponible.',
+          consolidatedSummary: sentimentAnalysis?.consolidatedSummary || '',
+          newsAnalysisFailed: safeDetails.length === 0, // Signal pour les agents en aval
           collectionStatus: {
-            status: collectionMetrics.successCount === collectionMetrics.totalFeeds ? 'FULL' : 'PARTIAL',
-            feedsSuccess: collectionMetrics.successCount,
-            feedsTotal: collectionMetrics.totalFeeds,
+            status: collectionStatus,
+            feedsSuccess: successFeeds,
+            feedsTotal: totalFeeds,
             articlesFound: allNews.length,
           },
           news: allNews.map((n, i) => ({
              id: `news-${i}`,
              summary: n.title,
-             sentiment: sentimentAnalysis.details[i]?.sentiment || 'NEUTRE',
-             impact: sentimentAnalysis.details[i]?.impact || 'Court terme',
-             explanation: sentimentAnalysis.details[i]?.explanation || 'Analyse en attente.',
+             sentiment: safeDetails[i]?.sentiment || 'NEUTRE',
+             impact: safeDetails[i]?.impact || 'Court terme',
+             explanation: safeDetails[i]?.explanation || 'Analyse en attente.',
              source: n.source,
              date: new Date(n.pubDate).toLocaleDateString('fr-FR'),
              url: n.link,
@@ -146,16 +156,18 @@ export const MarketWorker = {
               const pointsToInsert = detailedHistory.historyPoints.map(pt => ({
                 company_id: resolved.uuid,
                 price: pt.price,
-                volume: pt.volume,
+                volume: pt.volume ?? null,
                 timestamp: pt.timestamp,
-                variation: '0.0%'
+                // BUG FIX #4: Use real variation data if available, not hardcoded '0.0%'
+                variation: (pt as any).variation ?? '0.0%'
               }));
               
-              // Bulk insert les 120 derniers points (6 mois de trading) pour rester rapide
+              // BUG FIX #3: Use upsert with conflict on (company_id, timestamp) to prevent
+              // duplicate rows on concurrent requests (race condition fix)
               const chunk = pointsToInsert.slice(-120);
               const { error: insertErr } = await supabaseAdmin
                 .from('market_history')
-                .insert(chunk);
+                .upsert(chunk, { onConflict: 'company_id,timestamp', ignoreDuplicates: true });
                 
               if (insertErr) {
                 console.error(`[MarketWorker] Erreur synchro historique db:`, insertErr.message);
@@ -173,14 +185,20 @@ export const MarketWorker = {
       
       const currentPrice = liveData ? parseFloat(liveData.price.replace(',', '.').replace(/\s/g, '')) : 0;
       
-      // AUDIT FIX: Circuit breaker — Vérifier la validité du prix
+      // BUG FIX #5: Circuit breaker amélioré — vérifier les deux cas séparément
+      // Si le prix LIVE est absent mais l'historique existe, on continue mais avec avertissement
       if (currentPrice <= 0 && history.length === 0) {
-        console.error(`[MarketWorker] ❌ CIRCUIT BREAKER: Aucune donnée de prix pour "${company}". Abandon.`);
+        console.error(`[MarketWorker] ❌ CIRCUIT BREAKER TOTAL: Aucune donnée de prix ni d'historique pour "${company}". Abandon.`);
         return { 
           price: 'INDISPONIBLE', 
           marketSituation: `⚠️ Données de prix indisponibles pour ${company}. Aucun calcul technique possible.`,
           signals: ['❌ Prix indisponible — Analyse technique impossible']
         };
+      }
+      
+      // Avertissement si seulement le prix live est manquant (historique présent)
+      if (currentPrice <= 0 && history.length > 0) {
+        console.warn(`[MarketWorker] ⚠️ CIRCUIT BREAKER PARTIEL: Prix live indisponible pour "${company}". Analyse basée sur historique uniquement.`);
       }
 
       const prices = [...history];

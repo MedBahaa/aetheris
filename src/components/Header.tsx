@@ -1,6 +1,6 @@
 'use client';
 
-import { Menu, Zap, LogIn, UserPlus, User } from 'lucide-react';
+import { Menu, Zap, LogIn, UserPlus, User, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -75,6 +75,21 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
                   <span className="user-badge-label">Mon Espace</span>
                 </button>
               </Link>
+
+              <button 
+                className="user-logout-btn touch-target"
+                title="Se déconnecter"
+                aria-label="Déconnexion"
+                onClick={async () => {
+                  const { supabase } = await import('@/lib/supabase');
+                  await supabase.auth.signOut();
+                  localStorage.removeItem('aetheris_last_activity_time');
+                  localStorage.removeItem('aetheris_user_profile');
+                  window.location.href = '/login';
+                }}
+              >
+                <LogOut size={16} />
+              </button>
               
               <button 
                 onClick={onOpenSidebar} 
@@ -120,6 +135,10 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
         @media (min-width: 1024px) {
           .header-inner {
             padding: 0 2rem;
+          }
+          
+          .user-logout-btn {
+            display: none;
           }
         }
 
@@ -236,6 +255,25 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
         .user-badge-btn:hover {
           background: rgba(16, 185, 129, 0.1);
           border-color: rgba(16, 185, 129, 0.3);
+        }
+
+        .user-logout-btn {
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid var(--border-glass);
+          color: #ef4444;
+          width: 38px;
+          height: 38px;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.3s var(--ease);
+        }
+
+        .user-logout-btn:hover {
+          background: rgba(239, 68, 68, 0.1);
+          border-color: rgba(239, 68, 68, 0.3);
         }
 
         .menu-toggle-btn {

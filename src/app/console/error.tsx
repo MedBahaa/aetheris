@@ -24,10 +24,10 @@ export default function ConsoleError({
         <h3 className="mono text-lg mb-2" style={{ color: '#fff' }}>
           {isChunkError ? 'Mise à jour en cours' : 'Erreur de connexion'}
         </h3>
-        <p className="text-muted text-sm mb-6" style={{ maxWidth: '400px', margin: '0 auto 1.5rem', lineHeight: '1.6' }}>
+        <p className="text-muted text-sm mb-6" style={{ maxWidth: '400px', margin: '0 auto 1.5rem', lineHeight: '1.6', wordBreak: 'break-word' }}>
           {isChunkError 
             ? "Une nouvelle version d'Aetheris vient d'être déployée. Veuillez rafraîchir l'application pour synchroniser les modules." 
-            : "L'orchestrateur a rencontré une anomalie lors du chargement de l'interface. Vos données sont sécurisées."}
+            : `L'orchestrateur a rencontré une anomalie lors du chargement de l'interface. Vos données sont sécurisées. (Détail: ${error.message})`}
         </p>
         <button 
           onClick={() => isChunkError ? window.location.reload() : reset()}
