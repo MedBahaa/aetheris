@@ -13,8 +13,8 @@ async function main() {
     if (!data) console.log("DATA IS NULL!");
     
     if (result.type === 'STRATEGY') {
-        console.log("Is finalAction valid?", data.finalAction);
-        console.log("Is risk valid?", data.risk);
+        console.log("Is finalAction valid?", data?.finalAction);
+        console.log("Is risk valid?", data?.risk);
     }
   } catch (e) {
     console.error("Error:", e);
