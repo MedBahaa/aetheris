@@ -593,7 +593,7 @@ export default function EnterpriseLandingPage() {
           </div>
 
           <div className="footer-bottom">
-            <span className="mono">© 2026 AETHERIS TECHNOLOGIES — BOURSE DE CASABLANCA</span>
+            <span className="mono">© 2026 AETHERIS — BOURSE DE CASABLANCA</span>
             <span className="mono text-muted">FINANCIAL INFRASTRUCTURE</span>
           </div>
         </div>

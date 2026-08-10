@@ -648,10 +648,11 @@ export class GeminiService {
     }
   }
 
-  static async analyzeShariaCompliance(query: string, customApiKey?: string) {
+  static async analyzeShariaCompliance(query: string) {
     query = InputSanitizer.sanitizeCompanyName(query);
 
     const prompt = `
+IMPORTANT: You do not have direct web or document access in this request. Never claim that a value was verified, current, or extracted from an official report. Return only a best-effort estimate and identify it as such.
 Tu es un analyste financier expert en Sharia Screener et finance islamique (normes AAOIFI 2026). 
 Recherche sur Internet les derniers états financiers annuels et rapports officiels publiés pour la société ou l'action : "${query}".
 
@@ -682,7 +683,7 @@ Recherche sur Internet les derniers états financiers annuels et rapports offici
 `;
 
     try {
-      const text = await unifiedAICall(prompt, true, 'gemini-2.5-flash', customApiKey);
+      const text = await unifiedAICall(prompt, true, 'gemini-2.5-flash');
       const parsed = safeJsonParse(text);
 
       if (parsed) {
@@ -691,16 +692,23 @@ Recherche sur Internet les derniers états financiers annuels et rapports offici
         const raw = parsed.rawFinancials || {};
         
         // Validation des nombres extraits
-        const parseNum = (val: any, fallback: number) => {
+        const parseNum = (val: any): number | null => {
             const num = Number(val);
-            return isNaN(num) || num <= 0 ? fallback : num;
+            return Number.isFinite(num) && num >= 0 ? num : null;
         };
 
-        const totalRevenue = parseNum(raw.totalRevenue, 1000000000); // Evite / 0
-        const interestIncome = parseNum(raw.interestIncome, 0); // 0 par défaut
-        const interestDebt = parseNum(raw.interestDebt, 0);
-        const interestCash = parseNum(raw.interestCash, 0);
-        const marketCap = parseNum(raw.marketCap, 1000000000); // Evite / 0
+        const totalRevenue = parseNum(raw.totalRevenue);
+        const interestIncome = parseNum(raw.interestIncome);
+        const interestDebt = parseNum(raw.interestDebt);
+        const interestCash = parseNum(raw.interestCash);
+        const marketCap = parseNum(raw.marketCap);
+
+        if (
+          totalRevenue === null || totalRevenue <= 0 || interestIncome === null ||
+          interestDebt === null || interestCash === null || marketCap === null || marketCap <= 0
+        ) {
+          throw new Error('Données financières incomplètes ou invalides : aucun verdict de conformité ni montant de purification ne peut être calculé. Utilisez la saisie manuelle avec un rapport officiel.');
+        }
 
         // CALCULS TYPESCRIPT DÉTERMINISTES (0% Hallucination)
         const purificationRate = (interestIncome / totalRevenue) * 100;
@@ -719,7 +727,9 @@ Recherche sur Internet les derniers états financiers annuels et rapports offici
           companyName: parsed.companyName || parsed.company || query.toUpperCase(),
           ticker: parsed.ticker || query.toUpperCase(),
           fiscalYear: parsed.fiscalYear || '2024/2025',
-          isCompliant: strictCompliant,
+          isCompliant: null,
+          estimatedCompliance: strictCompliant,
+          dataQuality: 'UNVERIFIED' as const,
           purificationRate: parseFloat(purificationRate.toFixed(2)),
           debtRatio: parseFloat(debtRatio.toFixed(2)),
           cashRatio: parseFloat(cashRatio.toFixed(2)),
