@@ -20,8 +20,11 @@ export default function AetherisChart({ company, companyId, isBullish = true }: 
 
   useEffect(() => {
     async function fetchHistory() {
-      if (!companyId) {
-        // Fallback mock si pas d'ID
+      // Validate UUID format before querying Supabase to prevent 22P02 error
+      const isValidUUID = companyId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(companyId);
+      
+      if (!companyId || !isValidUUID) {
+        // Fallback mock si pas d'ID ou ID invalide (ex: généré par le fallback Zod)
         setChartData([
           { time: '2024-01-01', value: 100 },
           { time: '2024-01-02', value: 105 },

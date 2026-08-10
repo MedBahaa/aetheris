@@ -20,16 +20,7 @@ export default function DashboardContent(props: DashboardProps) {
     handleSearch, executeSearch, searchRef, logContainerRef, setActiveAgent, handleAgentChange
   } = props;
 
-  // Quick Action Popular Moroccan Tickers
-  const popularTickers = [
-    { symbol: 'ATW', name: 'Attijariwafa Bank', sector: 'Bancaire' },
-    { symbol: 'BCP', name: 'Banque Centrale', sector: 'Bancaire' },
-    { symbol: 'IAM', name: 'Maroc Telecom', sector: 'Telecom' },
-    { symbol: 'MSA', name: 'Marsa Maroc', sector: 'Logistique' },
-    { symbol: 'TGCC', name: 'TGCC BTP', sector: 'BTP' },
-    { symbol: 'SNEP', name: 'SNEP', sector: 'Chimie' },
-    { symbol: 'BOA', name: 'Bank of Africa', sector: 'Bancaire' },
-  ];
+
 
 
   return (
@@ -91,23 +82,7 @@ export default function DashboardContent(props: DashboardProps) {
 
         <div className="input-glow-bar"></div>
 
-        {/* QUICK POPULAR CHIPS */}
-        <div className="quick-chips-row">
-          <span className="chips-label mono">ACTIFS POPULAIRES:</span>
-          <div className="chips-list">
-            {popularTickers.map(ticker => (
-              <button 
-                key={ticker.symbol}
-                onClick={() => executeSearch(ticker.symbol)}
-                className="chip-btn"
-                title={`Lancer l'analyse pour ${ticker.name}`}
-              >
-                <span className="chip-symbol mono">{ticker.symbol}</span>
-                <span className="chip-name">{ticker.name}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+
 
         {/* SUGGESTION DROPDOWN */}
         {showSuggestions && suggestions.length > 0 && (
@@ -142,13 +117,13 @@ export default function DashboardContent(props: DashboardProps) {
       {/* DYNAMIC DISPLAY AREA */}
       <div className="display-area">
         {error && (
-          <div className={`error-banner glass-heavy ${error.includes('quota') ? 'quota' : ''} animate-fade-in`}>
+          <div className={`error-banner glass-heavy ${typeof error === 'string' && error.includes('quota') ? 'quota' : ''} animate-fade-in`}>
             <div className="error-icon">
               <AlertCircle size={24} />
             </div>
             <div className="error-content">
-              <h4>{error.includes('quota') ? 'Limite de Capacité Atteinte' : 'Une erreur est survenue'}</h4>
-              <p>{error}</p>
+              <h4>{typeof error === 'string' && error.includes('quota') ? 'Limite de Capacité Atteinte' : 'Une erreur est survenue'}</h4>
+              <p>{typeof error === 'string' ? error : JSON.stringify(error)}</p>
             </div>
             <button className="close-error" onClick={() => setError(null)}>
               <X size={18} />
@@ -172,7 +147,7 @@ export default function DashboardContent(props: DashboardProps) {
                 <div className="terminal-body" ref={logContainerRef}>
                   {terminalLogs.map((log, i) => {
                     const isLast = i === terminalLogs.length - 1;
-                    const isValidation = log.includes('VALIDATION') || log.includes('SYNTHÈSE') || log.includes('SUCCÈS') || log.includes('RAPPORT');
+                    const isValidation = log && typeof log === 'string' && (log.includes('VALIDATION') || log.includes('SYNTHÈSE') || log.includes('SUCCÈS') || log.includes('RAPPORT'));
                     return (
                       <div key={i} className={`log-line mono ${isLast ? 'current' : ''} ${isValidation ? 'system-log' : ''}`}>
                         <span className="log-icon">{isLast ? '✦' : '✓'}</span>

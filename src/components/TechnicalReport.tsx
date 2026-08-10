@@ -101,7 +101,7 @@ export default function TechnicalReport({ analysis }: TechnicalReportProps) {
       </div>
 
       {/* AUDIT FIX: Data Quality Banner */}
-      {dataQuality && dataQuality.warnings.length > 0 && (
+      {dataQuality && dataQuality.warnings?.length > 0 && (
         <div className="data-quality-banner glass-heavy">
           <div className="dq-header">
             <AlertTriangle size={14} className="text-amber" />
@@ -223,7 +223,7 @@ export default function TechnicalReport({ analysis }: TechnicalReportProps) {
               <div className="macd-box glass-heavy">
                  <div className="m-header">
                     <span className="m-label mono-label">OSCILLATEUR MACD (12, 26, 9)</span>
-                    <div className={`macd-badge ${analysis.macd?.trend === 'Haussier' ? 'up' : analysis.macd?.trend?.includes('Indéterminé') ? 'na' : 'down'}`}>
+                    <div className={`macd-badge ${analysis.macd?.trend === 'Haussier' ? 'up' : String(analysis.macd?.trend || '').includes('Indéterminé') ? 'na' : 'down'}`}>
                        {analysis.macd?.trend || 'NEUTRE'}
                     </div>
                  </div>

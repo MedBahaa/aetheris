@@ -399,6 +399,18 @@ export class GeminiService {
 
       let text = await unifiedAICall(prompt, true, 'gemini-2.0-flash');
       const parsed = safeJsonParse(text);
+      
+      // BUG FIX #6: safeJsonParse can return null if AI response is malformed JSON.
+      // Returning null from a function declared non-nullable causes crashes at the call site.
+      if (!parsed) {
+        console.warn('[GeminiService] ⚠️ analyzeNewsSentiment: AI returned unparseable JSON. Using neutral fallback.');
+        return {
+          globalScore: 0,
+          impactSummary: 'Analyse indisponible (réponse IA non parseable).',
+          consolidatedSummary: '⚠️ La synthèse IA est temporairement indisponible.',
+          details: Array(news.length).fill({ sentiment: 'NEUTRE', score: 0, impact: 'Court terme' })
+        };
+      }
       return sanitizeAIResult(parsed);
     } catch (e) {
       console.error("Gemini News Sentiment Error:", e);
@@ -629,10 +641,9 @@ export class GeminiService {
 
       return {
         allocations,
-        orders: [
-          { type: "SELL", symbol: holdings[0]?.symbol || "IAM", quantity: 1, reason: "Ajustement technique de diversification." }
-        ],
-        rationale: "Optimisation de secours exécutée localement. Votre portefeuille présente des concentrations sectorielles qui mériteraient d'être lissées sous la barre des 25% par ligne."
+        orders: [],  // BUG FIX #8: Never generate fake trade orders when AI fails.
+                     // An AI timeout must NOT translate into a real sell recommendation.
+        rationale: '⚠️ Optimisation de secours calculée localement (la synthèse IA est temporairement indisponible). Aucun ordre d\'ajustement automatisé n\'est émis. Veuillez relancer l\'analyse pour obtenir des recommandations personnalisées.'
       };
     }
   }
@@ -708,10 +719,15 @@ Recherche sur Internet les derniers états financiers annuels et rapports offici
           companyName: parsed.companyName || parsed.company || query.toUpperCase(),
           ticker: parsed.ticker || query.toUpperCase(),
           fiscalYear: parsed.fiscalYear || '2024/2025',
-          isCompliant: strictCompliant, // Décision prise par le code, pas par l'IA
+          isCompliant: strictCompliant,
           purificationRate: parseFloat(purificationRate.toFixed(2)),
           debtRatio: parseFloat(debtRatio.toFixed(2)),
           cashRatio: parseFloat(cashRatio.toFixed(2)),
+          // BUG FIX #7: The compliance verdict is deterministic BUT the input data
+          // is AI-estimated (Gemini cannot actually browse the internet in standard mode).
+          // Flagging this transparently is critical for a Halal compliance tool.
+          isAIEstimated: true,
+          dataWarning: "⚠️ AVERTISSEMENT : Les données financières brutes (revenus, dettes, trésorerie) ont été estimées par intelligence artificielle à partir de données d'entraînement. Elles peuvent ne pas refléter les derniers états financiers publiés. Vérifiez OBLIGATOIREMENT auprès des rapports annuels officiels (AMMC / IR Bourse de Casablanca) avant toute décision d'investissement Halal.",
           financialData: {
             totalRevenue: formatMAD(totalRevenue),
             interestIncome: formatMAD(interestIncome),
