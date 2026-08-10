@@ -322,80 +322,70 @@ export default function PurificationPage() {
 
           {/* SEARCH SECTION */}
           {activeTab === 'AI_SEARCH' ? (
-            <div className="controls-bar glass-heavy animate-fade-in p-4 mb-6">
-              <form onSubmit={e => { e.preventDefault(); handleSearch(); }} className="flex flex-col md:flex-row gap-3">
-                <div className="search-box flex-1 relative">
-                  <Search size={18} className="opacity-40" />
-                  <input 
-                    type="text" 
-                    placeholder="RECHERCHER UNE ACTION (EX: DHO, IAM, DELTA HOLDING, AAPL...)"
-                    value={query}
-                    onChange={e => {
-                      setQuery(e.target.value);
-                      setShowSuggestions(true);
-                    }}
-                    onFocus={() => setShowSuggestions(true)}
-                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                    disabled={loading}
-                    autoCapitalize="characters"
-                  />
-                  {/* SUGGESTIONS DROPDOWN */}
-                  {showSuggestions && query.length >= 2 && (
-                    <div className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-slate-700 rounded-xl overflow-hidden z-50 shadow-2xl">
-                      {isSearchingDebounce ? (
-                        <div className="p-3 text-xs text-slate-400 font-mono">Recherche en cours...</div>
-                      ) : suggestions.length > 0 ? (
-                        suggestions.map((s, idx) => (
-                          <div 
-                            key={idx} 
-                            onClick={() => {
-                              setQuery(s.symbol);
-                              setShowSuggestions(false);
-                              handleSearch(s.symbol);
-                            }}
-                            className="p-3 hover:bg-slate-800 cursor-pointer border-b border-slate-800/50 last:border-0 flex justify-between items-center transition-colors"
-                          >
-                            <span className="font-bold text-white mono-tiny">{s.symbol}</span>
-                            <span className="text-xs text-slate-400 truncate ml-2">{s.name}</span>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="p-3 text-xs text-slate-400 font-mono">Aucune action trouvée dans la base de données.</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <button 
-                  type="submit" 
-                  disabled={loading || !query.trim()}
-                  className="action-btn-terminal strategy h-12 px-6 flex items-center justify-center gap-2"
-                >
-                  {loading ? <RefreshCw className="animate-spin" size={16} /> : <Sparkles size={16} />}
-                  <span>ANALYSER LA CONFORMITÉ</span>
-                </button>
-              </form>
-
-              {/* QUICK TICKER CHIPS */}
-              <div className="flex items-center gap-2 mt-4 flex-wrap">
-                <span className="mono-tiny opacity-40">EXEMPLES RAPIDES :</span>
-                {[
-                  { symbol: 'DHO', name: 'Delta Holding' },
-                  { symbol: 'IAM', name: 'Maroc Telecom' },
-                  { symbol: 'AKT', name: 'Akdital' },
-                  { symbol: 'ATW', name: 'Attijariwafa' },
-                  { symbol: 'ADI', name: 'Alliances' },
-                  { symbol: 'AAPL', name: 'Apple Inc.' }
-                ].map(item => (
+            <div className="animate-fade-in mb-8 flex justify-center">
+              <form 
+                onSubmit={e => { e.preventDefault(); handleSearch(); }} 
+                className="w-full max-w-3xl relative group"
+              >
+                <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500/20 via-emerald-400/20 to-emerald-500/20 rounded-2xl blur-lg opacity-50 group-hover:opacity-100 transition duration-1000 group-hover:duration-200" />
+                
+                <div className="relative flex flex-col md:flex-row items-center bg-slate-950/80 backdrop-blur-xl border border-white/10 rounded-2xl p-2 shadow-2xl focus-within:border-emerald-500/50 transition-all">
+                  <div className="flex-1 w-full relative flex items-center pl-4 py-2">
+                    <Search size={20} className="text-emerald-500/50" />
+                    <input 
+                      type="text" 
+                      placeholder="RECHERCHER UNE ACTION (EX: DHO, IAM, AAPL...)"
+                      value={query}
+                      onChange={e => {
+                        setQuery(e.target.value);
+                        setShowSuggestions(true);
+                      }}
+                      onFocus={() => setShowSuggestions(true)}
+                      onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                      disabled={loading}
+                      autoCapitalize="characters"
+                      className="w-full bg-transparent border-none text-white font-medium placeholder-slate-500 focus:outline-none focus:ring-0 ml-3 text-sm tracking-wide"
+                    />
+                  </div>
+                  
                   <button 
-                    key={item.symbol}
-                    onClick={() => { setQuery(item.symbol); handleSearch(item.symbol); }}
-                    className="action-chip white"
+                    type="submit" 
+                    disabled={loading || !query.trim()}
+                    className="mt-2 md:mt-0 w-full md:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 text-slate-950 font-bold shadow-lg hover:shadow-emerald-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase text-xs tracking-wider whitespace-nowrap"
                   >
-                    <span className="mono-tiny font-bold">{item.symbol}</span>
-                    <span className="opacity-60 text-[10px]">({item.name})</span>
+                    {loading ? <RefreshCw className="animate-spin" size={16} /> : <Sparkles size={16} />}
+                    <span>Analyser la conformité</span>
                   </button>
-                ))}
-              </div>
+                </div>
+
+                {/* SUGGESTIONS DROPDOWN */}
+                {showSuggestions && query.length >= 2 && (
+                  <div className="absolute top-full left-0 w-full md:w-[calc(100%-240px)] mt-3 bg-slate-900/95 backdrop-blur-2xl border border-white/10 rounded-2xl overflow-hidden z-50 shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
+                    {isSearchingDebounce ? (
+                      <div className="p-4 text-xs text-slate-400 font-medium flex items-center justify-center gap-2">
+                         <RefreshCw size={14} className="animate-spin text-emerald-500" /> Recherche en cours...
+                      </div>
+                    ) : suggestions.length > 0 ? (
+                      suggestions.map((s, idx) => (
+                        <div 
+                          key={idx} 
+                          onClick={() => {
+                            setQuery(s.symbol);
+                            setShowSuggestions(false);
+                            handleSearch(s.symbol);
+                          }}
+                          className="px-5 py-4 hover:bg-white/5 cursor-pointer border-b border-white/5 last:border-0 flex justify-between items-center transition-colors group/item"
+                        >
+                          <span className="font-bold text-white mono-tiny group-hover/item:text-emerald-400 transition-colors">{s.symbol}</span>
+                          <span className="text-xs text-slate-400 truncate ml-2 group-hover/item:text-slate-300">{s.name}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-4 text-xs text-slate-400 font-medium text-center">Aucune action trouvée dans la base de données.</div>
+                    )}
+                  </div>
+                )}
+              </form>
             </div>
           ) : (
             /* MANUAL INPUT FORM */
