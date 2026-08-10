@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     if (!validationResult.success) {
       return corsHeaders(
         NextResponse.json(
-          { status: 'error', message: validationResult.error.errors[0].message },
+          { status: 'error', message: validationResult.error.issues[0].message },
           { status: 400 }
         )
       );
