@@ -62,7 +62,7 @@ export default function MarcheLive() {
 
   const handleAnalyze = useCallback((symbol: string, agentType: string) => {
     setOpenMenuSymbol(null);
-    window.location.href = `/?q=${encodeURIComponent(symbol)}&agent=${agentType}`;
+    window.location.href = `/console?q=${encodeURIComponent(symbol)}&agent=${agentType}`;
   }, []);
 
   const fetcher = async (url: string) => {
