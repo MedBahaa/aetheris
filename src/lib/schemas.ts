@@ -45,12 +45,12 @@ export const NewsItemSchema = z.object({
 });
 
 export const OrchestratorResultSchema = z.object({
-  currentSituation: z.string(),
-  keyPoints: z.array(z.string()),
-  opportunity: OpportunitySchema,
-  risk: ConfidenceSchema,
-  finalAction: ActionSchema,
-  why: z.string(),
+  currentSituation: z.string().optional().catch('Situation en cours d\'analyse.'),
+  keyPoints: z.array(z.string()).optional().catch([]),
+  opportunity: OpportunitySchema.optional().catch('À surveiller'),
+  risk: ConfidenceSchema.optional().catch('Moyen'),
+  finalAction: ActionSchema.optional().catch('ATTENDRE'),
+  why: z.string().optional().catch('Données insuffisantes pour justifier une action.'),
   contradictionDetected: z.string().optional().nullable(),
   strategyPlan: z.string().optional(),
   idealEntryPoint: z.string().optional(),
@@ -64,9 +64,9 @@ export const OrchestratorResultSchema = z.object({
 });
 
 export const MultiHorizonSchema = z.object({
-  shortTerm: OrchestratorResultSchema,
-  mediumTerm: OrchestratorResultSchema,
-  longTerm: OrchestratorResultSchema,
+  shortTerm: OrchestratorResultSchema.optional(),
+  mediumTerm: OrchestratorResultSchema.optional(),
+  longTerm: OrchestratorResultSchema.optional(),
 });
 
 export const FundamentalDataSchema = z.object({
