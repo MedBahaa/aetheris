@@ -145,9 +145,9 @@ export default function DashboardContent(props: DashboardProps) {
               {/* Left Column: Terminal Logs */}
               <div className="terminal-logs-column">
                 <div className="terminal-body" ref={logContainerRef}>
-                  {terminalLogs.map((log, i) => {
-                    const isLast = i === terminalLogs.length - 1;
-                    const isValidation = log && typeof log === 'string' && (log.includes('VALIDATION') || log.includes('SYNTHÈSE') || log.includes('SUCCÈS') || log.includes('RAPPORT'));
+                  {terminalLogs.filter(log => log && log.trim().length > 0).map((log, i, arr) => {
+                    const isLast = i === arr.length - 1;
+                    const isValidation = typeof log === 'string' && (log.includes('VALIDATION') || log.includes('SYNTHÈSE') || log.includes('SUCCÈS') || log.includes('RAPPORT'));
                     return (
                       <div key={i} className={`log-line mono ${isLast ? 'current' : ''} ${isValidation ? 'system-log' : ''}`}>
                         <span className="log-icon">{isLast ? '✦' : '✓'}</span>
