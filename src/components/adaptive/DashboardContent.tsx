@@ -246,7 +246,7 @@ export default function DashboardContent(props: DashboardProps) {
         .dashboard-container { width: 100%; max-width: var(--max-width); margin: 0 auto; }
 
         /* Search Console */
-        .search-console-wrapper { margin-bottom: 2rem; position: relative; }
+        .search-console-wrapper { margin-bottom: 2rem; position: relative; z-index: 50; }
         .terminal-search-form { display: flex; align-items: stretch; gap: 1rem; padding: 0.5rem; border-radius: 1rem; position: relative; z-index: 2; transition: all 0.4s var(--ease); }
         .terminal-search-form:focus-within { border-color: rgba(16, 185, 129, 0.3); box-shadow: 0 0 30px rgba(16, 185, 129, 0.1); }
         
