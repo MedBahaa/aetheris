@@ -4,17 +4,21 @@ import { SymbolMapper } from '@/lib/symbol-mapper';
 import { InputSanitizer } from '@/lib/input-sanitizer';
 import { corsHeaders, handleOptionsRequest } from '@/lib/api-headers';
 
+import { companySearchSchema } from '@/lib/validations';
+
 export function OPTIONS() {
   return handleOptionsRequest();
 }
 
 export async function GET(request: NextRequest) {
-  const rawQuery = request.nextUrl.searchParams.get('q');
-  const query = rawQuery ? InputSanitizer.sanitizeForDb(rawQuery) : null;
+  const rawQuery = request.nextUrl.searchParams.get('q') || '';
+  const validation = companySearchSchema.safeParse({ query: rawQuery });
 
-  if (!query || query.length < 2) {
+  if (!validation.success) {
     return corsHeaders(NextResponse.json([]));
   }
+
+  const query = InputSanitizer.sanitizeForDb(validation.data.query);
 
   try {
     const { data, error } = await supabaseAdmin

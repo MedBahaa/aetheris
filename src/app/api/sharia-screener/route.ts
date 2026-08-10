@@ -3,6 +3,7 @@ import { GeminiService } from '@/lib/gemini';
 import { corsHeaders, handleOptionsRequest } from '@/lib/api-headers';
 import { createServerSupabase } from '@/lib/supabase-server';
 import { checkRateLimit } from '@/lib/rate-limiter';
+import { shariaQuerySchema } from '@/lib/validations';
 
 export function OPTIONS() {
   return handleOptionsRequest();
@@ -28,17 +29,19 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { query } = body;
-
-    if (!query || typeof query !== 'string' || !query.trim()) {
+    
+    // Validation avec Zod
+    const validationResult = shariaQuerySchema.safeParse(body);
+    if (!validationResult.success) {
       return corsHeaders(
         NextResponse.json(
-          { status: 'error', message: 'Veuillez fournir un nom de société ou un ticker (ex: DHO, Delta Holding...)' },
+          { status: 'error', message: validationResult.error.errors[0].message },
           { status: 400 }
         )
       );
     }
 
+    const { query } = validationResult.data;
     const cleanQuery = query.trim();
     const result = await GeminiService.analyzeShariaCompliance(cleanQuery);
 
