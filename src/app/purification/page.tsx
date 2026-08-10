@@ -306,18 +306,18 @@ export default function PurificationPage() {
           )}
 
           {/* MODE SELECTOR TABS */}
-          <div className="flex p-1 bg-slate-900/50 backdrop-blur-md rounded-2xl mb-8 border border-white/5 w-full md:w-max mx-auto shadow-inner">
+          <div className="tab-strip mb-8">
             <button 
-              className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === 'AI_SEARCH' ? 'bg-slate-800 text-emerald-400 shadow-lg border border-white/5' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
+              className={`tab-btn ${activeTab === 'AI_SEARCH' ? 'active' : ''}`}
               onClick={() => setActiveTab('AI_SEARCH')}
             >
-              <Sparkles size={16} /> <span className="hidden md:inline">Recherche IA Automatique (Web & Rapports)</span><span className="md:hidden">IA Auto</span>
+              <Sparkles size={13} /> <span className="hidden md:inline">Recherche IA Automatique (Web & Rapports)</span><span className="md:hidden">IA Auto</span>
             </button>
             <button 
-              className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === 'MANUAL' ? 'bg-slate-800 text-emerald-400 shadow-lg border border-white/5' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
+              className={`tab-btn ${activeTab === 'MANUAL' ? 'active' : ''}`}
               onClick={() => setActiveTab('MANUAL')}
             >
-              <Sliders size={16} /> <span className="hidden md:inline">Calculateur Manuel (Saisie CPC)</span><span className="md:hidden">Saisie Manuelle</span>
+              <Sliders size={13} /> <span className="hidden md:inline">Calculateur Manuel (Saisie CPC)</span><span className="md:hidden">Saisie Manuelle</span>
             </button>
           </div>
 
