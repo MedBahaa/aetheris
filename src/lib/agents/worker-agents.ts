@@ -80,7 +80,6 @@ export const NewsWorker = {
           globalSentiment,
           probableImpact: sentimentAnalysis?.impactSummary || 'Analyse indisponible.',
           consolidatedSummary: sentimentAnalysis?.consolidatedSummary || '',
-          newsAnalysisFailed: safeDetails.length === 0, // Signal pour les agents en aval
           collectionStatus: {
             status: collectionStatus,
             feedsSuccess: successFeeds,
