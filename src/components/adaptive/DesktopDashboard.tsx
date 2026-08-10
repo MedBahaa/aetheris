@@ -12,7 +12,13 @@ interface DesktopDashboardProps extends DashboardProps {
 
 export default function DesktopDashboard(props: DesktopDashboardProps) {
   return (
-    <div className="app-container desktop-layout" style={{ display: 'flex', minHeight: '100vh' }}>
+    <div className="app-container desktop-layout" style={{ display: 'block', minHeight: '100vh' }}>
+      <Header onOpenSidebar={() => props.setIsSidebarOpen(!props.isSidebarOpen)} /> 
+      
+      <main className="main-content desktop-content" style={{ padding: '1.75rem 2rem', paddingTop: 'calc(var(--header-height) + 1.75rem)', margin: '0 auto', maxWidth: '1650px' }}>
+        <DashboardContent {...props} />
+      </main>
+
       <Sidebar 
         history={props.history} 
         onSelect={props.handleSelectFromHistory} 
@@ -22,19 +28,6 @@ export default function DesktopDashboard(props: DesktopDashboardProps) {
         isOpen={props.isSidebarOpen} 
         onClose={() => props.setIsSidebarOpen(false)} 
       />
-      
-      <div className="desktop-main-wrapper" style={{ 
-        flex: 1, 
-        width: '100%', 
-        paddingLeft: props.isSidebarOpen ? 'var(--sidebar-width)' : '0',
-        transition: 'padding-left 0.35s var(--ease)' 
-      }}>
-        <Header onOpenSidebar={() => props.setIsSidebarOpen(!props.isSidebarOpen)} /> 
-        
-        <main className="main-content desktop-content" style={{ padding: '2.5rem', paddingTop: 'calc(var(--header-height) + 2.5rem)', margin: '0 auto', maxWidth: '1400px' }}>
-          <DashboardContent {...props} />
-        </main>
-      </div>
     </div>
   );
 }

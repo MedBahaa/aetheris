@@ -46,12 +46,6 @@ function ConsoleHome() {
   const autoSearchDone = useRef(false);
 
   useEffect(() => {
-    if (isDesktop) {
-      setIsSidebarOpen(true);
-    }
-  }, [isDesktop]);
-
-  useEffect(() => {
     const agentParam = searchParams.get('agent') as AgentType;
     const qParam = searchParams.get('q');
 
@@ -79,9 +73,12 @@ function ConsoleHome() {
         const res = await getUserProfileAction();
         if (res && res.success && res.data) {
           setSubscriptionTier(res.data.subscription_tier || 'free');
+        } else {
+          setSubscriptionTier('free');
         }
       } catch (err) {
         console.error(err);
+        setSubscriptionTier('free');
       }
     };
     loadProfile();
@@ -200,6 +197,9 @@ function ConsoleHome() {
   const handleSelectFromHistory = (a: CompanyAnalysis) => {
     setAnalysis(a);
     setActiveId(a.id);
+    if (a.type) {
+      setActiveAgent(a.type);
+    }
   };
 
   const handleUpgrade = async () => {
@@ -214,8 +214,14 @@ function ConsoleHome() {
 
   const handleAgentChange = (type: AgentType) => {
     setActiveAgent(type);
-    setAnalysis(null);
-    setActiveId(undefined);
+    if (analysis && analysis.companyName) {
+      const currentCompany = analysis.companyName;
+      const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
+      handleSearch(fakeEvent, currentCompany, false, type);
+    } else {
+      setAnalysis(null);
+      setActiveId(undefined);
+    }
   };
 
   const dashboardProps: DashboardProps & { handleAgentChange: (type: AgentType) => void } = {

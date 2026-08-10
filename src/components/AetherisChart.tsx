@@ -50,14 +50,15 @@ export default function AetherisChart({ company, companyId, isBullish = true }: 
             dailyData.set(date, row.price);
           });
 
-          const formattedData = Array.from(dailyData.entries()).map(([date, price]) => ({
-            time: date,
-            value: price
-          }));
+          const formattedData = Array.from(dailyData.entries())
+            .map(([date, price]) => ({ time: date, value: price }))
+            .sort((a, b) => (a.time > b.time ? 1 : a.time < b.time ? -1 : 0));
           
-          if (formattedData.length < 2) {
-            // Rajouter un point fictif pour dessiner la ligne
-            formattedData.unshift({ time: new Date(Date.now() - 86400000).toISOString().split('T')[0], value: formattedData[0]?.value || 0 });
+          if (formattedData.length === 1) {
+            const firstDate = new Date(formattedData[0].time);
+            firstDate.setDate(firstDate.getDate() - 1);
+            const prevDateStr = firstDate.toISOString().split('T')[0];
+            formattedData.unshift({ time: prevDateStr, value: formattedData[0].value });
           }
 
           setChartData(formattedData);

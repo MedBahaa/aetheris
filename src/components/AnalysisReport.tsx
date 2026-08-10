@@ -15,11 +15,13 @@ const SentimentBadge = ({ sentiment }: { sentiment: Sentiment }) => {
     NEUTRE: <Minus size={12} />,
   };
 
-  const label = sentiment.replace('_', ' ');
+  const safeSentiment = (typeof sentiment === 'string' && sentiment) ? (sentiment.toUpperCase() as keyof typeof Icons) : 'NEUTRE';
+  const icon = Icons[safeSentiment] || <Minus size={12} />;
+  const label = safeSentiment.replace(/_/g, ' ');
 
   return (
-    <span className={`sent-badge sent-${sentiment.toLowerCase()}`}>
-      {Icons[sentiment]}
+    <span className={`sent-badge sent-${safeSentiment.toLowerCase()}`}>
+      {icon}
       {label.charAt(0).toUpperCase() + label.slice(1).toLowerCase()}
     </span>
   );
