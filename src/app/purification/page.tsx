@@ -30,6 +30,8 @@ interface ShariaResult {
   sources: string[];
 }
 
+import { getDividendsAction } from '@/lib/portfolio-actions';
+
 export default function PurificationPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'AI_SEARCH' | 'MANUAL'>('AI_SEARCH');
@@ -74,7 +76,7 @@ export default function PurificationPage() {
   const [showKeyInput, setShowKeyInput] = useState(false);
 
   // Dividend Calculator Input
-  const [dividendAmount, setDividendAmount] = useState<string>('6024');
+  const [dividendAmount, setDividendAmount] = useState<string>('0');
   const [copied, setCopied] = useState(false);
 
   // Manual Input State
@@ -130,6 +132,25 @@ export default function PurificationPage() {
       }
 
       setResult(json.data);
+      
+      // Auto-fetch real dividends if available
+      try {
+        const divs = await getDividendsAction(false);
+        const tickerDivs = divs.filter(d => 
+          d.symbol.toUpperCase() === json.data.ticker.toUpperCase() || 
+          d.symbol.toUpperCase() === searchQuery.toUpperCase()
+        );
+        if (tickerDivs.length > 0) {
+          const totalDiv = tickerDivs.reduce((sum, d) => sum + (d.total_amount || 0), 0);
+          setDividendAmount(totalDiv.toString());
+        } else {
+          setDividendAmount('0');
+        }
+      } catch (err) {
+        console.error('Error fetching user dividends', err);
+        setDividendAmount('0');
+      }
+
     } catch (err: any) {
       console.error('Sharia Search Error:', err);
       setError(err.message || 'Impossible d\'extraire les données financières. Essayez le mode de calcul manuel.');
