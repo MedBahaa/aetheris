@@ -8,7 +8,8 @@ import BottomNav from '@/components/BottomNav';
 import { 
   CheckCircle2, XCircle, Search, Sparkles, Key, Calculator, 
   BookOpen, ExternalLink, RefreshCw, AlertTriangle, ShieldCheck, 
-  Copy, Check, Coins, ArrowLeft, Sliders, DollarSign, HelpCircle, Scale
+  Copy, Check, Coins, ArrowLeft, Sliders, DollarSign, HelpCircle, Scale,
+  Landmark, Globe, PieChart, Activity, Briefcase
 } from 'lucide-react';
 
 interface ShariaResult {
@@ -322,51 +323,57 @@ export default function PurificationPage() {
 
           {/* SEARCH SECTION */}
           {activeTab === 'AI_SEARCH' ? (
-            <div className="animate-fade-in mb-8 flex justify-center">
-              <form 
-                onSubmit={e => { e.preventDefault(); handleSearch(); }} 
-                className="w-full max-w-3xl relative group"
-              >
-                <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500/20 via-emerald-400/20 to-emerald-500/20 rounded-2xl blur-lg opacity-50 group-hover:opacity-100 transition duration-1000 group-hover:duration-200" />
-                
-                <div className="relative flex flex-col md:flex-row items-center bg-slate-950/80 backdrop-blur-xl border border-white/10 rounded-2xl p-2 shadow-2xl focus-within:border-emerald-500/50 transition-all">
-                  <div className="flex-1 w-full relative flex items-center pl-4 py-2">
-                    <Search size={20} className="text-emerald-500/50" />
-                    <input 
-                      type="text" 
-                      placeholder="RECHERCHER UNE ACTION (EX: DHO, IAM, AAPL...)"
-                      value={query}
-                      onChange={e => {
-                        setQuery(e.target.value);
-                        setShowSuggestions(true);
-                      }}
-                      onFocus={() => setShowSuggestions(true)}
-                      onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                      disabled={loading}
-                      autoCapitalize="characters"
-                      className="w-full bg-transparent border-none text-white font-medium placeholder-slate-500 focus:outline-none focus:ring-0 ml-3 text-sm tracking-wide"
-                    />
-                  </div>
-                  
-                  <button 
-                    type="submit" 
-                    disabled={loading || !query.trim()}
-                    className="mt-2 md:mt-0 w-full md:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 text-slate-950 font-bold shadow-lg hover:shadow-emerald-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase text-xs tracking-wider whitespace-nowrap"
-                  >
-                    {loading ? <RefreshCw className="animate-spin" size={16} /> : <Sparkles size={16} />}
-                    <span>Analyser la conformité</span>
-                  </button>
+            <div className="search-console-wrapper animate-fade-in" style={{ marginBottom: '2rem' }}>
+              <form onSubmit={e => { e.preventDefault(); handleSearch(); }} className="terminal-search-form glass-heavy">
+                <div className="input-terminal-group">
+                  <Search className="search-symbol" size={18} />
+                  <input 
+                    type="text" 
+                    placeholder="RECHERCHER UNE ACTION (EX: DHO, IAM, AAPL...)"
+                    value={query}
+                    onChange={e => {
+                      setQuery(e.target.value);
+                      setShowSuggestions(true);
+                    }}
+                    onFocus={() => setShowSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                    disabled={loading}
+                    autoCapitalize="characters"
+                    className="terminal-input"
+                    spellCheck="false"
+                    autoComplete="off"
+                  />
+                  {query && (
+                    <button 
+                      type="button" 
+                      onClick={() => setQuery('')} 
+                      className="clear-query-btn"
+                    >
+                      <XCircle size={15} />
+                    </button>
+                  )}
                 </div>
+                
+                <button 
+                  type="submit" 
+                  disabled={loading || !query.trim()}
+                  className="action-btn-terminal strategy"
+                >
+                  {loading ? <RefreshCw className="animate-spin" size={16} /> : <Sparkles size={16} />}
+                  <span className="btn-label-text">Analyser Conformité</span>
+                </button>
+              </form>
 
-                {/* SUGGESTIONS DROPDOWN */}
-                {showSuggestions && query.length >= 2 && (
-                  <div className="absolute top-full left-0 w-full md:w-[calc(100%-240px)] mt-3 bg-slate-900/95 backdrop-blur-2xl border border-white/10 rounded-2xl overflow-hidden z-50 shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
-                    {isSearchingDebounce ? (
-                      <div className="p-4 text-xs text-slate-400 font-medium flex items-center justify-center gap-2">
-                         <RefreshCw size={14} className="animate-spin text-emerald-500" /> Recherche en cours...
-                      </div>
-                    ) : suggestions.length > 0 ? (
-                      suggestions.map((s, idx) => (
+              <div className="input-glow-bar"></div>
+
+              {/* SUGGESTIONS DROPDOWN */}
+              {showSuggestions && query.length >= 2 && (
+                <div className="suggestion-dropdown glass-heavy animate-slide-up" style={{ position: 'relative', marginTop: '0.5rem', zIndex: 50 }}>
+                  {isSearchingDebounce ? (
+                    <div className="p-4 text-xs text-slate-400 font-mono text-center">Recherche en cours...</div>
+                  ) : suggestions.length > 0 ? (
+                    <div className="suggestion-list">
+                      {suggestions.map((s, idx) => (
                         <div 
                           key={idx} 
                           onClick={() => {
@@ -374,18 +381,19 @@ export default function PurificationPage() {
                             setShowSuggestions(false);
                             handleSearch(s.symbol);
                           }}
-                          className="px-5 py-4 hover:bg-white/5 cursor-pointer border-b border-white/5 last:border-0 flex justify-between items-center transition-colors group/item"
+                          className="suggestion-item"
+                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                         >
-                          <span className="font-bold text-white mono-tiny group-hover/item:text-emerald-400 transition-colors">{s.symbol}</span>
-                          <span className="text-xs text-slate-400 truncate ml-2 group-hover/item:text-slate-300">{s.name}</span>
+                          <span className="font-bold text-white mono-tiny">{s.symbol}</span>
+                          <span className="text-xs text-slate-400 truncate ml-2">{s.name}</span>
                         </div>
-                      ))
-                    ) : (
-                      <div className="p-4 text-xs text-slate-400 font-medium text-center">Aucune action trouvée dans la base de données.</div>
-                    )}
-                  </div>
-                )}
-              </form>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 text-xs text-slate-400 font-mono text-center">Aucune action trouvée.</div>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             /* MANUAL INPUT FORM */
@@ -462,241 +470,238 @@ export default function PurificationPage() {
 
           {/* RESULTS SECTION */}
           {result && !loading && (
-            <div className="flex flex-col gap-8 animate-fade-in">
+            <div className="fundamental-root animate-fade-in mt-4">
               
               {/* CREDIBILITY DISCLAIMER */}
-              <div className="bg-slate-900/50 border border-slate-700/50 p-4 rounded-xl flex items-start gap-3 text-slate-300">
-                <AlertTriangle size={20} className="text-amber-500/80 flex-shrink-0 mt-0.5" />
+              <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl flex items-start gap-3 text-amber-400/90 mb-6">
+                <AlertTriangle size={20} className="text-amber-500 flex-shrink-0 mt-0.5" />
                 <div className="flex flex-col gap-1">
-                  <h4 className="font-bold text-sm text-slate-200">Avertissement : Données générées par Intelligence Artificielle</h4>
+                  <h4 className="font-bold text-sm">AVERTISSEMENT : DONNÉES GÉNÉRÉES PAR INTELLIGENCE ARTIFICIELLE</h4>
                   <p className="text-xs opacity-80 leading-relaxed">
                     Les montants financiers ci-dessous ont été extraits automatiquement par l'IA à partir des ressources disponibles sur le web. 
-                    Les calculs de conformité AAOIFI ont ensuite été appliqués mathématiquement. <strong>Avant toute décision d'investissement Halal, vous devez impérativement vérifier ces chiffres avec les rapports financiers officiels publiés par l'AMMC</strong>.
+                    Les calculs de conformité AAOIFI ont ensuite été appliqués. <strong>Vérifiez ces chiffres avec les rapports de l'AMMC.</strong>
                   </p>
                 </div>
               </div>
 
-              {/* COMPLIANCE STATUS & HERO PURIFICATION RATE */}
-              <div className={`glass-heavy p-8 rounded-3xl border flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden ${result.isCompliant ? 'border-emerald-500/40 bg-emerald-950/20 shadow-[0_0_40px_rgba(16,185,129,0.15)]' : 'border-rose-500/40 bg-rose-950/20 shadow-[0_0_40px_rgba(244,63,94,0.15)]'}`}>
-                {/* Glow effect background */}
-                <div className={`absolute -top-20 -left-20 w-64 h-64 rounded-full blur-[80px] opacity-30 pointer-events-none ${result.isCompliant ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-
-                <div className="flex items-center gap-6 z-10">
-                  <div className={`p-5 rounded-2xl flex-shrink-0 ${result.isCompliant ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
-                    {result.isCompliant ? <CheckCircle2 size={48} /> : <XCircle size={48} />}
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="mono-tiny opacity-70 tracking-wider">ANALYSE SHARIA • {result.fiscalYear}</span>
-                    <h2 className={`font-black text-3xl md:text-5xl tracking-tight ${result.isCompliant ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {/* HEADER FUND */}
+              <div className="report-header-fund">
+                <div className="agent-identity">
+                  <div className={`identity-pulse ${result.isCompliant ? 'emerald' : 'rose'}`} style={{ background: result.isCompliant ? 'var(--accent-emerald)' : '#f43f5e', boxShadow: result.isCompliant ? '0 0 12px var(--accent-emerald)' : '0 0 12px #f43f5e' }}></div>
+                  <ShieldCheck size={12} className={result.isCompliant ? 'text-emerald' : 'text-rose-500'} />
+                  <span className="mono-label">ANALYSE SHARIA v1.0 • {result.fiscalYear}</span>
+                </div>
+                <div className="header-main">
+                  <div>
+                    <h2 className="company-title" style={{ color: result.isCompliant ? 'var(--accent-emerald)' : '#f43f5e' }}>
                       {result.isCompliant ? 'HALAL (CONFORME)' : 'NON CONFORME'}
                     </h2>
-                    <span className="text-base text-slate-300 font-bold tracking-wide">{result.companyName} ({result.ticker})</span>
+                    <span className="text-xl text-white font-bold mt-2 block tracking-wide">{result.companyName} ({result.ticker})</span>
                   </div>
-                </div>
-
-                {/* HERO PURIFICATION RATE BADGE */}
-                <div className="bg-slate-950/80 p-6 rounded-2xl border border-white/10 flex flex-col items-center md:items-end gap-1 min-w-[240px] z-10 relative overflow-hidden backdrop-blur-md">
-                   <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
-                  <span className="mono-tiny text-slate-400 tracking-wider uppercase">Taux de Purification</span>
-                  <div className="text-5xl font-black mono text-emerald-400 tracking-tighter drop-shadow-md">
-                    {result.purificationRate.toFixed(2)}<span className="text-2xl text-emerald-500/50">%</span>
-                  </div>
-                  <span className="text-xs text-slate-500 text-center md:text-right font-medium mt-1">
-                    Fraction d'intérêts (Riba)
-                  </span>
-                </div>
-              </div>
-
-              {/* EXTRACTED FINANCIAL DATA & SUMMARY */}
-              <div className="glass-heavy p-6 rounded-3xl border border-white/5 flex flex-col gap-5">
-                <h3 className="mono font-bold text-sm text-slate-300 flex items-center gap-2">
-                  <BookOpen size={16} className="text-emerald-500" /> 1. DONNÉES FINANCIÈRES EXTRAITES DU CPC ET BILAN
-                </h3>
-
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                  <div className="bg-slate-900/50 p-4 rounded-2xl border border-white/5 flex flex-col justify-center">
-                    <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider mb-1">Chiffre d'Affaires</span>
-                    <span className="mono font-bold text-slate-200 text-sm">{result.financialData.totalRevenue}</span>
-                  </div>
-                  <div className="bg-slate-900/50 p-4 rounded-2xl border border-white/5 flex flex-col justify-center">
-                    <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider mb-1">Produits d'Intérêts</span>
-                    <span className="mono font-bold text-rose-400 text-sm">{result.financialData.interestIncome}</span>
-                  </div>
-                  <div className="bg-slate-900/50 p-4 rounded-2xl border border-white/5 flex flex-col justify-center">
-                    <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider mb-1">Dettes Bancaires</span>
-                    <span className="mono font-bold text-amber-400 text-sm">{result.financialData.interestDebt}</span>
-                  </div>
-                  <div className="bg-slate-900/50 p-4 rounded-2xl border border-white/5 flex flex-col justify-center">
-                    <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider mb-1">Trésorerie Placée</span>
-                    <span className="mono font-bold text-slate-300 text-sm">{result.financialData.interestCash}</span>
-                  </div>
-                  <div className="bg-emerald-950/20 p-4 rounded-2xl border border-emerald-500/20 flex flex-col justify-center col-span-2 lg:col-span-1 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 rounded-full blur-xl"></div>
-                    <span className="text-emerald-500/70 text-[10px] uppercase font-bold tracking-wider mb-1">Capitalisation Base</span>
-                    <span className="mono font-bold text-emerald-400 text-sm z-10">{result.financialData.marketCap}</span>
-                  </div>
-                </div>
-
-                <div className="bg-slate-900/30 p-4 rounded-xl border border-white/5 text-sm text-slate-300 leading-relaxed font-light">
-                  <span className="font-bold text-emerald-500 block mb-1 uppercase text-xs tracking-wider">Résumé Explicatif</span>
-                  {result.summary}
-                </div>
-
-                {result.sources && result.sources.length > 0 && (
-                  <div className="flex items-center gap-2 text-xs flex-wrap mt-2">
-                    <span className="text-slate-500 font-bold">SOURCES :</span>
-                    {result.sources.map((src, i) => (
-                      <a 
-                        key={i} 
-                        href={src.startsWith('http') ? src : '#'} 
-                        target="_blank" 
-                        rel="noreferrer"
-                        className="text-emerald-400/80 hover:text-emerald-400 hover:underline flex items-center gap-1 bg-slate-900/80 px-2.5 py-1.5 rounded-md border border-white/5 transition-colors"
-                      >
-                        <ExternalLink size={12} /> <span>{src.replace('https://', '').replace('http://', '').split('/')[0]}</span>
-                      </a>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* AAOIFI RATIOS TABLE / METRICS GRID */}
-              <div className="glass-heavy p-6 rounded-3xl border border-white/5">
-                <h3 className="mono font-bold text-sm text-slate-300 mb-5 flex items-center gap-2">
-                  <ShieldCheck size={16} className="text-emerald-500" /> 2. DÉTAILS DES RATIOS DE CONFORMITÉ AAOIFI
-                </h3>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* RATIO 1: INTÉRÊTS / REVENUS */}
-                  <div className="bg-slate-900/60 p-5 rounded-2xl border border-white/5 flex flex-col gap-3 relative overflow-hidden group hover:border-white/10 transition-colors">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-400 font-bold uppercase tracking-wider">Revenus Non Conformes</span>
-                      <span className="mono text-[10px] text-slate-500 bg-slate-800/80 px-2 py-1 rounded">MAX 5%</span>
-                    </div>
-                    <div className="flex justify-between items-baseline mt-1">
-                      <span className="text-3xl font-black mono text-white">{result.purificationRate.toFixed(2)}<span className="text-xl text-slate-500">%</span></span>
-                      <span className={`text-xs font-bold px-2.5 py-1 rounded-md ${result.purificationRate <= 5.0 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'}`}>
-                        {result.purificationRate <= 5.0 ? '✓ OK' : '✗ DÉPASSÉ'}
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-800/50 h-2 rounded-full overflow-hidden mt-2">
-                      <div 
-                        className={`h-full transition-all duration-1000 ${result.purificationRate <= 5.0 ? 'bg-emerald-500' : 'bg-rose-500'}`} 
-                        style={{ width: `${Math.min((result.purificationRate / 5) * 100, 100)}%` }}
-                      />
-                    </div>
-                    <span className="text-[10px] text-slate-500 font-medium">Ratio Riba / Chiffre d'Affaires</span>
-                  </div>
-
-                  {/* RATIO 2: ENDETTEMENT */}
-                  <div className="bg-slate-900/60 p-5 rounded-2xl border border-white/5 flex flex-col gap-3 relative overflow-hidden group hover:border-white/10 transition-colors">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-400 font-bold uppercase tracking-wider">Endettement Bancaire</span>
-                      <span className="mono text-[10px] text-slate-500 bg-slate-800/80 px-2 py-1 rounded">MAX 33%</span>
-                    </div>
-                    <div className="flex justify-between items-baseline mt-1">
-                      <span className="text-3xl font-black mono text-white">{result.debtRatio.toFixed(2)}<span className="text-xl text-slate-500">%</span></span>
-                      <span className={`text-xs font-bold px-2.5 py-1 rounded-md ${result.debtRatio <= 33.0 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'}`}>
-                        {result.debtRatio <= 33.0 ? '✓ OK' : '✗ DÉPASSÉ'}
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-800/50 h-2 rounded-full overflow-hidden mt-2">
-                      <div 
-                        className={`h-full transition-all duration-1000 ${result.debtRatio <= 33.0 ? 'bg-emerald-500' : 'bg-rose-500'}`} 
-                        style={{ width: `${Math.min((result.debtRatio / 33) * 100, 100)}%` }}
-                      />
-                    </div>
-                    <span className="text-[10px] text-slate-500 font-medium">Dettes à intérêts / Capitalisation</span>
-                  </div>
-
-                  {/* RATIO 3: TRÉSORERIE */}
-                  <div className="bg-slate-900/60 p-5 rounded-2xl border border-white/5 flex flex-col gap-3 relative overflow-hidden group hover:border-white/10 transition-colors">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-400 font-bold uppercase tracking-wider">Trésorerie Placée</span>
-                      <span className="mono text-[10px] text-slate-500 bg-slate-800/80 px-2 py-1 rounded">MAX 33%</span>
-                    </div>
-                    <div className="flex justify-between items-baseline mt-1">
-                      <span className="text-3xl font-black mono text-white">{result.cashRatio.toFixed(2)}<span className="text-xl text-slate-500">%</span></span>
-                      <span className={`text-xs font-bold px-2.5 py-1 rounded-md ${result.cashRatio <= 33.0 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'}`}>
-                        {result.cashRatio <= 33.0 ? '✓ OK' : '✗ DÉPASSÉ'}
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-800/50 h-2 rounded-full overflow-hidden mt-2">
-                      <div 
-                        className={`h-full transition-all duration-1000 ${result.cashRatio <= 33.0 ? 'bg-emerald-500' : 'bg-rose-500'}`} 
-                        style={{ width: `${Math.min((result.cashRatio / 33) * 100, 100)}%` }}
-                      />
-                    </div>
-                    <span className="text-[10px] text-slate-500 font-medium">Placements rémunérés / Capitalisation</span>
+                  <div className="sector-badge glass-heavy">
+                    <Scale size={14} className="opacity-40" />
+                    <span className="mono-label">TAUX DE PURIFICATION: {result.purificationRate.toFixed(2)}%</span>
                   </div>
                 </div>
               </div>
 
-              {/* INTERACTIVE DIVIDEND PURIFICATION CALCULATOR */}
-              <div className="glass-heavy p-8 rounded-3xl border border-emerald-500/30 relative overflow-hidden mt-2">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-[100px] pointer-events-none"></div>
-                <div className="flex items-center justify-between mb-6 flex-wrap gap-4 z-10 relative">
-                  <div>
-                    <h3 className="mono font-bold text-lg text-emerald-400 flex items-center gap-3">
-                      <Coins size={22} className="text-emerald-500" /> 3. CALCULATEUR D'AUMÔNE / PURIFICATION DES DIVIDENDES
-                    </h3>
-                    <p className="text-sm text-slate-400 mt-1">Calculez la part exacte de vos dividendes à purifier (Riba).</p>
+              {/* 1. DONNÉES FINANCIÈRES EXTRAITES (GRID STYLE) */}
+              <div className="fund-grid">
+                <div className="fund-card glass-heavy">
+                  <div className="card-tag">
+                    <BookOpen size={14} className="text-emerald" />
+                    <span className="mono-label">CHIFFRE D'AFFAIRES & INTÉRÊTS</span>
                   </div>
-                  <button onClick={copyToClipboard} className="action-btn-terminal white shadow-lg">
-                    {copied ? <Check size={16} className="text-emerald-400" /> : <Copy size={16} />}
-                    <span className="font-bold">{copied ? 'RÉSULTATS COPIÉS !' : 'COPIER LE RAPPORT'}</span>
+                  <div className="metric-box">
+                    <span className="m-label">CHIFFRE D'AFFAIRES</span>
+                    <div className="m-val-row">
+                      <span className="m-val mono">{result.financialData.totalRevenue}</span>
+                      <div className="m-status glass">REVENU GLOBAL</div>
+                    </div>
+                  </div>
+                  <div className="metric-box mt-4">
+                    <span className="m-label">PRODUITS D'INTÉRÊTS (RIBA)</span>
+                    <div className="m-val-row">
+                      <span className="m-val mono text-rose-400" style={{ color: '#f43f5e' }}>{result.financialData.interestIncome}</span>
+                      <div className="m-status glass" style={{ borderColor: 'rgba(244,63,94,0.2)', color: '#f43f5e' }}>REVENU ILLICITE</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="fund-card glass-heavy">
+                  <div className="card-tag">
+                    <Landmark size={14} className="text-emerald" />
+                    <span className="mono-label">DETTES & PLACEMENTS</span>
+                  </div>
+                  <div className="metric-box">
+                    <span className="m-label">DETTES BANCAIRES</span>
+                    <div className="m-val-row">
+                      <span className="m-val mono text-amber-400" style={{ color: '#fbbf24' }}>{result.financialData.interestDebt}</span>
+                      <div className="m-status glass">EMPRUNTS</div>
+                    </div>
+                  </div>
+                  <div className="metric-box mt-4">
+                    <span className="m-label">TRÉSORERIE PLACÉE</span>
+                    <div className="m-val-row">
+                      <span className="m-val mono">{result.financialData.interestCash}</span>
+                      <div className="m-status glass">LIQUIDITÉS</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="fund-card glass-heavy">
+                  <div className="card-tag">
+                    <Globe size={14} className="text-emerald" />
+                    <span className="mono-label">ÉVALUATION GLOBALE</span>
+                  </div>
+                  <div className="metric-box">
+                    <span className="m-label">CAPITALISATION BOURSIÈRE</span>
+                    <div className="m-val-row">
+                      <span className="m-val mono text-emerald">{result.financialData.marketCap}</span>
+                      <div className="m-status glass green">BASE DE CALCUL</div>
+                    </div>
+                    <p className="m-desc mt-2">{result.summary}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. RATIOS AAOIFI */}
+              <div className="mt-8 mb-4">
+                 <div className="agent-identity">
+                  <ShieldCheck size={12} className="text-emerald" />
+                  <span className="mono-label">RÉSULTATS DES 3 RATIOS AAOIFI</span>
+                </div>
+              </div>
+              <div className="fund-grid">
+                <div className="fund-card glass-heavy">
+                   <div className="card-tag">
+                    <PieChart size={14} className="text-emerald" />
+                    <span className="mono-label">REVENUS ILLICITES (MAX 5%)</span>
+                  </div>
+                  <div className="metric-box">
+                    <span className="m-label">RATIO RIBA / CHIFFRE D'AFFAIRES</span>
+                    <div className="m-val-row">
+                      <span className="m-val mono">{result.purificationRate.toFixed(2)}<span className="m-cur">%</span></span>
+                      <div className={`m-status glass ${result.purificationRate <= 5 ? 'green' : ''}`} style={result.purificationRate > 5 ? { borderColor: 'rgba(244,63,94,0.2)', color: '#f43f5e', background: 'rgba(244,63,94,0.05)' } : {}}>
+                        {result.purificationRate <= 5 ? 'CONFORME' : 'DÉPASSÉ'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="fund-card glass-heavy">
+                   <div className="card-tag">
+                    <Activity size={14} className="text-emerald" />
+                    <span className="mono-label">ENDETTEMENT (MAX 33%)</span>
+                  </div>
+                  <div className="metric-box">
+                    <span className="m-label">DETTES / CAPITALISATION</span>
+                    <div className="m-val-row">
+                      <span className="m-val mono">{result.debtRatio.toFixed(2)}<span className="m-cur">%</span></span>
+                      <div className={`m-status glass ${result.debtRatio <= 33 ? 'green' : ''}`} style={result.debtRatio > 33 ? { borderColor: 'rgba(244,63,94,0.2)', color: '#f43f5e', background: 'rgba(244,63,94,0.05)' } : {}}>
+                        {result.debtRatio <= 33 ? 'CONFORME' : 'DÉPASSÉ'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="fund-card glass-heavy">
+                   <div className="card-tag">
+                    <Briefcase size={14} className="text-emerald" />
+                    <span className="mono-label">LIQUIDITÉS (MAX 33%)</span>
+                  </div>
+                  <div className="metric-box">
+                    <span className="m-label">TRÉSORERIE / CAPITALISATION</span>
+                    <div className="m-val-row">
+                      <span className="m-val mono">{result.cashRatio.toFixed(2)}<span className="m-cur">%</span></span>
+                      <div className={`m-status glass ${result.cashRatio <= 33 ? 'green' : ''}`} style={result.cashRatio > 33 ? { borderColor: 'rgba(244,63,94,0.2)', color: '#f43f5e', background: 'rgba(244,63,94,0.05)' } : {}}>
+                        {result.cashRatio <= 33 ? 'CONFORME' : 'DÉPASSÉ'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. CALCULATEUR D'AUMÔNE */}
+              <div className="fund-footer mt-8" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                <div className="flex justify-between items-center mb-4">
+                  <div className="agent-identity" style={{ marginBottom: 0 }}>
+                    <Coins size={12} className="text-emerald" />
+                    <span className="mono-label">CALCULATEUR D'AUMÔNE / PURIFICATION</span>
+                  </div>
+                  <button onClick={copyToClipboard} className="action-btn-terminal white" style={{ padding: '8px 16px', minHeight: 'auto' }}>
+                    {copied ? <Check size={14} className="text-emerald" /> : <Copy size={14} />}
+                    <span>{copied ? 'COPIÉ' : 'COPIER RAPPORT'}</span>
                   </button>
                 </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center mb-6 z-10 relative">
-                  <div className="form-group lg:col-span-1">
-                    <label className="mono-tiny opacity-70 mb-2 block">MON DIVIDENDE BRUT REÇU (MAD)</label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <DollarSign size={18} className="text-emerald-500/50" />
-                      </div>
-                      <input 
-                        type="number" 
-                        value={dividendAmount} 
-                        onChange={e => setDividendAmount(e.target.value)}
-                        placeholder="Ex: 6024"
-                        className="w-full bg-slate-900 border border-emerald-500/30 rounded-xl py-4 pl-12 pr-4 text-2xl font-mono font-bold text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-inner"
-                      />
-                    </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+                  <div className="metric-box">
+                    <span className="m-label">MON DIVIDENDE BRUT REÇU (MAD)</span>
+                    <input 
+                      type="number" 
+                      value={dividendAmount} 
+                      onChange={e => setDividendAmount(e.target.value)}
+                      placeholder="Ex: 6024"
+                      className="terminal-input"
+                      style={{ fontSize: '1.5rem', fontWeight: 800, padding: '1rem', width: '100%', borderRadius: '1rem' }}
+                    />
                   </div>
 
-                  {/* COMPUTED RESULT BOXES */}
-                  <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="bg-slate-900/80 p-5 rounded-2xl border border-emerald-500/30 flex flex-col gap-1 shadow-lg">
-                      <span className="mono-tiny text-emerald-500 font-bold flex items-center gap-2">
-                        <CheckCircle2 size={14} /> PART HALAL ({(100 - result.purificationRate).toFixed(2)} %)
-                      </span>
-                      <span className="text-3xl font-black mono text-white tracking-tight mt-1">
-                        +{halalAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xl text-slate-400 font-normal">MAD</span>
-                      </span>
-                      <span className="text-xs text-slate-400 mt-1">Revenu net utilisable sans restriction</span>
-                    </div>
-
-                    <div className="bg-rose-950/20 p-5 rounded-2xl border border-rose-500/40 flex flex-col gap-1 shadow-lg">
-                      <span className="mono-tiny text-rose-400 font-bold flex items-center gap-2">
-                        <AlertTriangle size={14} /> À PURIFIER / AUMÔNE ({result.purificationRate.toFixed(2)} %)
-                      </span>
-                      <span className="text-3xl font-black mono text-rose-400 tracking-tight mt-1">
-                        -{purificationAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xl text-rose-500/50 font-normal">MAD</span>
-                      </span>
-                      <span className="text-xs text-rose-300/60 mt-1">À distribuer aux œuvres caritatives</span>
-                    </div>
+                  <div className="fund-card glass" style={{ padding: '1.5rem', background: 'rgba(16, 185, 129, 0.05)' }}>
+                    <span className="m-label" style={{ color: 'var(--accent-emerald)' }}>PART HALAL CONSERVÉE ({(100 - result.purificationRate).toFixed(2)} %)</span>
+                    <span className="m-val mono mt-2">
+                      +{halalAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="m-cur">MAD</span>
+                    </span>
                   </div>
-                </div>
 
-                <div className="flex items-start gap-3 bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 z-10 relative">
-                  <Scale size={20} className="text-emerald-500/70 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-slate-300 leading-relaxed font-light">
-                    <strong className="text-emerald-400 font-medium">Principe AAOIFI :</strong> La purification consiste à verser la fraction du dividende provenant d'intérêts bancaires (Riba) à des œuvres caritatives sans chercher de récompense spirituelle, afin de nettoyer le reste de vos gains.
-                  </p>
+                  <div className="fund-card glass" style={{ padding: '1.5rem', background: 'rgba(244, 63, 94, 0.05)', borderColor: 'rgba(244, 63, 94, 0.2)' }}>
+                    <span className="m-label" style={{ color: '#f43f5e' }}>À PURIFIER / AUMÔNE ({result.purificationRate.toFixed(2)} %)</span>
+                    <span className="m-val mono mt-2" style={{ color: '#f43f5e' }}>
+                      -{purificationAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="m-cur" style={{ color: 'rgba(244, 63, 94, 0.5)' }}>MAD</span>
+                    </span>
+                  </div>
                 </div>
               </div>
+              
+              {/* STYLES COPIED FROM FUNDAMENTAL REPORT FOR PREMIUM CARDS */}
+              <style jsx>{`
+                .fundamental-root { display: flex; flex-direction: column; width: 100%; padding-bottom: 4rem; }
+                
+                .report-header-fund { border-bottom: 1px solid var(--border-glass); padding-bottom: 3rem; margin-bottom: 1rem; }
+                .agent-identity { position: relative; display: flex; align-items: center; gap: 0.75rem; color: var(--accent-emerald); margin-bottom: 1.5rem; }
+                .identity-pulse { width: 8px; height: 8px; border-radius: 50%; }
+                
+                .header-main { display: flex; justify-content: space-between; align-items: flex-end; gap: 2rem; flex-wrap: wrap; }
+                .company-title { font-family: 'Outfit', sans-serif; font-size: 3rem; font-weight: 950; line-height: 0.9; letter-spacing: -0.05em; margin: 0; }
+                @media (min-width: 768px) { .company-title { font-size: 3.5rem; } }
+                .sector-badge { display: flex; align-items: center; gap: 1rem; padding: 1rem 1.5rem; border-radius: 100px; border: 1px solid var(--border-glass); }
+                
+                .fund-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; }
+                @media (max-width: 1024px) { .fund-grid { grid-template-columns: 1fr; } }
+                
+                .fund-card { padding: 2rem; border-radius: 2rem; border: 1px solid var(--border-glass); display: flex; flex-direction: column; gap: 2rem; }
+                .card-tag { display: flex; align-items: center; gap: 1rem; }
+                
+                .metric-box { display: flex; flex-direction: column; gap: 0.75rem; }
+                .m-label { font-size: 11px; font-weight: 850; color: var(--text-dim); letter-spacing: 0.15rem; text-transform: uppercase; }
 
+                .m-val-row { display: flex; align-items: center; justify-content: space-between; }
+                .m-val { font-size: 1.5rem; font-weight: 800; color: var(--text-main); letter-spacing: -0.02em; }
+                @media (min-width: 768px) { .m-val { font-size: 1.75rem; } }
+                
+                .m-status { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 850; color: var(--text-dim); padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-glass); }
+                .m-status.green { color: var(--accent-emerald); border-color: rgba(16, 185, 129, 0.2); background: rgba(16, 185, 129, 0.05); }
+                .m-desc { font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; font-weight: 500; }
+                
+                .fund-footer { padding: 2.5rem; border-radius: 2rem; border: 1px solid var(--border-glass); background: linear-gradient(to right, rgba(16, 185, 129, 0.03), rgba(0,0,0,0.5)); }
+                
+                .mono-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 850; color: var(--text-dim); letter-spacing: 0.15rem; text-transform: uppercase; }
+                .mono { font-family: 'JetBrains Mono', monospace; }
+                .m-cur { font-size: 10px; color: #334155; margin-left: 0.5rem; vertical-align: middle; }
+                .text-emerald { color: var(--accent-emerald); }
+                .text-dim { color: #334155 !important; }
+              `}</style>
             </div>
           )}
 </div>
