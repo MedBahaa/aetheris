@@ -28,7 +28,26 @@ export async function POST(req: Request) {
       ));
     }
 
-    const body = await req.json().catch(() => ({}));
+    const contentType = req.headers.get('content-type') || '';
+    let body: any = {};
+    let pdfData: { data: string, mimeType: string } | undefined = undefined;
+
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await req.formData().catch(() => new FormData());
+      body.query = formData.get('query')?.toString() || '';
+      
+      const file = formData.get('pdf');
+      if (file && file instanceof File) {
+        const buffer = await file.arrayBuffer();
+        const base64Data = Buffer.from(buffer).toString('base64');
+        pdfData = {
+          data: base64Data,
+          mimeType: file.type || 'application/pdf'
+        };
+      }
+    } else {
+      body = await req.json().catch(() => ({}));
+    }
     
     // Validation avec Zod
     const validationResult = shariaQuerySchema.safeParse(body);
@@ -43,7 +62,7 @@ export async function POST(req: Request) {
 
     const { query } = validationResult.data;
     const cleanQuery = query.trim();
-    const result = await GeminiService.analyzeShariaCompliance(cleanQuery);
+    const result = await GeminiService.analyzeShariaCompliance(cleanQuery, pdfData);
 
     return corsHeaders(
       NextResponse.json({

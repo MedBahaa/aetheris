@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { CompanyAnalysis, OrchestratorResult, Sentiment, Impact } from './schemas';
 import { InputSanitizer } from './input-sanitizer';
 import crypto from 'crypto';
@@ -47,7 +47,7 @@ const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gem
  * AUDIT FIX: Retry sur les erreurs transitoires (timeout, 500, réseau),
  * pas seulement les erreurs 429 quota.
  */
-async function callGoogleAI(prompt: string, isJson: boolean = false, preferredModel?: string, customApiKey?: string): Promise<string> {
+async function callGoogleAI(prompt: string, isJson: boolean = false, preferredModel?: string, customApiKey?: string, useGrounding: boolean = false, fileData?: { data: string, mimeType: string }, responseSchema?: any): Promise<string> {
   const modelsToTry = preferredModel ? [preferredModel, ...MODELS.filter(m => m !== preferredModel)] : MODELS;
   const MAX_RETRIES_PER_MODEL = 2;
   const aiInstance = customApiKey ? new GoogleGenerativeAI(customApiKey) : genAI;
@@ -55,11 +55,22 @@ async function callGoogleAI(prompt: string, isJson: boolean = false, preferredMo
   for (const modelName of modelsToTry) {
     for (let attempt = 1; attempt <= MAX_RETRIES_PER_MODEL; attempt++) {
       try {
-        const model = aiInstance.getGenerativeModel({ 
+        const modelOptions: any = { 
           model: modelName,
-          generationConfig: isJson ? { responseMimeType: 'application/json' } : undefined
-        });
-        const result = await model.generateContent(prompt);
+          generationConfig: isJson ? { responseMimeType: 'application/json', responseSchema } : undefined
+        };
+        
+        if (useGrounding) {
+          modelOptions.tools = [{ googleSearch: {} }];
+        }
+        
+        const model = aiInstance.getGenerativeModel(modelOptions);
+        
+        const contents = fileData 
+          ? [prompt, { inlineData: { data: fileData.data, mimeType: fileData.mimeType } }]
+          : prompt;
+
+        const result = await model.generateContent(contents as any);
         return result.response.text();
       } catch (e: any) {
         const isQuota = e?.status === 429 || e?.message?.includes('429') || e?.message?.includes('quota');
@@ -121,8 +132,9 @@ async function callMistral(prompt: string): Promise<string> {
 }
 
 /** Orchestrateur d'IA avec Fallback automatique */
-async function unifiedAICall(prompt: string, isJson: boolean = true, preferredModel?: string, customApiKey?: string): Promise<string> {
-  const hash = crypto.createHash('md5').update(prompt + isJson + (preferredModel || '') + (customApiKey || '')).digest('hex');
+async function unifiedAICall(prompt: string, isJson: boolean = true, preferredModel?: string, customApiKey?: string, useGrounding: boolean = false, fileData?: { data: string, mimeType: string }, responseSchema?: any): Promise<string> {
+  const hashObj = prompt + isJson + (preferredModel || '') + (customApiKey || '') + useGrounding + (fileData ? 'FILE' : '');
+  const hash = crypto.createHash('md5').update(hashObj).digest('hex');
   const cacheKey = `aetheris:prompt:${hash}`;
 
   try {
@@ -138,17 +150,15 @@ async function unifiedAICall(prompt: string, isJson: boolean = true, preferredMo
 
   let resultText = '';
   try {
-    // 1. Essayer les modèles Google AI
-    resultText = await callGoogleAI(prompt, isJson, preferredModel, customApiKey);
+    const result = await callGoogleAI(prompt, isJson, preferredModel, customApiKey, useGrounding, fileData, responseSchema);
+    if (isJson && safeJsonParse(result) === null) throw new Error('Invalid JSON from Gemini');
+    
+    CacheService.setGeneric(cacheKey, result);
+    return result;
   } catch (e: any) {
     console.log(`🔄 [Fallback] Échec Google AI (${e.message || e}). Passage sur Mistral...`);
-    try {
-      // 2. Basculement sur Mistral
-      resultText = await callMistral(prompt);
-    } catch (mistralError: any) {
-      console.error("❌ [Fallback] Mistral a également échoué:", mistralError.message || mistralError);
-      throw mistralError;
-    }
+    // 2. Basculement sur Mistral
+    resultText = await callMistral(prompt);
   }
 
   // Enregistrer le résultat dans le cache de prompts pour les appels futurs
@@ -648,51 +658,71 @@ export class GeminiService {
     }
   }
 
-  static async analyzeShariaCompliance(query: string) {
+  static async analyzeShariaCompliance(query: string, pdfData?: { data: string, mimeType: string }) {
     query = InputSanitizer.sanitizeCompanyName(query);
 
     const prompt = `
-IMPORTANT: You do not have direct web or document access in this request. Never claim that a value was verified, current, or extracted from an official report. Return only a best-effort estimate and identify it as such.
-Tu es un analyste financier expert en Sharia Screener et finance islamique (normes AAOIFI 2026). 
-Recherche sur Internet les derniers états financiers annuels et rapports officiels publiés pour la société ou l'action : "${query}".
+IMPORTANT: You do not have direct web or document access in this request unless a document is provided. 
+Tu es un analyste financier expert en Sharia Screener, finance islamique (normes AAOIFI 2026), et comptabilité marocaine (PCGM). 
+${pdfData ? "Un document financier officiel (PDF) a été fourni en pièce jointe. Tu DOIS extraire les chiffres EXCLUSIVEMENT de ce document." : "Recherche sur Internet les derniers états financiers annuels et rapports officiels publiés pour la société ou l'action : '" + query + "' en utilisant tes outils de recherche."}
 
-1. Extrais les données financières brutes (en valeur numérique PURE, sans devise, sans espaces, sans virgules) pour :
-   - Chiffre d'affaires total (ou Produits d'exploitation)
-   - Produits financiers issus d'intérêts (Riba / placements)
-   - Total des dettes portant intérêt (Emprunts bancaires / obligataires)
-   - Trésorerie et placements portant intérêt (Dépôts à terme / placements)
+1. Extrais les données financières brutes (en valeur numérique PURE, sans devise, sans espaces, sans virgules) pour la société ${query} :
+   - Chiffre d'affaires total (Synonymes PCGM : Produits d'exploitation, Chiffre d'affaires consolidé)
+   - Produits financiers issus d'intérêts ou Riba (Synonymes PCGM : Intérêts perçus, Produits financiers, Produits de placements à revenu fixe)
+   - Total des dettes portant intérêt (Synonymes PCGM : Emprunts obligataires, Dettes de financement, Emprunts bancaires, Dettes auprès des établissements de crédit)
+   - Trésorerie et placements portant intérêt (Synonymes PCGM : Titres et valeurs de placement, Dépôts à terme, Placements de trésorerie)
    - Capitalisation boursière (ou Total Actif à défaut, pour le calcul des ratios d'endettement)
 
-2. NE FAIS AUCUN CALCUL DE RATIO. Contente-toi d'extraire les montants bruts exacts. Notre système (TypeScript) s'occupera de calculer la conformité AAOIFI avec une précision mathématique stricte.
+2. GESTION DU "JE NE SAIS PAS" (CRITIQUE) : Si une métrique est introuvable ou si tu n'as aucune certitude sur le chiffre, tu DOIS retourner la valeur \`null\` (sans guillemets). NE DEVINE JAMAIS UN CHIFFRE.
+3. DATE ET PÉRIODE PRÉCISE : Tu dois extraire la période exacte du rapport (ex: "T3 2025", "Semestre 1 2024", ou "Annuel 2023").
+4. SECTEUR D'ACTIVITÉ : Extraire le secteur de l'entreprise (ex: "Banque", "Assurance", "Immobilier", "Agroalimentaire").
 
-3. Retourne la réponse EXCLUSIVEMENT au format JSON strict avec la structure suivante (aucun texte autour, pas de markdown) :
-{
-  "companyName": "Nom officiel de l'entreprise",
-  "ticker": "Ticker ou Symbole boursier",
-  "fiscalYear": "Année du rapport (ex: 2024/2025)",
-  "rawFinancials": {
-    "totalRevenue": 2850000000,
-    "interestIncome": 41325000,
-    "interestDebt": 404700000,
-    "interestCash": 242250000,
-    "marketCap": 15000000000
-  },
-  "summary": "Résumé explicatif en 2-3 phrases sur l'origine des produits financiers extraits.",
-  "sources": ["https://www.leboursier.ma", "https://www.ammc.ma/"]
-}
+5. NE FAIS AUCUN CALCUL DE RATIO. Contente-toi d'extraire les montants bruts exacts. Notre système s'occupera de calculer la conformité AAOIFI.
 `;
 
+      const shariaSchema = {
+        type: SchemaType.OBJECT,
+        properties: {
+          companyName: { type: SchemaType.STRING, description: "Nom officiel de l'entreprise" },
+          ticker: { type: SchemaType.STRING, description: "Ticker ou Symbole boursier" },
+          sector: { type: SchemaType.STRING, description: "Secteur d'activité exact" },
+          fiscalYear: { type: SchemaType.STRING, description: "Période exacte trouvée (ex: T3 2025)" },
+          confidenceScore: { type: SchemaType.NUMBER, description: "Score de confiance de l'extraction (0 à 100)" },
+          explanation: { type: SchemaType.STRING, description: "Explication détaillée de l'origine des chiffres extraits et du lexique PCGM trouvé (ex: J'ai additionné les emprunts obligataires et les dettes bancaires...)" },
+          rawFinancials: {
+            type: SchemaType.OBJECT,
+            properties: {
+              totalRevenue: { type: SchemaType.NUMBER, description: "Chiffre d'affaires total ou Produits d'exploitation", nullable: true },
+              interestIncome: { type: SchemaType.NUMBER, description: "Produits financiers issus d'intérêts ou Riba", nullable: true },
+              interestDebt: { type: SchemaType.NUMBER, description: "Total des dettes portant intérêt (Emprunts)", nullable: true },
+              interestCash: { type: SchemaType.NUMBER, description: "Trésorerie et placements portant intérêt", nullable: true },
+              marketCap: { type: SchemaType.NUMBER, description: "Capitalisation boursière ou Total Actif", nullable: true }
+            },
+            required: ["totalRevenue", "interestIncome", "interestDebt", "interestCash", "marketCap"]
+          },
+          summary: { type: SchemaType.STRING, description: "Résumé explicatif court." },
+          sources: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING },
+            description: "Liste des URLs exactes ou noms de documents sources."
+          }
+        },
+        required: ["companyName", "ticker", "sector", "fiscalYear", "confidenceScore", "explanation", "rawFinancials", "summary", "sources"]
+      };
+
     try {
-      const text = await unifiedAICall(prompt, true, 'gemini-2.5-flash');
+      // Activate Search Grounding if no PDF is provided
+      const useGrounding = !pdfData;
+      const text = await unifiedAICall(prompt, true, 'gemini-2.5-flash', undefined, useGrounding, pdfData, shariaSchema);
       const parsed = safeJsonParse(text);
 
       if (parsed) {
         // Extraction des valeurs brutes de l'IA (ou valeurs par défaut en cas d'échec)
-        // Fallback sécurisé pour éviter NaN
         const raw = parsed.rawFinancials || {};
         
         // Validation des nombres extraits
         const parseNum = (val: any): number | null => {
+            if (val === null || val === undefined) return null;
             const num = Number(val);
             return Number.isFinite(num) && num >= 0 ? num : null;
         };
@@ -704,10 +734,10 @@ Recherche sur Internet les derniers états financiers annuels et rapports offici
         const marketCap = parseNum(raw.marketCap);
 
         if (
-          totalRevenue === null || totalRevenue <= 0 || interestIncome === null ||
-          interestDebt === null || interestCash === null || marketCap === null || marketCap <= 0
+          totalRevenue === null || interestIncome === null ||
+          interestDebt === null || interestCash === null || marketCap === null || totalRevenue <= 0 || marketCap <= 0
         ) {
-          throw new Error('Données financières incomplètes ou invalides : aucun verdict de conformité ni montant de purification ne peut être calculé. Utilisez la saisie manuelle avec un rapport officiel.');
+          throw new Error("Une ou plusieurs données financières (Revenus, Intérêts, Dettes, Capitalisation) sont introuvables ou incomplètes. L'IA a bloqué le calcul pour éviter des données erronées. Veuillez fournir le PDF ou utiliser la saisie manuelle avec le bilan officiel.");
         }
 
         // CALCULS TYPESCRIPT DÉTERMINISTES (0% Hallucination)
@@ -718,6 +748,10 @@ Recherche sur Internet les derniers états financiers annuels et rapports offici
         // REGLES STRICTES AAOIFI
         const strictCompliant = purificationRate <= 5.0 && debtRatio <= 33.0 && cashRatio <= 33.0;
 
+        // VERIFICATION SECTEUR ILLICITE (Haram)
+        const sectorLower = (parsed.sector || '').toLowerCase();
+        const isHaramSector = ['banque', 'bank', 'assurance', 'insurance', 'alcool', 'alcohol', 'tabac', 'tobacco', 'jeux', 'gambling'].some(s => sectorLower.includes(s));
+
         // Formateur MAD
         const formatMAD = (num: number) => {
             return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(num) + ' MAD';
@@ -726,9 +760,11 @@ Recherche sur Internet les derniers états financiers annuels et rapports offici
         return {
           companyName: parsed.companyName || parsed.company || query.toUpperCase(),
           ticker: parsed.ticker || query.toUpperCase(),
+          sector: parsed.sector || 'Inconnu',
           fiscalYear: parsed.fiscalYear || '2024/2025',
-          isCompliant: null,
-          estimatedCompliance: strictCompliant,
+          isCompliant: isHaramSector ? false : null,
+          estimatedCompliance: isHaramSector ? false : strictCompliant,
+          isHaramSector,
           dataQuality: 'UNVERIFIED' as const,
           purificationRate: parseFloat(purificationRate.toFixed(2)),
           debtRatio: parseFloat(debtRatio.toFixed(2)),
@@ -736,8 +772,8 @@ Recherche sur Internet les derniers états financiers annuels et rapports offici
           // BUG FIX #7: The compliance verdict is deterministic BUT the input data
           // is AI-estimated (Gemini cannot actually browse the internet in standard mode).
           // Flagging this transparently is critical for a Halal compliance tool.
-          isAIEstimated: true,
-          dataWarning: "⚠️ AVERTISSEMENT : Les données financières brutes (revenus, dettes, trésorerie) ont été estimées par intelligence artificielle à partir de données d'entraînement. Elles peuvent ne pas refléter les derniers états financiers publiés. Vérifiez OBLIGATOIREMENT auprès des rapports annuels officiels (AMMC / IR Bourse de Casablanca) avant toute décision d'investissement Halal.",
+          isAIEstimated: !pdfData,
+          dataWarning: pdfData ? "Données extraites directement du PDF fourni." : "⚠️ AVERTISSEMENT : Les données financières ont été extraites via Google Search. Vérifiez toujours avec les rapports AMMC pour confirmer l'exactitude des montants.",
           financialData: {
             totalRevenue: formatMAD(totalRevenue),
             interestIncome: formatMAD(interestIncome),
@@ -746,6 +782,8 @@ Recherche sur Internet les derniers états financiers annuels et rapports offici
             marketCap: formatMAD(marketCap)
           },
           summary: parsed.summary || parsed.description || `Analyse de conformité Sharia et extraction des données financières brutes pour ${query}. Les ratios ont été calculés avec précision par notre moteur interne.`,
+          confidenceScore: typeof parsed.confidenceScore === 'number' ? parsed.confidenceScore : 70,
+          explanation: parsed.explanation || 'Analyse mathématique sans précision supplémentaire.',
           sources: Array.isArray(parsed.sources) ? parsed.sources : ['Recherche Automatisée Web']
         };
       }
