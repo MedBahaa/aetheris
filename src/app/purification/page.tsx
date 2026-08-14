@@ -6,12 +6,14 @@ import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import { 
   XCircle, Search, Sparkles, Key, Calculator, BookOpen, ExternalLink, RefreshCw,
-  AlertTriangle, ShieldCheck, Copy, Check, Coins, Sliders
+  AlertTriangle, ShieldCheck, Copy, Check, Coins, Sliders, FileText, X
 } from 'lucide-react';
 
 interface ShariaResult {
   companyName: string;
   ticker: string;
+  sector?: string;
+  isHaramSector?: boolean;
   fiscalYear: string;
   isCompliant: boolean | null;
   estimatedCompliance?: boolean;
@@ -28,6 +30,8 @@ interface ShariaResult {
     marketCap: string;
   };
   summary: string;
+  confidenceScore?: number;
+  explanation?: string;
   sources: string[];
 }
 
@@ -48,6 +52,7 @@ export default function PurificationPage() {
   const [suggestions, setSuggestions] = useState<{ symbol: string; name: string }[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearchingDebounce, setIsSearchingDebounce] = useState(false);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
   // Kept only to avoid breaking the existing layout while it is being removed.
   // It is neither persisted nor transmitted to the server.
   const [customApiKey, setCustomApiKey] = useState('');
@@ -83,9 +88,11 @@ export default function PurificationPage() {
 
   // Dividend Calculator Input
   const [dividendAmount, setDividendAmount] = useState<string>('0');
+  const [dividendType, setDividendType] = useState<'BRUT' | 'NET'>('BRUT');
   const [copied, setCopied] = useState(false);
 
   // Manual Input State
+  const [denominatorType, setDenominatorType] = useState<'MARKET_CAP' | 'TOTAL_ASSETS'>('MARKET_CAP');
   const [manualForm, setManualForm] = useState({
     companyName: '', ticker: '', totalRevenue: '', interestIncome: '',
     interestDebt: '', interestCash: '', marketCap: ''
@@ -106,12 +113,15 @@ export default function PurificationPage() {
     }, 1500);
 
     try {
+      const formData = new FormData();
+      formData.append('query', searchQuery.trim());
+      if (pdfFile) {
+        formData.append('pdf', pdfFile);
+      }
+
       const res = await fetch('/api/sharia-screener', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: searchQuery.trim()
-        })
+        body: formData
       });
 
       const json = await res.json();
@@ -197,6 +207,7 @@ export default function PurificationPage() {
     setResult({
       companyName: manualForm.companyName || 'Saisie Manuelle',
       ticker: manualForm.ticker.toUpperCase() || 'CUSTOM',
+      sector: 'Saisie Manuelle',
       fiscalYear: '2025/2026',
       dataQuality: 'MANUAL',
       isCompliant,
@@ -210,7 +221,7 @@ export default function PurificationPage() {
         interestCash: `${cash.toLocaleString('fr-FR')} MAD`,
         marketCap: `${cap.toLocaleString('fr-FR')} MAD`
       },
-      summary: `Calcul manuels effectués selon les ratios AAOIFI. Taux de purification: ${purifRate.toFixed(2)}%, Endettement: ${debtR.toFixed(2)}%, Trésorerie: ${cashR.toFixed(2)}%.`,
+      summary: `Calcul manuels effectués selon les ratios AAOIFI (Dénominateur: ${denominatorType === 'MARKET_CAP' ? 'Capitalisation Boursière' : 'Total Actif'}). Taux de purification: ${purifRate.toFixed(2)}%, Endettement: ${debtR.toFixed(2)}%, Trésorerie: ${cashR.toFixed(2)}%.`,
       sources: ['Saisie Manuelle']
     });
   };
@@ -222,10 +233,14 @@ export default function PurificationPage() {
   const debtRatio = result?.debtRatio ?? 0;
   const cashRatio = result?.cashRatio ?? 0;
   const canCalculate = result?.dataQuality === 'MANUAL';
-  const purificationAmount = (numericDividend * purifRate) / 100;
+  
+  // PART 2: Application de l'arrondi mathématique à l'unité supérieure par précaution
+  const rawPurificationAmount = (numericDividend * purifRate) / 100;
+  const purificationAmount = Math.ceil(rawPurificationAmount);
   const halalAmount = numericDividend - purificationAmount;
+  
   const isManualResult = result?.dataQuality === 'MANUAL';
-  const complianceLabel = !result || !isManualResult
+  const complianceLabel = !result || (!isManualResult && !result.isHaramSector)
     ? 'DONNÉES À VÉRIFIER'
     : result.isCompliant ? 'HALAL (CONFORME)' : 'NON CONFORME';
 
@@ -233,10 +248,11 @@ export default function PurificationPage() {
     if (!result || !canCalculate || !navigator.clipboard) return;
     const text = `ANALYSE SHARIA & PURIFICATION DES DIVIDENDES (${result.companyName} - ${result.ticker})
 - Statut: ${result.isCompliant ? 'CONFORME (HALAL)' : 'NON CONFORME'}
+- Secteur: ${result.sector || 'N/A'}
 - Taux de Purification: ${result.purificationRate}%
-- Dividende Brut: ${numericDividend.toLocaleString('fr-FR')} MAD
+- Dividende (${dividendType === 'BRUT' ? 'Brut avant impôts' : "Net d'impôts"}): ${numericDividend.toLocaleString('fr-FR')} MAD
 - Part Halal: ${halalAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} MAD
-- Montant à Purifier (Aumône): ${purificationAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} MAD
+- Montant à Purifier (Aumône arrondie à l'unité supérieure): ${purificationAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} MAD
 -- Généré via Aetheris Sharia Screener (AAOIFI 2026)`;
 
     navigator.clipboard.writeText(text)
@@ -331,8 +347,9 @@ export default function PurificationPage() {
 
           {/* SEARCH SECTION */}
           {activeTab === 'AI_SEARCH' ? (
-            <div className="controls-bar glass-heavy animate-fade-in" style={{ marginBottom: '2rem' }}>
-              <form onSubmit={e => { e.preventDefault(); handleSearch(); }} className="search-box relative flex items-center w-full" style={{ paddingRight: '0.75rem' }}>
+            <div className="glass-heavy animate-fade-in flex flex-col gap-4" style={{ marginBottom: '2rem', padding: '1.5rem', borderRadius: '1rem' }}>
+              <div className="controls-bar" style={{ padding: 0, background: 'transparent', border: 'none' }}>
+                <form onSubmit={e => { e.preventDefault(); handleSearch(); }} className="search-box relative flex items-center w-full" style={{ paddingRight: '0.75rem', border: '1px solid rgba(255,255,255,0.1)' }}>
                 <Search size={18} className="opacity-40 flex-shrink-0" />
                 <input 
                   type="text" 
@@ -386,6 +403,45 @@ export default function PurificationPage() {
                   </div>
                 )}
               </form>
+              </div>
+
+              {/* PDF UPLOAD AREA */}
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mt-2 p-4 rounded-xl border border-white/5 bg-white/5">
+                <div className="flex items-center gap-3 flex-1">
+                  <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+                    <FileText size={18} />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="mono-tiny text-white font-bold mb-1">RAPPORT FINANCIER (OPTIONNEL)</h4>
+                    <p className="text-xs text-slate-400">Fournissez le PDF officiel pour garantir 100% de précision sans hallucinations IA.</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3 relative">
+                  {!pdfFile ? (
+                    <label className="action-btn-terminal white cursor-pointer" style={{ height: '32px', padding: '0 12px', fontSize: '11px' }}>
+                      <span>IMPORTER PDF</span>
+                      <input 
+                        type="file" 
+                        accept="application/pdf" 
+                        className="hidden" 
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            setPdfFile(e.target.files[0]);
+                          }
+                        }}
+                      />
+                    </label>
+                  ) : (
+                    <div className="flex items-center gap-2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1.5 rounded-lg text-xs mono">
+                      <span className="truncate max-w-[150px]">{pdfFile.name}</span>
+                      <button type="button" onClick={() => setPdfFile(null)} className="hover:text-white">
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           ) : (
             /* MANUAL INPUT FORM */
@@ -419,8 +475,14 @@ export default function PurificationPage() {
                   <input type="number" value={manualForm.interestCash} onChange={e => setManualForm({ ...manualForm, interestCash: e.target.value })} className="terminal-input-field" required />
                 </div>
                 <div className="form-group full-span">
-                  <label className="mono-tiny opacity-70">CAPITALISATION BOURSIÈRE OU TOTAL ACTIF (MAD)</label>
-                  <input type="number" value={manualForm.marketCap} onChange={e => setManualForm({ ...manualForm, marketCap: e.target.value })} className="terminal-input-field" required />
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="mono-tiny opacity-70">DÉNOMINATEUR POUR LES RATIOS D'ENDETTEMENT/TRÉSORERIE</label>
+                    <div className="flex items-center gap-2 bg-slate-900 rounded-lg p-1 border border-white/5">
+                      <button type="button" onClick={() => setDenominatorType('MARKET_CAP')} className={`text-xs px-2 py-1 rounded ${denominatorType === 'MARKET_CAP' ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-500 hover:text-white'}`}>Capitalisation</button>
+                      <button type="button" onClick={() => setDenominatorType('TOTAL_ASSETS')} className={`text-xs px-2 py-1 rounded ${denominatorType === 'TOTAL_ASSETS' ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-500 hover:text-white'}`}>Total Actif</button>
+                    </div>
+                  </div>
+                  <input type="number" placeholder={denominatorType === 'MARKET_CAP' ? "Capitalisation Boursière (MAD)" : "Total Actif au Bilan (MAD)"} value={manualForm.marketCap} onChange={e => setManualForm({ ...manualForm, marketCap: e.target.value })} className="terminal-input-field" required />
                 </div>
               </div>
               <button type="submit" className="action-btn-terminal strategy full-width mt-4">
@@ -464,20 +526,45 @@ export default function PurificationPage() {
           {result && !loading && (
             <div className="data-terminal glass-heavy animate-fade-in mt-6" style={{ padding: '2rem' }}>
               
+              {/* HARAM SECTOR ALERT */}
+              {result.isHaramSector && (
+                <div className="mb-8 bg-rose-500/10 border border-rose-500/30 p-6 rounded-xl flex items-start gap-4 text-rose-300">
+                  <AlertTriangle size={32} className="text-rose-500 flex-shrink-0 mt-1" />
+                  <div>
+                    <h3 className="font-bold text-lg text-rose-400 mb-1">SECTEUR ILLICITE PAR NATURE</h3>
+                    <p className="text-sm opacity-90 mb-2">L'entreprise appartient à un secteur d'activité non conforme à la Sharia ({result.sector}). Les activités telles que la banque conventionnelle, l'assurance conventionnelle, l'alcool, le tabac et les jeux de hasard sont proscrites.</p>
+                    <p className="text-sm font-bold opacity-100">Aucun calcul de purification n'est applicable car l'investissement principal est illicite.</p>
+                  </div>
+                </div>
+              )}
+
               {/* COMPLIANCE HERO BADGE */}
               <div className="flex flex-col items-center justify-center mb-8 pb-8 border-b border-white/5">
-                <div className={`p-4 rounded-full mb-3 ${isManualResult && result.isCompliant ? 'bg-emerald-500/20 text-emerald-400' : isManualResult ? 'bg-rose-500/20 text-rose-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                <div className={`p-4 rounded-full mb-3 ${isManualResult && result.isCompliant ? 'bg-emerald-500/20 text-emerald-400' : (isManualResult || result.isHaramSector) ? 'bg-rose-500/20 text-rose-400' : 'bg-amber-500/20 text-amber-400'}`}>
                   {isManualResult && result.isCompliant ? <ShieldCheck size={48} /> : <XCircle size={48} />}
                 </div>
-                <h2 className={`text-4xl font-black mb-1 ${isManualResult && result.isCompliant ? 'text-emerald-400' : isManualResult ? 'text-rose-400' : 'text-amber-400'}`}>
+                <h2 className={`text-4xl font-black mb-1 text-center ${isManualResult && result.isCompliant ? 'text-emerald-400' : (isManualResult || result.isHaramSector) ? 'text-rose-400' : 'text-amber-400'}`}>
                   {complianceLabel}
                 </h2>
-                <span className="mono-tiny text-slate-400">ANALYSE SHARIA • {result.companyName} ({result.ticker})</span>
+                <span className="mono-tiny text-slate-400 text-center">ANALYSE SHARIA • {result.companyName} ({result.ticker}) {result.sector ? `• Secteur: ${result.sector}` : ''}</span>
                 
-                <div className="mt-4 bg-slate-900/50 border border-slate-700/50 p-4 rounded-xl max-w-2xl text-center text-sm text-slate-300">
-                  <AlertTriangle size={16} className="text-amber-500 inline mr-2" />
-                  <strong>Avertissement IA:</strong> Ces données ont été générées mathématiquement par IA. À vérifier avec les documents AMMC.
-                </div>
+                {result.dataWarning && (
+                  <div className={`mt-4 ${!isManualResult ? 'bg-amber-950/30 border-amber-500/50' : 'bg-slate-900/50 border-slate-700/50'} border p-5 rounded-xl max-w-2xl text-left text-sm text-slate-300`}>
+                    <div className="flex items-center gap-2 mb-2 text-amber-500 font-bold">
+                      <AlertTriangle size={16} />
+                      <span>{isManualResult ? 'Avertissement :' : "Analyse Estimée par l'IA"}</span>
+                      {!isManualResult && result.confidenceScore !== undefined && (
+                        <span className="ml-auto text-xs bg-amber-500/20 px-2 py-1 rounded">Confiance : {result.confidenceScore}%</span>
+                      )}
+                    </div>
+                    <p className="mb-2">{result.dataWarning}</p>
+                    {!isManualResult && result.explanation && (
+                      <div className="text-xs text-slate-400 mt-3 pt-3 border-t border-white/5 border-dashed">
+                        <span className="font-bold text-slate-300">Note de synthèse :</span> {result.explanation}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* TABLE DESKTOP */}
@@ -496,7 +583,7 @@ export default function PurificationPage() {
                   <tbody>
                     <tr className="inst-row border-b border-white/5">
                       <td data-label="MÉTRIQUE AAOIFI" style={{ padding: '1rem', verticalAlign: 'middle' }}>
-                        <div className="stock-titles"><span className="stock-symbol-title">Revenus Illicites (Riba)</span></div>
+                        <div className="stock-titles"><span className="stock-symbol-title">Revenus Illicites (Riba) <span title="AAOIFI: Les revenus issus d'activités non conformes (intérêts, pénalités de retard...) ne doivent pas dépasser 5% des revenus totaux." className="cursor-help opacity-50 hover:opacity-100">ℹ️</span></span></div>
                       </td>
                       <td data-label="VALEUR BRUTE" style={{ padding: '1rem', verticalAlign: 'middle' }}>
                         <span className="mono text-rose-400">{result.financialData.interestIncome}</span>
@@ -513,7 +600,7 @@ export default function PurificationPage() {
                     
                     <tr className="inst-row border-b border-white/5">
                       <td data-label="MÉTRIQUE AAOIFI" style={{ padding: '1rem', verticalAlign: 'middle' }}>
-                        <div className="stock-titles"><span className="stock-symbol-title">Endettement Bancaire</span></div>
+                        <div className="stock-titles"><span className="stock-symbol-title">Endettement Bancaire <span title="AAOIFI: Les dettes portant intérêt (emprunts) ne doivent pas dépasser 33% de la capitalisation boursière (ou Total Actif)." className="cursor-help opacity-50 hover:opacity-100">ℹ️</span></span></div>
                       </td>
                       <td data-label="VALEUR BRUTE" style={{ padding: '1rem', verticalAlign: 'middle' }}>
                         <span className="mono text-amber-400">{result.financialData.interestDebt}</span>
@@ -530,7 +617,7 @@ export default function PurificationPage() {
 
                     <tr className="inst-row border-b border-white/5">
                       <td data-label="MÉTRIQUE AAOIFI" style={{ padding: '1rem', verticalAlign: 'middle' }}>
-                        <div className="stock-titles"><span className="stock-symbol-title">Trésorerie Placée</span></div>
+                        <div className="stock-titles"><span className="stock-symbol-title">Trésorerie Placée <span title="AAOIFI: Les liquidités placées à intérêt ne doivent pas dépasser 33% de la capitalisation boursière (ou Total Actif)." className="cursor-help opacity-50 hover:opacity-100">ℹ️</span></span></div>
                       </td>
                       <td data-label="VALEUR BRUTE" style={{ padding: '1rem', verticalAlign: 'middle' }}>
                         <span className="mono text-emerald-400">{result.financialData.interestCash}</span>
@@ -551,16 +638,16 @@ export default function PurificationPage() {
               {/* MOBILE TABLE CARDS */}
               <div className="mobile-only-container gap-3 mb-8">
                 {[
-                  { label: "Revenus Illicites", val: result.purificationRate, limit: 5 },
-                  { label: "Endettement Bancaire", val: result.debtRatio, limit: 33 },
-                  { label: "Trésorerie Placée", val: result.cashRatio, limit: 33 }
+                  { label: "Revenus Illicites", val: result.purificationRate, limit: 5, tip: "AAOIFI: Max 5% des revenus totaux" },
+                  { label: "Endettement Bancaire", val: result.debtRatio, limit: 33, tip: "AAOIFI: Max 33% de la capitalisation boursière" },
+                  { label: "Trésorerie Placée", val: result.cashRatio, limit: 33, tip: "AAOIFI: Max 33% de la capitalisation boursière" }
                 ].map((metric, i) => {
                   const isOk = metric.val <= metric.limit;
                   return (
                     <div key={i} className="live-market-mobile-card p-4 bg-slate-900/50 rounded-xl border border-white/5">
                       <div className="flex justify-between items-center">
                         <div className="stock-titles">
-                          <span className="stock-symbol-title font-bold text-white">{metric.label}</span>
+                          <span className="stock-symbol-title font-bold text-white flex items-center gap-1">{metric.label} <span title={metric.tip} className="cursor-help opacity-50 hover:opacity-100 text-xs">ℹ️</span></span>
                           <span className="mono-tiny text-slate-500">MAX {metric.limit}%</span>
                         </div>
                         <div className="price-hero-block flex flex-col items-end">
@@ -590,7 +677,13 @@ export default function PurificationPage() {
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
                   <div>
-                    <label className="mono-tiny text-slate-400 mb-2 block">MON DIVIDENDE BRUT REÇU (MAD)</label>
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="mono-tiny text-slate-400">MON DIVIDENDE REÇU (MAD)</label>
+                      <div className="flex items-center gap-1 bg-slate-800 rounded px-1 py-0.5">
+                        <button onClick={() => setDividendType('BRUT')} className={`text-[10px] px-2 py-0.5 rounded font-bold ${dividendType === 'BRUT' ? 'bg-slate-600 text-white' : 'text-slate-400'}`}>BRUT</button>
+                        <button onClick={() => setDividendType('NET')} className={`text-[10px] px-2 py-0.5 rounded font-bold ${dividendType === 'NET' ? 'bg-slate-600 text-white' : 'text-slate-400'}`}>NET</button>
+                      </div>
+                    </div>
                     <input 
                       type="number" 
                       value={dividendAmount} 
@@ -599,6 +692,12 @@ export default function PurificationPage() {
                       className="terminal-input"
                       style={{ fontSize: '1.5rem', fontWeight: 800, padding: '1rem', width: '100%', borderRadius: '0.75rem', background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', color: '#ffffff' }}
                     />
+                    {dividendType === 'NET' && (
+                      <p className="text-[10px] text-amber-500 mt-2 leading-tight">
+                        <AlertTriangle size={10} className="inline mr-1" />
+                        La majorité des comités Sharia exigent de purifier sur la base du dividende <strong>BRUT</strong> (avant retenue à la source).
+                      </p>
+                    )}
                   </div>
 
                   <div className="p-5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
@@ -613,6 +712,7 @@ export default function PurificationPage() {
                     <span className="mono text-2xl font-black text-rose-500">
                       -{purificationAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-sm text-rose-500/50">MAD</span>
                     </span>
+                    <p className="text-[10px] text-rose-400/70 mt-2 italic">*Arrondi à l'unité supérieure par précaution religieuse</p>
                   </div>
                 </div>
               </div>}
