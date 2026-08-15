@@ -45,6 +45,7 @@ export default function PurificationPage() {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(1);
+  const [loadingMessage, setLoadingMessage] = useState('Recherche des états financiers officiels sur le web...');
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ShariaResult | null>(null);
 
@@ -86,6 +87,22 @@ export default function PurificationPage() {
     };
   }, [query]);
 
+  // Local Storage for Results
+  useEffect(() => {
+    const saved = localStorage.getItem('aetheris_sharia_result');
+    if (saved) {
+      try {
+        setResult(JSON.parse(saved));
+      } catch (e) {}
+    }
+  }, []);
+
+  useEffect(() => {
+    if (result) {
+      localStorage.setItem('aetheris_sharia_result', JSON.stringify(result));
+    }
+  }, [result]);
+
   // Dividend Calculator Input
   const [dividendAmount, setDividendAmount] = useState<string>('0');
   const [dividendType, setDividendType] = useState<'BRUT' | 'NET'>('BRUT');
@@ -108,10 +125,6 @@ export default function PurificationPage() {
     setResult(null);
     setLoadingStep(1);
 
-    const stepInterval = setInterval(() => {
-      setLoadingStep(prev => (prev < 3 ? prev + 1 : prev));
-    }, 1500);
-
     try {
       const formData = new FormData();
       formData.append('query', searchQuery.trim());
@@ -124,13 +137,53 @@ export default function PurificationPage() {
         body: formData
       });
 
-      const json = await res.json();
-
-      if (!res.ok || json.status !== 'success') {
-        throw new Error(json.message || 'Erreur lors de l\'analyse Sharia.');
+      if (!res.ok || !res.body) {
+        throw new Error('Erreur réseau ou réponse invalide de l\'API.');
       }
 
-      setResult(json.data);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+      let partialData = '';
+      let finalResult = null;
+
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        if (value) {
+          partialData += decoder.decode(value, { stream: true });
+          const lines = partialData.split('\n\n');
+          partialData = lines.pop() || '';
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const dataStr = line.replace('data: ', '');
+              try {
+                const data = JSON.parse(dataStr);
+                if (data.step) {
+                   setLoadingStep(data.step);
+                   if (data.message) setLoadingMessage(data.message);
+                }
+                if (data.status === 'success') {
+                   finalResult = data.data;
+                   setResult(data.data);
+                } else if (data.status === 'error') {
+                   throw new Error(data.message);
+                }
+              } catch (e: any) {
+                if (e.message) throw e;
+              }
+            }
+          }
+        }
+      }
+
+      if (!finalResult) {
+        throw new Error('Analyse interrompue ou résultat vide.');
+      }
+
+      const json = { data: finalResult, ticker: finalResult.ticker };
+      
       
       // Auto-fetch real dividends if available
       try {
@@ -176,7 +229,6 @@ export default function PurificationPage() {
       console.error('Sharia Search Error:', err);
       setError(err.message || 'Impossible d\'extraire les données financières. Essayez le mode de calcul manuel.');
     } finally {
-      clearInterval(stepInterval);
       setLoading(false);
     }
   };
@@ -498,9 +550,7 @@ export default function PurificationPage() {
               <div className="flex flex-col gap-1">
                 <h3 className="mono font-bold text-base text-white">RECHERCHE ET ANALYSE SHARIA EN COURS...</h3>
                 <p className="mono-tiny text-emerald-400">
-                  {loadingStep === 1 && '🔍 Etape 1/3: Recherche des états financiers officiels sur le web...'}
-                  {loadingStep === 2 && '📊 Etape 2/3: Extraction des données du Bilan et du Compte de Résultat (CPC)...'}
-                  {loadingStep === 3 && '⚖️ Etape 3/3: Calcul des Ratios AAOIFI et du Taux de Purification...'}
+                  {`🔍 Etape ${loadingStep}/4: ${loadingMessage}`}
                 </p>
               </div>
             </div>
@@ -524,8 +574,16 @@ export default function PurificationPage() {
 
           {/* RESULTS SECTION */}
           {result && !loading && (
-            <div className="data-terminal glass-heavy animate-fade-in mt-6" style={{ padding: '2rem' }}>
+            <div className={`data-terminal glass-heavy animate-fade-in mt-6 border-l-4 ${isManualResult ? 'border-l-emerald-500' : 'border-l-amber-500'}`} style={{ padding: '2rem' }}>
               
+              {/* PDF EXPORT BUTTON */}
+              <div className="flex justify-end mb-4 no-print">
+                <button onClick={() => window.print()} className="action-btn-terminal white" style={{ padding: '6px 12px', fontSize: '11px', height: 'auto' }}>
+                  <FileText size={14} className="mr-2 inline" />
+                  <span>EXPORTER REÇU (PDF)</span>
+                </button>
+              </div>
+
               {/* HARAM SECTOR ALERT */}
               {result.isHaramSector && (
                 <div className="mb-8 bg-rose-500/10 border border-rose-500/30 p-6 rounded-xl flex items-start gap-4 text-rose-300">
@@ -717,11 +775,50 @@ export default function PurificationPage() {
                 </div>
               </div>}
 
+              <style>{`
+                @media print {
+                  body * {
+                    visibility: hidden;
+                  }
+                  .data-terminal, .data-terminal * {
+                    visibility: visible;
+                  }
+                  .data-terminal {
+                    position: absolute !important;
+                    left: 0 !important;
+                    top: 0 !important;
+                    width: 100% !important;
+                    margin: 0 !important;
+                    padding: 20px !important;
+                    background: white !important;
+                    color: black !important;
+                    box-shadow: none !important;
+                    border: none !important;
+                  }
+                  .no-print {
+                    display: none !important;
+                  }
+                  .text-amber-400, .text-amber-500, .text-rose-400, .text-rose-500, .text-emerald-400, .text-emerald-500, .text-white, .text-slate-300, .text-slate-400, .text-slate-500 {
+                    color: black !important;
+                  }
+                  .bg-slate-900\\/50, .bg-slate-800, .glass-heavy, .bg-emerald-500\\/20, .bg-amber-500\\/20, .bg-rose-500\\/20, .bg-amber-950\\/30 {
+                    background: #f8fafc !important;
+                    border-color: #cbd5e1 !important;
+                  }
+                  .inst-row {
+                    border-bottom: 1px solid #ccc !important;
+                  }
+                  .pnl-hero-pill {
+                    border: 1px solid #000 !important;
+                    color: #000 !important;
+                    background: transparent !important;
+                  }
+                }
+              `}</style>
             </div>
           )}
-</div>
+        </div>
       </main>
-
       <BottomNav />
     </div>
   );
