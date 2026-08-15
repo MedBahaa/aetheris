@@ -62,21 +62,65 @@ export async function POST(req: Request) {
 
     const { query } = validationResult.data;
     const cleanQuery = query.trim();
-    const result = await GeminiService.analyzeShariaCompliance(cleanQuery, pdfData);
 
-    return corsHeaders(
-      NextResponse.json({
-        status: 'success',
-        data: result
-      })
-    );
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        const sendEvent = (data: any) => {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+        };
+
+        try {
+          if (pdfData) {
+            sendEvent({ step: 1, message: "Extraction des données depuis le PDF fourni..." });
+          } else {
+            sendEvent({ step: 1, message: "Recherche des états financiers officiels sur le web..." });
+          }
+          
+          const step2Timer = setTimeout(() => {
+             sendEvent({ step: 2, message: "Analyse comptable et Extraction des montants bruts..." });
+          }, 2500);
+
+          const step3Timer = setTimeout(() => {
+             sendEvent({ step: 3, message: "Calculs des Ratios AAOIFI et du Taux de Purification..." });
+          }, 5000);
+
+          const result = await GeminiService.analyzeShariaCompliance(cleanQuery, pdfData);
+          
+          clearTimeout(step2Timer);
+          clearTimeout(step3Timer);
+
+          sendEvent({ step: 4, status: 'success', data: result });
+          controller.close();
+        } catch (error: any) {
+          console.error('[API sharia-screener Error]:', error);
+          sendEvent({
+            step: 4,
+            status: 'error',
+            message: error?.message || 'Erreur lors de la recherche des états financiers et du calcul de conformité Sharia'
+          });
+          controller.close();
+        }
+      }
+    });
+
+    const headers = new Headers({
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    });
+
+    return new Response(stream, { headers });
   } catch (error: any) {
-    console.error('[API sharia-screener Error]:', error);
+    console.error('[API sharia-screener Outer Error]:', error);
     return corsHeaders(
       NextResponse.json(
         {
           status: 'error',
-          message: error?.message || 'Erreur lors de la recherche des états financiers et du calcul de conformité Sharia'
+          message: error?.message || 'Erreur interne du serveur'
         },
         { status: 500 }
       )
