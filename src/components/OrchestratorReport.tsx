@@ -53,7 +53,9 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
             <div className="expert-header">
               <ShieldCheck size={12} className="expert-icon" />
               <span className="mono-label">DÉCISION EXÉCUTIVE STRATÉGIQUE</span>
-
+              <span className="mono" style={{ marginLeft: 'auto', padding: '0.2rem 0.6rem', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>
+                {data.isAI ? '🤖 Synthèse IA' : '📊 Calcul quantitatif'}
+              </span>
             </div>
             
             <div className="badge-row">

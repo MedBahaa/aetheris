@@ -321,7 +321,7 @@ export default function PortfolioPage() {
   };
 
   const handleOptimizePortfolio = async () => {
-    return await optimizePortfolioAction(holdings);
+    return await optimizePortfolioAction(holdingsStats);
   };
 
   const exportToCsv = (txs: any[], divs: any[]) => {

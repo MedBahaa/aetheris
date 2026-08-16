@@ -26,10 +26,14 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json(sectorMap);
+    return NextResponse.json(sectorMap, {
+      headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400' }
+    });
   } catch (e) {
     console.error('[API/sectors] Exception:', e);
     // Fallback to static sector map
-    return NextResponse.json(STATIC_SECTOR_MAP);
+    return NextResponse.json(STATIC_SECTOR_MAP, {
+      headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400' }
+    });
   }
 }

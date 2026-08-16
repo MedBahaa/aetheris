@@ -91,7 +91,9 @@ export default function AnalysisReport({ analysis }: AnalysisReportProps) {
           <div className="synthesis-header">
             <Newspaper size={18} className="text-emerald" />
             <h3 className="mono-label" title="Analyse narrative générée par Gemini AI basée sur l'actualité et les données fondamentales.">RÉCIT ANALYTIQUE CONSOLIDÉ</h3>
-
+            <span className="mono" style={{ marginLeft: 'auto', padding: '0.2rem 0.6rem', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', color: '#fff' }}>
+              {analysis.orchestrator?.isAI ? '🤖 Synthèse IA' : '📊 Calcul quantitatif'}
+            </span>
           </div>
           <p className="narrative-body">
             &ldquo;{analysis.consolidatedSummary || "Génération du récit analytique en cours..."}&rdquo;

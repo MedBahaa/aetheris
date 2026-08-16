@@ -77,6 +77,7 @@ export class AetherisOrchestrator {
     let resolvedName = queryTerm;
     let sector: string | undefined = undefined;
     let companyDbId: string | undefined = undefined;
+    let tickerUnverified = false;
 
     try {
       // 🕵️ PRIORITÉ : Recherche en Base de Données (Plus fiable et rapide)
@@ -99,6 +100,25 @@ export class AetherisOrchestrator {
         const aiResolved = await GeminiService.resolveTicker(companyName);
         symbol = aiResolved.symbol;
         resolvedName = aiResolved.companyName;
+
+        // AUDIT FIX: Validate AI-resolved ticker against the companies table
+        const { data: aiValidation } = await supabaseAdmin
+          .from('companies')
+          .select('id, name, symbol, sector')
+          .eq('symbol', aiResolved.symbol.toUpperCase())
+          .maybeSingle();
+
+        if (aiValidation) {
+          // AI ticker confirmed in DB
+          companyDbId = aiValidation.id;
+          symbol = aiValidation.symbol;
+          resolvedName = aiValidation.name;
+          sector = aiValidation.sector || undefined;
+          console.log(`[Orchestrator] ✅ Ticker IA validé contre le référentiel: ${symbol} (${resolvedName})`);
+        } else {
+          console.warn(`[Orchestrator] ⚠️ Ticker IA "${aiResolved.symbol}" NON TROUVÉ dans le référentiel CSE. Utilisation avec prudence.`);
+          tickerUnverified = true;
+        }
       }
     } catch (e) {
       console.error("[Orchestrator] Resolution Error:", e);
@@ -128,6 +148,11 @@ export class AetherisOrchestrator {
       missingFields: [],
       sources: [],
     };
+
+    if (tickerUnverified) {
+      dataQuality.warnings.push(`Ticker résolu par IA (${symbol}) non confirmé dans le référentiel officiel.`);
+      dataQuality.score -= 15;
+    }
 
     let result: Partial<CompanyAnalysis> = {
       id: companyDbId || Math.random().toString(36).substring(2, 11),
@@ -253,10 +278,33 @@ export class AetherisOrchestrator {
         
         // AUDIT FIX: Circuit breaker — Vérifier les données avant de continuer
         if (marketData.price === 'INDISPONIBLE') {
-          console.error(`[Orchestrator] ❌ CIRCUIT BREAKER: Prix indisponible pour ${searchName}. Stratégie dégradée.`);
+          console.error(`[Orchestrator] ❌ CIRCUIT BREAKER: Prix indisponible pour ${searchName}. Basculement sur le fallback déterministe.`);
           dataQuality.score -= 50;
-          dataQuality.warnings.push('⚠️ CIRCUIT BREAKER: Prix indisponible — Recommandation non fiable');
+          dataQuality.warnings.push('⚠️ CIRCUIT BREAKER: Prix indisponible — Analyse basée sur le moteur quantitatif uniquement');
           dataQuality.missingFields.push('price');
+          
+          // Skip AI entirely — use deterministic fallback
+          const strategyData = StrategyWorker.synthesize(newsData, this.cleanMarketData(marketData));
+          const fallbackOrch = this.generateFinalOrchestration(searchName, newsData, this.cleanMarketData(marketData), strategyData);
+          
+          result = {
+            ...result,
+            ...newsData,
+            ...this.cleanMarketData(marketData),
+            orchestrator: fallbackOrch,
+            strategyPlan: strategyData.strategyPlan || 'Observation en cours.',
+            recommendedAction: strategyData.recommendedAction || 'ATTENDRE',
+            globalSentiment: newsData.globalSentiment || 'NEUTRE',
+            probableImpact: newsData.probableImpact || 'Impact non déterminé.',
+          };
+          
+          dataQuality.score = Math.max(0, Math.min(100, dataQuality.score));
+          result.dataQuality = dataQuality;
+          
+          const validation = CompanyAnalysisSchema.safeParse(result);
+          const finalResult = validation.success ? validation.data : result as unknown as CompanyAnalysis;
+          CacheService.set(searchTicker, type, finalResult).catch(e => console.error(e));
+          return finalResult;
         }
 
         // Les fondamentaux dépendent du prix pour l'IA fallback
@@ -333,6 +381,41 @@ export class AetherisOrchestrator {
           return val;
         };
 
+        // AUDIT FIX: Validate that TP/SL are mathematically coherent with the action
+        const validatePriceLevels = (action: string | undefined, currentPrice: number, tp: string | undefined, sl: string | undefined): { tp: string; sl: string } => {
+          if (currentPrice <= 0 || !tp || !sl) return { tp: tp || 'N/A', sl: sl || 'N/A' };
+          
+          const parsePrice = (s: string) => {
+            const match = s.match(/([\d.,]+)/);
+            return match ? parseFloat(match[1].replace(',', '.')) : NaN;
+          };
+          
+          const tpVal = parsePrice(tp);
+          const slVal = parsePrice(sl);
+          
+          if (isNaN(tpVal) || isNaN(slVal)) return { tp, sl };
+          
+          if (action === 'ACHETER') {
+            const tpOk = tpVal > currentPrice;
+            const slOk = slVal < currentPrice && slVal > currentPrice * 0.70;
+            if (!tpOk || !slOk) {
+              console.warn(`[Orchestrator] ⚠️ TP/SL incohérents pour ACHETER. TP=${tpVal}, SL=${slVal}, Prix=${currentPrice}. Recalcul automatique.`);
+              return {
+                tp: !tpOk ? `${(currentPrice * 1.12).toFixed(2)} MAD ⚠️ (recalculé: TP original incohérent)` : tp,
+                sl: !slOk ? `${(currentPrice * 0.94).toFixed(2)} MAD ⚠️ (recalculé: SL original incohérent)` : sl
+              };
+            }
+          } else if (action === 'VENDRE') {
+            if (tpVal > currentPrice) {
+              return {
+                tp: `${(currentPrice * 0.90).toFixed(2)} MAD ⚠️ (recalculé: TP original incohérent pour VENDRE)`,
+                sl: slVal < currentPrice ? `${(currentPrice * 1.05).toFixed(2)} MAD ⚠️ (recalculé)` : sl
+              };
+            }
+          }
+          return { tp, sl };
+        };
+
         const currentVal = parseFloat(
           (cleanedMarket.price || '0').replace(' MAD', '').replace('INDISPONIBLE', '0')
         );
@@ -344,6 +427,12 @@ export class AetherisOrchestrator {
              if (hData) {
                hData.takeProfit = sanitizePriceField(hData.takeProfit, 'TP', currentVal);
                hData.stopLoss = sanitizePriceField(hData.stopLoss, 'SL', currentVal);
+               
+               // AUDIT FIX: Cross-validate TP/SL mathematical coherence
+               const validated = validatePriceLevels(hData.finalAction, currentVal, hData.takeProfit, hData.stopLoss);
+               hData.takeProfit = validated.tp;
+               hData.stopLoss = validated.sl;
+
                hData.idealEntryPoint = hData.idealEntryPoint && hData.idealEntryPoint !== 'N/A' 
                  ? hData.idealEntryPoint : (cleanedMarket.support || cleanedMarket.price || 'MARKET');
              }

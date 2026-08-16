@@ -387,6 +387,7 @@ export class GeminiService {
           "consolidatedSummary": "Synthèse narrative complète combinant toutes les sources en un seul récit cohérent.",
           "details": [
             { 
+              "articleId": "art-0",
               "sentiment": "FORTEMENT_POSITIF" | "POSITIF" | "NEUTRE" | "NEGATIF" | "FORTEMENT_NEGATIF", 
               "score": number, 
               "impact": "Court terme" | "Moyen terme" | "Long terme",
@@ -397,7 +398,8 @@ export class GeminiService {
         
         ACTUALITÉS À ANALYSER :
         ${news.map((n, i) => {
-          let entry = `${i + 1}. [${n.sourceType || 'GENERAL'}] [${n.source}] TITLE: ${n.title}`;
+          const articleId = `art-${i}`;
+          let entry = `[ID:${articleId}] ${i + 1}. [${n.sourceType || 'GENERAL'}] [${n.source}] TITLE: ${n.title}`;
           if (n.fullContent) {
             entry += `\n   CONTENT: ${n.fullContent.substring(0, 3000)}`; // On limite pour pas exploser le contexte inutilement
           } else {
@@ -646,7 +648,7 @@ export class GeminiService {
       const allocations = Object.entries(sectorsMap).map(([sector, val]) => ({
         sector,
         current: total > 0 ? (val / total) * 100 : 0,
-        target: 25
+        target: Math.round(100 / Math.max(1, Object.keys(sectorsMap).length))
       }));
 
       return {
