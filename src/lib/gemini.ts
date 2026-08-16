@@ -39,9 +39,7 @@ interface NewsItem {
   contentSnippet?: string;
 }
 
-// Modèles avec fallback automatique
-// Utilisation des derniers modèles officiels de Google AI (Gemini 2.5/2.0/1.5)
-const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+const MODELS = ['gemini-1.5-flash', 'gemini-1.5-pro'];
 
 /** Appel via Google Generative AI avec retry + fallback
  * AUDIT FIX: Retry sur les erreurs transitoires (timeout, 500, réseau),
@@ -79,11 +77,12 @@ async function callGoogleAI(prompt: string, isJson: boolean = false, preferredMo
         const isTransient = e?.status === 500 || e?.status === 503 || 
                            e?.message?.includes('ECONNRESET') || e?.message?.includes('timeout') ||
                            e?.message?.includes('fetch failed') || e?.message?.includes('network');
+        const isNotFound = e?.status === 404 || e?.message?.includes('404') || e?.message?.includes('not found') || e?.message?.includes('is no longer available');
         
-        console.warn(`[GoogleAI] ${modelName} attempt ${attempt}/${MAX_RETRIES_PER_MODEL} failed (${isQuota ? 'quota' : isTransient ? 'transient' : e.message}).`);
+        console.warn(`[GoogleAI] ${modelName} attempt ${attempt}/${MAX_RETRIES_PER_MODEL} failed (${isQuota ? 'quota' : isTransient ? 'transient' : isNotFound ? 'not found' : e.message}).`);
         
-        // Quota exhausted on this model → skip to next model immediately
-        if (isQuota) break;
+        // Quota exhausted or Model Not Found → skip to next model immediately
+        if (isQuota || isNotFound) break;
         
         // Transient error → retry with backoff if attempts remain
         if (isTransient && attempt < MAX_RETRIES_PER_MODEL) {
@@ -93,12 +92,17 @@ async function callGoogleAI(prompt: string, isJson: boolean = false, preferredMo
           continue;
         }
         
-        // Non-transient, non-quota error (e.g. invalid API key, bad request) → throw immediately
-        if (!isTransient && !isQuota) throw e;
+        // Unrecoverable API error (like invalid API key) → throw to trigger Mistral
+        if (e?.status === 400 || e?.message?.includes('API key')) {
+          throw e;
+        }
+        
+        // Otherwise, skip to the next model
+        break;
       }
     }
   }
-  throw new Error('QUOTA_EXCEEDED');
+  throw new Error('ALL_MODELS_FAILED');
 }
 
 /** Appel Mistral (Fallback de secours) */
@@ -411,7 +415,7 @@ export class GeminiService {
         }).join('\n\n')}
       `;
 
-      let text = await unifiedAICall(prompt, true, 'gemini-2.0-flash', undefined, false, undefined, undefined, 0.3);
+      let text = await unifiedAICall(prompt, true, 'gemini-1.5-flash', undefined, false, undefined, undefined, 0.3);
       const parsed = safeJsonParse(text);
       
       // BUG FIX #6: safeJsonParse can return null if AI response is malformed JSON.
@@ -537,7 +541,7 @@ export class GeminiService {
         { "symbol": string, "companyName": string }
       `;
 
-      let text = await unifiedAICall(prompt, true, 'gemini-2.0-flash', undefined, false, undefined, undefined, 0.1);
+      let text = await unifiedAICall(prompt, true, 'gemini-1.5-flash', undefined, false, undefined, undefined, 0.1);
       return safeJsonParse(text);
     } catch (e) {
       console.error("Gemini Resolve Ticker Error:", e);
@@ -645,7 +649,7 @@ NE DONNE PAS de recommandation d'achat ou de vente. Concentre-toi sur les FAITS 
         }
       `;
 
-      const text = await unifiedAICall(prompt, true, 'gemini-2.0-flash', undefined, false, undefined, undefined, 0.3);
+      const text = await unifiedAICall(prompt, true, 'gemini-1.5-flash', undefined, false, undefined, undefined, 0.3);
       const parsed = safeJsonParse(text);
       if (!parsed) throw new Error("JSON_PARSE_FAILED");
       return parsed;
