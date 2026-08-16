@@ -85,7 +85,62 @@ export async function POST(req: Request) {
              sendEvent({ step: 3, message: "Calculs des Ratios AAOIFI et du Taux de Purification..." });
           }, 5000);
 
-          const result = await GeminiService.analyzeShariaCompliance(cleanQuery, pdfData);
+          let result = null;
+          let cachedCompanyId = null;
+
+          if (!pdfData) {
+            // Check cache (7 days)
+            const { data: companyMatch } = await supabase
+              .from('companies')
+              .select('id, symbol')
+              .or(`symbol.ilike.${cleanQuery},name.ilike.%${cleanQuery}%`)
+              .limit(1)
+              .single();
+              
+            if (companyMatch) {
+              cachedCompanyId = companyMatch.id;
+              const sevenDaysAgo = new Date();
+              sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+              
+              const { data: cacheData } = await supabase
+                .from('analyses_cache')
+                .select('result')
+                .eq('company_id', companyMatch.id)
+                .eq('agent_type', 'SHARIA')
+                .gte('timestamp', sevenDaysAgo.toISOString())
+                .order('timestamp', { ascending: false })
+                .limit(1)
+                .single();
+                
+              if (cacheData && cacheData.result) {
+                result = cacheData.result;
+              }
+            }
+          }
+
+          if (!result) {
+            result = await GeminiService.analyzeShariaCompliance(cleanQuery, pdfData);
+            
+            if (!pdfData) {
+               if (!cachedCompanyId) {
+                  const { data: companyByTicker } = await supabase
+                    .from('companies')
+                    .select('id')
+                    .ilike('symbol', result.ticker)
+                    .limit(1)
+                    .single();
+                  if (companyByTicker) cachedCompanyId = companyByTicker.id;
+               }
+
+               if (cachedCompanyId) {
+                  await supabase.from('analyses_cache').insert({
+                    company_id: cachedCompanyId,
+                    agent_type: 'SHARIA',
+                    result: result
+                  });
+               }
+            }
+          }
           
           clearTimeout(step2Timer);
           clearTimeout(step3Timer);

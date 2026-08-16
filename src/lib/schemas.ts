@@ -30,6 +30,42 @@ export const LiquidityWarningSchema = z.object({
 });
 export type LiquidityWarning = z.infer<typeof LiquidityWarningSchema>;
 
+export const StrategyResultSchema = z.object({
+  action: ActionSchema,
+  confidence: ConfidenceSchema,
+  explanation: z.string(),
+  reasoning: z.array(z.string()).optional()
+});
+
+export type StrategyResult = z.infer<typeof StrategyResultSchema>;
+
+export interface ShariaResult {
+  companyName: string;
+  ticker: string;
+  sector?: string;
+  isHaramSector?: boolean;
+  fiscalYear: string;
+  isCompliant: boolean | null;
+  estimatedCompliance?: boolean;
+  dataQuality: 'MANUAL' | 'UNVERIFIED' | 'INSUFFICIENT';
+  dataWarning?: string;
+  purificationRate: number;
+  debtRatio: number;
+  cashRatio: number;
+  financialData: {
+    totalRevenue: string;
+    interestIncome: string;
+    interestDebt: string;
+    interestCash: string;
+    marketCap: string;
+  };
+  summary: string;
+  confidenceScore?: number;
+  explanation?: string;
+  sources: string[];
+}
+
+
 export const NewsItemSchema = z.object({
   id: z.string(),
   title: z.string().optional(),
