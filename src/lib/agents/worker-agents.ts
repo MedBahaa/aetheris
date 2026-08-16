@@ -40,7 +40,9 @@ export const NewsWorker = {
         let weightedScoreSum = 0;
 
         allNews.forEach((n, i) => {
-          const detail = safeDetails[i];
+          const articleId = `art-${i}`;
+          // AUDIT FIX: Match by articleId instead of index to prevent misalignment
+          const detail = safeDetails.find((d: any) => d.articleId === articleId) || safeDetails[i];
           if (!detail) return;
 
           const ageInDays = Math.max(0, (Date.now() - new Date(n.pubDate).getTime()) / (1000 * 60 * 60 * 24));
@@ -86,17 +88,21 @@ export const NewsWorker = {
             feedsTotal: totalFeeds,
             articlesFound: allNews.length,
           },
-          news: allNews.map((n, i) => ({
-             id: `news-${i}`,
+          news: allNews.map((n, i) => {
+            const articleId = `art-${i}`;
+            const detail = safeDetails.find((d: any) => d.articleId === articleId) || safeDetails[i];
+            return {
+             id: articleId,
              summary: n.title,
-             sentiment: safeDetails[i]?.sentiment || 'NEUTRE',
-             impact: safeDetails[i]?.impact || 'Court terme',
-             explanation: safeDetails[i]?.explanation || 'Analyse en attente.',
+             sentiment: detail?.sentiment || 'NEUTRE',
+             impact: detail?.impact || 'Court terme',
+             explanation: detail?.explanation || 'Analyse en attente.',
              source: n.source,
              date: new Date(n.pubDate).toLocaleDateString('fr-FR'),
              url: n.link,
              fullContent: n.fullContent
-          }))
+            };
+          })
         };
       }
     } catch (e) {

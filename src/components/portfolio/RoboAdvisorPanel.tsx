@@ -44,7 +44,7 @@ export const RoboAdvisorPanel: React.FC<RoboAdvisorPanelProps> = ({ holdings, on
       {!recommendation ? (
         <div className="robo-intro">
           <p className="intro-text">
-            Notre algorithme d'optimisation (Markowitz + IA Gemini) analyse la concentration sectorielle, la liquidité et la volatilité de vos positions pour concevoir une allocation cible équilibrée.
+            Optimisation IA basée sur la concentration sectorielle et les pondérations de votre portefeuille.
           </p>
           <button 
             type="button" 

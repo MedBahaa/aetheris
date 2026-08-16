@@ -18,6 +18,8 @@ export async function GET() {
     return corsHeaders(NextResponse.json({
       status: 'success',
       data
+    }, {
+      headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60' }
     }));
 
   } catch (error: any) {

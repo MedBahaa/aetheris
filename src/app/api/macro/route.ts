@@ -10,7 +10,9 @@ export async function GET() {
     if (!data) {
       return corsHeaders(NextResponse.json({ error: 'Data unavailable' }, { status: 503 }));
     }
-    return corsHeaders(NextResponse.json(data));
+    return corsHeaders(NextResponse.json(data, {
+      headers: { 'Cache-Control': 'public, s-maxage=150, stale-while-revalidate=300' }
+    }));
   } catch (error) {
     return corsHeaders(NextResponse.json({ error: 'Internal Server Error' }, { status: 500 }));
   }

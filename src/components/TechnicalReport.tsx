@@ -291,7 +291,9 @@ export default function TechnicalReport({ analysis }: TechnicalReportProps) {
          <div className="context-header">
             <Shield size={16} className="text-blue-400" />
             <span className="context-label mono-label" title="Analyse probabiliste basée sur la convergence technique.">SYNTHÈSE DE CONVERGENCE TECHNIQUE</span>
-
+            <span className="mono" style={{ marginLeft: 'auto', padding: '0.2rem 0.6rem', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', color: '#fff' }}>
+              {analysis.orchestrator?.isAI ? '🤖 Synthèse IA' : '📊 Calcul quantitatif'}
+            </span>
          </div>
          <p className="context-body">&ldquo;{analysis.marketSituation}&rdquo;</p>
       </div>

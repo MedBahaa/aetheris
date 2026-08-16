@@ -2,9 +2,10 @@ export interface MacroData {
   brent: { price: number; changePercent: number };
   gold: { price: number; changePercent: number };
   usDmad: { price: number; changePercent: number };
-  keyRate: { value: number; lastChange: string };
-  inflation: { value: number; period: string };
+  keyRate: { value: number; lastChange: string; lastUpdated: string };
+  inflation: { value: number; period: string; lastUpdated: string };
   nextBAMMeeting: string;
+  bamDataLastVerified: string;
   timestamp: string;
 }
 
@@ -63,9 +64,10 @@ export class MacroScraper {
       // Inflation: IPC annuel Juin 2026 = +0.3% (HCP, publié Juillet 2026)
       // Prochaine réunion: 22/09/2026 (calendrier officiel BKAM 2026)
       const institutionalData = {
-        keyRate: { value: 2.25, lastChange: '23/06/2026' },
-        inflation: { value: 0.3, period: 'Juin 2026 (Annuel)' },
-        nextBAMMeeting: '22 Sept 2026'
+        keyRate: { value: 2.25, lastChange: '23/06/2026', lastUpdated: '2026-08-07' },
+        inflation: { value: 0.3, period: 'Juin 2026 (Annuel)', lastUpdated: '2026-08-07' },
+        nextBAMMeeting: '22 Sept 2026',
+        bamDataLastVerified: '2026-08-07'
       };
 
       // Validation
