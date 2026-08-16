@@ -270,6 +270,13 @@ export default function PurificationPage() {
             halalAmount={halalAmount}
             purificationAmount={purificationAmount}
             numericDividend={numericDividend}
+            dataQuality={result?.dataQuality}
+            dataWarning={result?.dataWarning}
+            sources={result?.sources}
+            explanation={result?.explanation}
+            confidenceScore={result?.confidenceScore}
+            estimatedCompliance={result?.estimatedCompliance}
+            isAIEstimated={result?.isAIEstimated}
           />
           
         </div>

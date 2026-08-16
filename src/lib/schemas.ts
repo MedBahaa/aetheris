@@ -49,6 +49,8 @@ export interface ShariaResult {
   estimatedCompliance?: boolean;
   dataQuality: 'MANUAL' | 'UNVERIFIED' | 'INSUFFICIENT';
   dataWarning?: string;
+  /** True when financial data was extracted by AI from web search (not from a user-provided PDF or manual input) */
+  isAIEstimated?: boolean;
   purificationRate: number;
   debtRatio: number;
   cashRatio: number;
