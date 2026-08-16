@@ -118,7 +118,7 @@ async function callMistral(prompt: string): Promise<string> {
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'mistral-small-latest',
+        model: 'mistral-large-latest',
         messages: [{ role: 'user', content: prompt }],
         response_format: { type: 'json_object' }
       })
@@ -235,6 +235,8 @@ function sanitizeAIResult(obj: any): any {
   const opportunityMap = { "oui": "Oui", "yes": "Oui", "non": "Non", "no": "Non", "surveiller": "À surveiller", "a surveiller": "À surveiller", "watch": "À surveiller" };
   const actionMap = { "acheter": "ACHETER", "buy": "ACHETER", "vendre": "VENDRE", "sell": "VENDRE", "attendre": "ATTENDRE", "hold": "ATTENDRE", "wait": "ATTENDRE" };
 
+  const impactMap = { "court terme": "Court terme", "short term": "Court terme", "moyen terme": "Moyen terme", "medium term": "Moyen terme", "long terme": "Long terme", "long term": "Long terme" };
+
   // Appliquer récursivement sur les horizons et l'objet racine
   const processEntry = (entry: any) => {
     if (!entry || typeof entry !== 'object') return;
@@ -244,6 +246,7 @@ function sanitizeAIResult(obj: any): any {
     if (entry.opportunity) entry.opportunity = mapValue(entry.opportunity, opportunityMap, "À surveiller");
     if (entry.finalAction) entry.finalAction = mapValue(entry.finalAction, actionMap, "ATTENDRE");
     if (entry.recommendedAction) entry.recommendedAction = mapValue(entry.recommendedAction, actionMap, "ATTENDRE");
+    if (entry.riskExplication && typeof entry.riskExplication === 'object') entry.riskExplication = JSON.stringify(entry.riskExplication);
   };
 
   processEntry(obj);
@@ -251,6 +254,12 @@ function sanitizeAIResult(obj: any): any {
     if (obj.horizons.shortTerm) processEntry(obj.horizons.shortTerm);
     if (obj.horizons.mediumTerm) processEntry(obj.horizons.mediumTerm);
     if (obj.horizons.longTerm) processEntry(obj.horizons.longTerm);
+  }
+
+  if (Array.isArray(obj.news)) {
+    obj.news.forEach((newsItem: any) => {
+      if (newsItem.impact) newsItem.impact = mapValue(newsItem.impact, impactMap, "Court terme");
+    });
   }
 
   return obj;
@@ -507,7 +516,7 @@ export class GeminiService {
 
       const prompt = `${dataBlock}\n\n${SYNTHESIS_SYSTEM_PROMPT}`;
 
-      let text = await unifiedAICall(prompt, true, 'gemini-2.5-flash', undefined, false, undefined, undefined, 0.3);
+      let text = await unifiedAICall(prompt, true, 'gemini-1.5-flash', undefined, false, undefined, undefined, 0.3);
       const parsed = safeJsonParse(text);
       return sanitizeAIResult(parsed);
 
@@ -576,7 +585,7 @@ export class GeminiService {
 
       const prompt = `${dataBlock}\n\n${TECHNICAL_SYSTEM_PROMPT}`;
 
-      const text = await unifiedAICall(prompt, true, 'gemini-2.5-flash', undefined, false, undefined, undefined, 0.3);
+      const text = await unifiedAICall(prompt, true, 'gemini-1.5-flash', undefined, false, undefined, undefined, 0.3);
       const parsed = safeJsonParse(text);
       if (!parsed) return null;
 
@@ -734,7 +743,7 @@ ${pdfData ? "Un document financier officiel (PDF) a été fourni en pièce joint
     try {
       // Activate Search Grounding if no PDF is provided
       const useGrounding = !pdfData;
-      const text = await unifiedAICall(prompt, true, 'gemini-2.5-flash', undefined, useGrounding, pdfData, shariaSchema, 0.2);
+      const text = await unifiedAICall(prompt, true, 'gemini-1.5-flash', undefined, useGrounding, pdfData, shariaSchema, 0.2);
       const parsed = safeJsonParse(text);
 
       if (parsed) {
