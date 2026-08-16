@@ -28,6 +28,20 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
     longTerm: 'LONG TERME (6-12 MOIS)'
   };
 
+  const parseVal = (s?: string) => {
+    if (!s) return NaN;
+    const m = s.match(/[\d.,]+/);
+    return m ? parseFloat(m[0].replace(',', '.')) : NaN;
+  };
+  const tpVal = parseVal(data.takeProfit);
+  const slVal = parseVal(data.stopLoss);
+  const entryVal = parseVal(data.idealEntryPoint) || parseVal(analysis.price);
+  const computedRR = (entryVal && tpVal && slVal && slVal < entryVal && entryVal > 0)
+    ? ((tpVal - entryVal) / (entryVal - slVal))
+    : null;
+  const rrDisplay = computedRR !== null ? `1:${computedRR.toFixed(1)}` : (data.riskRewardRatio || 'N/A');
+  const rrPct = computedRR !== null ? Math.min(100, Math.max(5, (computedRR / 4) * 100)) : 50;
+
   return (
     <>
       {/* SÉLECTEUR D'HORIZON — Nouveau */}
@@ -182,9 +196,9 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
                <span className="c-label mono-label">PROFIL RISK/REWARD (R/R)</span>
 
                <div className="rrr-box">
-                  <span className="c-val mono">{data.riskRewardRatio || '1:2.0'}</span>
+                  <span className="c-val mono">{rrDisplay}</span>
                   <div className="rrr-track">
-                     <div className="rrr-fill" style={{ width: '65%' }}></div>
+                     <div className="rrr-fill" style={{ width: `${rrPct}%` }}></div>
                   </div>
                </div>
             </div>
@@ -238,6 +252,21 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
              </div>
           </div>
         )}
+      </div>
+
+      {/* AUDIT FIX: Disclaimer réglementaire AMMC */}
+      <div style={{
+        marginTop: '24px',
+        padding: '16px 20px',
+        background: 'rgba(245, 158, 11, 0.06)',
+        border: '1px solid rgba(245, 158, 11, 0.15)',
+        borderRadius: '8px',
+        fontSize: '11px',
+        lineHeight: '1.6',
+        color: 'rgba(255,255,255,0.5)',
+        letterSpacing: '0.02em'
+      }}>
+        <span style={{ color: 'rgba(245, 158, 11, 0.8)', fontWeight: 600 }}>⚠️ AVERTISSEMENT :</span> Les analyses et recommandations générées par les agents Aetheris sont fournies à titre purement informatif et ne constituent en aucun cas un conseil en investissement au sens de la réglementation de l’Autorité Marocaine du Marché des Capitaux (AMMC). Les investissements sur le MASI comportent un risque de perte en capital. Les performances passées ne préjugent pas des performances futures.
       </div>
 
       <style jsx>{`

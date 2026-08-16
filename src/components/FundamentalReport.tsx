@@ -50,9 +50,16 @@ export default function FundamentalReport({ analysis }: FundamentalReportProps) 
             <span className="m-label">PER (PRICE-TO-EARNINGS RATIO)</span>
 
             <div className="m-val-row">
-              <span className={`m-val mono ${fundamentals.peRatio === 'N/A' ? 'text-dim' : ''}`}>
-                {fundamentals.peRatio}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <span className={`m-val mono ${fundamentals.peRatio === 'N/A' ? 'text-dim' : ''}`}>
+                  {fundamentals.peRatio}
+                </span>
+                {(analysis as any).fundamentals?.dataSources?.peRatio && (analysis as any).fundamentals.dataSources.peRatio !== 'UNKNOWN' && (
+                  <span style={{ fontSize: '9px', padding: '2px 6px', background: 'rgba(16, 185, 129, 0.1)', color: 'rgba(16, 185, 129, 0.7)', borderRadius: '4px', marginLeft: '6px', letterSpacing: '0.05em' }}>
+                    {(analysis as any).fundamentals.dataSources.peRatio}
+                  </span>
+                )}
+              </div>
               <div className="m-status glass">VALORISATION MODÈLE</div>
             </div>
             <p className="m-desc">Multiple de valorisation basé sur les derniers bénéfices déclarés.</p>
@@ -70,9 +77,16 @@ export default function FundamentalReport({ analysis }: FundamentalReportProps) 
             <span className="m-label">TAUX DE DIVIDENDE (BRUT)</span>
 
             <div className="m-val-row">
-              <span className={`m-val mono ${fundamentals.dividendYield === 'N/A' ? 'text-dim' : 'text-emerald'}`}>
-                {fundamentals.dividendYield}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <span className={`m-val mono ${fundamentals.dividendYield === 'N/A' ? 'text-dim' : 'text-emerald'}`}>
+                  {fundamentals.dividendYield}
+                </span>
+                {(analysis as any).fundamentals?.dataSources?.dividendYield && (analysis as any).fundamentals.dataSources.dividendYield !== 'UNKNOWN' && (
+                  <span style={{ fontSize: '9px', padding: '2px 6px', background: 'rgba(16, 185, 129, 0.1)', color: 'rgba(16, 185, 129, 0.7)', borderRadius: '4px', marginLeft: '6px', letterSpacing: '0.05em' }}>
+                    {(analysis as any).fundamentals.dataSources.dividendYield}
+                  </span>
+                )}
+              </div>
               <div className="m-status glass green">DIVIDENDE ACTIF</div>
             </div>
             <p className="m-desc">Rendement annuel brut distribué aux actionnaires.</p>
@@ -90,12 +104,19 @@ export default function FundamentalReport({ analysis }: FundamentalReportProps) 
             <span className="m-label">CAPITALISATION BOURSIÈRE</span>
 
             <div className="m-val-row">
-              <span className="m-val mono">
-                {fundamentals.marketCap && fundamentals.marketCap !== 'N/A' 
-                  ? `${String(fundamentals.marketCap).replace(/\B(?=(\d{3})+(?!\d))/g, " ")}` 
-                  : 'N/A'}
-                <span className="m-cur">MAD</span>
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <span className="m-val mono">
+                  {fundamentals.marketCap && fundamentals.marketCap !== 'N/A' 
+                    ? `${String(fundamentals.marketCap).replace(/\B(?=(\d{3})+(?!\d))/g, " ")}` 
+                    : 'N/A'}
+                  <span className="m-cur">MAD</span>
+                </span>
+                {(analysis as any).fundamentals?.dataSources?.marketCap && (analysis as any).fundamentals.dataSources.marketCap !== 'UNKNOWN' && (
+                  <span style={{ fontSize: '9px', padding: '2px 6px', background: 'rgba(16, 185, 129, 0.1)', color: 'rgba(16, 185, 129, 0.7)', borderRadius: '4px', marginLeft: '6px', letterSpacing: '0.05em' }}>
+                    {(analysis as any).fundamentals.dataSources.marketCap}
+                  </span>
+                )}
+              </div>
               <div className="m-status glass">POIDS INSTITUTIONNEL</div>
             </div>
             <p className="m-desc">Valeur totale de la société sur le marché d'actions.</p>
@@ -113,9 +134,16 @@ export default function FundamentalReport({ analysis }: FundamentalReportProps) 
             <span className="m-label">ROE (RENTABILITÉ DES FONDS PROPRES)</span>
 
             <div className="m-val-row">
-              <span className={`m-val mono ${fundamentals.roe === 'N/A' ? 'text-dim' : 'text-emerald'}`}>
-                {fundamentals.roe}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <span className={`m-val mono ${fundamentals.roe === 'N/A' ? 'text-dim' : 'text-emerald'}`}>
+                  {fundamentals.roe}
+                </span>
+                {(analysis as any).fundamentals?.dataSources?.roe && (analysis as any).fundamentals.dataSources.roe !== 'UNKNOWN' && (
+                  <span style={{ fontSize: '9px', padding: '2px 6px', background: 'rgba(16, 185, 129, 0.1)', color: 'rgba(16, 185, 129, 0.7)', borderRadius: '4px', marginLeft: '6px', letterSpacing: '0.05em' }}>
+                    {(analysis as any).fundamentals.dataSources.roe}
+                  </span>
+                )}
+              </div>
               <div className="m-status glass green">RATIO D'EFFICACITÉ</div>
             </div>
             <p className="m-desc">Capacité de la société à générer des profits avec l'argent des actionnaires.</p>
@@ -133,9 +161,16 @@ export default function FundamentalReport({ analysis }: FundamentalReportProps) 
             <span className="m-label">BÉNÉFICE NET CONSOLIDÉ</span>
 
             <div className="m-val-row">
-              <span className={`m-val mono ${fundamentals.netProfit === 'N/A' ? 'text-dim' : ''}`}>
-                {fundamentals.netProfit}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <span className={`m-val mono ${fundamentals.netProfit === 'N/A' ? 'text-dim' : ''}`}>
+                  {fundamentals.netProfit}
+                </span>
+                {(analysis as any).fundamentals?.dataSources?.netProfit && (analysis as any).fundamentals.dataSources.netProfit !== 'UNKNOWN' && (
+                  <span style={{ fontSize: '9px', padding: '2px 6px', background: 'rgba(16, 185, 129, 0.1)', color: 'rgba(16, 185, 129, 0.7)', borderRadius: '4px', marginLeft: '6px', letterSpacing: '0.05em' }}>
+                    {(analysis as any).fundamentals.dataSources.netProfit}
+                  </span>
+                )}
+              </div>
               <div className="m-status glass">RÉSULTAT NET</div>
             </div>
             <p className="m-desc">Bénéfice net total après impôts et charges sur le dernier exercice.</p>

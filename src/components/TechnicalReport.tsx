@@ -189,6 +189,26 @@ export default function TechnicalReport({ analysis }: TechnicalReportProps) {
                     <span className="l-val mono">{analysis.resistance}</span>
                  </div>
               </div>
+
+              {/* AUDIT FIX: Affichage des retracements de Fibonacci */}
+              {(analysis as any).fibonacci && (
+                <div style={{ marginTop: '20px', padding: '16px 20px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px' }}>
+                  <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(255,255,255,0.4)', marginBottom: '12px', fontWeight: 600 }}>Retracements de Fibonacci</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
+                    {[
+                      { label: '23.6%', value: (analysis as any).fibonacci.h23 },
+                      { label: '38.2%', value: (analysis as any).fibonacci.h38 },
+                      { label: '50.0%', value: (analysis as any).fibonacci.h50 },
+                      { label: '61.8%', value: (analysis as any).fibonacci.h61 },
+                    ].map(fib => (
+                      <div key={fib.label} style={{ textAlign: 'center', padding: '8px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px' }}>
+                        <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>{fib.label}</div>
+                        <div style={{ fontSize: '13px', fontFamily: 'JetBrains Mono, monospace', color: 'rgba(255,255,255,0.85)' }}>{fib.value} <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.3)' }}>MAD</span></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
            </div>
         </div>
 
