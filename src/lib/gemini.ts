@@ -47,7 +47,7 @@ const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gem
  * AUDIT FIX: Retry sur les erreurs transitoires (timeout, 500, réseau),
  * pas seulement les erreurs 429 quota.
  */
-async function callGoogleAI(prompt: string, isJson: boolean = false, preferredModel?: string, customApiKey?: string, useGrounding: boolean = false, fileData?: { data: string, mimeType: string }, responseSchema?: any): Promise<string> {
+async function callGoogleAI(prompt: string, isJson: boolean = false, preferredModel?: string, customApiKey?: string, useGrounding: boolean = false, fileData?: { data: string, mimeType: string }, responseSchema?: any, temperature?: number): Promise<string> {
   const modelsToTry = preferredModel ? [preferredModel, ...MODELS.filter(m => m !== preferredModel)] : MODELS;
   const MAX_RETRIES_PER_MODEL = 2;
   const aiInstance = customApiKey ? new GoogleGenerativeAI(customApiKey) : genAI;
@@ -55,9 +55,11 @@ async function callGoogleAI(prompt: string, isJson: boolean = false, preferredMo
   for (const modelName of modelsToTry) {
     for (let attempt = 1; attempt <= MAX_RETRIES_PER_MODEL; attempt++) {
       try {
+        const generationConfig: any = isJson ? { responseMimeType: 'application/json', responseSchema } : {};
+        if (temperature !== undefined) generationConfig.temperature = temperature;
         const modelOptions: any = { 
           model: modelName,
-          generationConfig: isJson ? { responseMimeType: 'application/json', responseSchema } : undefined
+          generationConfig: (isJson || temperature !== undefined) ? generationConfig : undefined
         };
         
         if (useGrounding) {
@@ -132,7 +134,7 @@ async function callMistral(prompt: string): Promise<string> {
 }
 
 /** Orchestrateur d'IA avec Fallback automatique */
-async function unifiedAICall(prompt: string, isJson: boolean = true, preferredModel?: string, customApiKey?: string, useGrounding: boolean = false, fileData?: { data: string, mimeType: string }, responseSchema?: any): Promise<string> {
+async function unifiedAICall(prompt: string, isJson: boolean = true, preferredModel?: string, customApiKey?: string, useGrounding: boolean = false, fileData?: { data: string, mimeType: string }, responseSchema?: any, temperature?: number): Promise<string> {
   const hashObj = prompt + isJson + (preferredModel || '') + (customApiKey || '') + useGrounding + (fileData ? 'FILE' : '');
   const hash = crypto.createHash('md5').update(hashObj).digest('hex');
   const cacheKey = `aetheris:prompt:${hash}`;
@@ -150,7 +152,7 @@ async function unifiedAICall(prompt: string, isJson: boolean = true, preferredMo
 
   let resultText = '';
   try {
-    const result = await callGoogleAI(prompt, isJson, preferredModel, customApiKey, useGrounding, fileData, responseSchema);
+    const result = await callGoogleAI(prompt, isJson, preferredModel, customApiKey, useGrounding, fileData, responseSchema, temperature);
     if (isJson && safeJsonParse(result) === null) throw new Error('Invalid JSON from Gemini');
     
     CacheService.setGeneric(cacheKey, result);
@@ -409,7 +411,7 @@ export class GeminiService {
         }).join('\n\n')}
       `;
 
-      let text = await unifiedAICall(prompt, true, 'gemini-2.0-flash');
+      let text = await unifiedAICall(prompt, true, 'gemini-2.0-flash', undefined, false, undefined, undefined, 0.3);
       const parsed = safeJsonParse(text);
       
       // BUG FIX #6: safeJsonParse can return null if AI response is malformed JSON.
@@ -501,7 +503,7 @@ export class GeminiService {
 
       const prompt = `${dataBlock}\n\n${SYNTHESIS_SYSTEM_PROMPT}`;
 
-      let text = await unifiedAICall(prompt, true, 'gemini-2.5-flash');
+      let text = await unifiedAICall(prompt, true, 'gemini-2.5-flash', undefined, false, undefined, undefined, 0.3);
       const parsed = safeJsonParse(text);
       return sanitizeAIResult(parsed);
 
@@ -535,7 +537,7 @@ export class GeminiService {
         { "symbol": string, "companyName": string }
       `;
 
-      let text = await unifiedAICall(prompt, true, 'gemini-2.0-flash');
+      let text = await unifiedAICall(prompt, true, 'gemini-2.0-flash', undefined, false, undefined, undefined, 0.1);
       return safeJsonParse(text);
     } catch (e) {
       console.error("Gemini Resolve Ticker Error:", e);
@@ -570,7 +572,7 @@ export class GeminiService {
 
       const prompt = `${dataBlock}\n\n${TECHNICAL_SYSTEM_PROMPT}`;
 
-      const text = await unifiedAICall(prompt, true, 'gemini-2.5-flash');
+      const text = await unifiedAICall(prompt, true, 'gemini-2.5-flash', undefined, false, undefined, undefined, 0.3);
       const parsed = safeJsonParse(text);
       if (!parsed) return null;
 
@@ -589,9 +591,22 @@ export class GeminiService {
   static async generateStrategyPlan(analysis: Partial<CompanyAnalysis>): Promise<string | null> {
     if (!process.env.GEMINI_API_KEY) return null;
     try {
-      const prompt = `Génère un plan tactique de 2 phrases pour ${analysis.companyName}. Action: ${analysis.orchestrator?.finalAction}, Prix: ${analysis.price}, RSI: ${JSON.stringify(analysis.rsi)}.`;
+      const prompt = `Tu es un stratégiste de la Bourse de Casablanca. Voici la situation de ${analysis.companyName} :
+- Cours: ${analysis.price || 'N/A'}
+- RSI: ${typeof analysis.rsi === 'object' ? `${analysis.rsi.value} (${analysis.rsi.interpretation})` : analysis.rsi || 'N/A'}
+- Support: ${analysis.support || 'N/A'}
+- Résistance: ${analysis.resistance || 'N/A'}
+- Tendance: ${analysis.technicalTrend || 'N/A'}
+- Sentiment: ${analysis.globalSentiment || 'N/A'}
+
+Rédige un plan tactique de 3 phrases couvrant :
+1. Le contexte immédiat du titre
+2. Les niveaux techniques à surveiller
+3. La gestion du risque appropriée
+
+NE DONNE PAS de recommandation d'achat ou de vente. Concentre-toi sur les FAITS et les NIVEAUX à observer.`;
       // Celui ci est en texte brut
-      return (await unifiedAICall(prompt, false)).trim();
+      return (await unifiedAICall(prompt, false, undefined, undefined, false, undefined, undefined, 0.3)).trim();
     } catch (e) {
       return null;
     }
@@ -630,7 +645,7 @@ export class GeminiService {
         }
       `;
 
-      const text = await unifiedAICall(prompt, true, 'gemini-2.0-flash');
+      const text = await unifiedAICall(prompt, true, 'gemini-2.0-flash', undefined, false, undefined, undefined, 0.3);
       const parsed = safeJsonParse(text);
       if (!parsed) throw new Error("JSON_PARSE_FAILED");
       return parsed;
@@ -715,7 +730,7 @@ ${pdfData ? "Un document financier officiel (PDF) a été fourni en pièce joint
     try {
       // Activate Search Grounding if no PDF is provided
       const useGrounding = !pdfData;
-      const text = await unifiedAICall(prompt, true, 'gemini-2.5-flash', undefined, useGrounding, pdfData, shariaSchema);
+      const text = await unifiedAICall(prompt, true, 'gemini-2.5-flash', undefined, useGrounding, pdfData, shariaSchema, 0.2);
       const parsed = safeJsonParse(text);
 
       if (parsed) {

@@ -24,13 +24,8 @@ export default function AetherisChart({ company, companyId, isBullish = true }: 
       const isValidUUID = companyId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(companyId);
       
       if (!companyId || !isValidUUID) {
-        // Fallback mock si pas d'ID ou ID invalide (ex: généré par le fallback Zod)
-        setChartData([
-          { time: '2024-01-01', value: 100 },
-          { time: '2024-01-02', value: 105 },
-          { time: '2024-01-03', value: 102 },
-          { time: '2024-01-04', value: 110 },
-        ]);
+        // Pas d'ID ou ID invalide -> on n'affiche pas de données par défaut
+        setChartData([]);
         setLoading(false);
         return;
       }
@@ -154,8 +149,20 @@ export default function AetherisChart({ company, companyId, isBullish = true }: 
         ) : chartData.length > 0 ? (
           <div ref={chartContainerRef} className="w-full h-full" />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-slate-500 text-sm">
-            Données historiques insuffisantes
+          <div style={{
+            height: '250px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(255,255,255,0.02)',
+            borderRadius: '10px',
+            border: '1px solid rgba(255,255,255,0.06)',
+            gap: '8px'
+          }}>
+            <span style={{ fontSize: '24px' }}>📊</span>
+            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.05em' }}>Historique de cours non disponible</span>
+            <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.25)' }}>L&apos;historique sera disponible après la prochaine synchronisation</span>
           </div>
         )}
       </div>
