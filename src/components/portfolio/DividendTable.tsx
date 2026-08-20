@@ -97,8 +97,8 @@ export const DividendTable: React.FC<DividendTableProps> = ({
                   const holding = holdings.find((h: PortfolioHolding) => h.symbol === div.symbol);
                   const qty = holding?.totalQuantity || 0;
                   const grossRevenue = qty * div.amount_per_share;
-                  const totalTax = grossRevenue * DIVIDEND_TOTAL_TAX_RATE; // 13.45%
-                  const netRevenue = grossRevenue * DIVIDEND_NET_RATIO; // 86.55%
+                  const itemTax = grossRevenue * DIVIDEND_TOTAL_TAX_RATE; // 13.45%
+                  const itemNet = grossRevenue * DIVIDEND_NET_RATIO; // 86.55%
 
                   return (
                     <tr key={i} className="inst-row">
@@ -111,10 +111,10 @@ export const DividendTable: React.FC<DividendTableProps> = ({
                       <td className="mono">{new Date(div.dividend_date).toLocaleDateString('fr-FR')}</td>
                       <td className="mono text-slate-300">{div.amount_per_share.toFixed(2)} MAD</td>
                       <td className="mono text-slate-300">{grossRevenue.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD</td>
-                      <td className="mono text-rose-400">-{totalTax.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD</td>
+                      <td className="mono text-rose-400">-{itemTax.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD</td>
                       <td>
                         <div className="momentum-box bull">
-                          <span className="m-abs mono text-emerald font-bold">+{netRevenue.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD</span>
+                          <span className="m-abs mono text-emerald font-bold">+{itemNet.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD</span>
                         </div>
                       </td>
                       <td style={{ textAlign: 'right' }}>
@@ -127,6 +127,40 @@ export const DividendTable: React.FC<DividendTableProps> = ({
                 })}
               </tbody>
             </table>
+          </div>
+          
+          {/* TOTALS SUMMARY */}
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 mt-4 p-4 glass-heavy rounded-xl border border-white/5">
+            <div className="text-slate-400 text-sm mono">RÉCAPITULATIF</div>
+            <div className="flex flex-wrap items-center gap-6 md:gap-8">
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-slate-500 font-bold tracking-wider">TOTAL BRUT</span>
+                <span className="mono text-slate-200 font-medium">
+                  {dividends.reduce((acc, div) => {
+                    const holding = holdings.find((h) => h.symbol === div.symbol);
+                    return acc + ((holding?.totalQuantity || 0) * div.amount_per_share);
+                  }, 0).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD
+                </span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-rose-400/70 font-bold tracking-wider">TOTAL RETENUES</span>
+                <span className="mono text-rose-400 font-medium">
+                  -{dividends.reduce((acc, div) => {
+                    const holding = holdings.find((h) => h.symbol === div.symbol);
+                    return acc + ((holding?.totalQuantity || 0) * div.amount_per_share * DIVIDEND_TOTAL_TAX_RATE);
+                  }, 0).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD
+                </span>
+              </div>
+              <div className="flex flex-col gap-1 px-4 py-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+                <span className="text-[10px] text-emerald-500/70 font-bold tracking-wider">TOTAL NET ENCAISSÉ</span>
+                <span className="mono text-emerald-400 font-bold text-lg">
+                  +{dividends.reduce((acc, div) => {
+                    const holding = holdings.find((h) => h.symbol === div.symbol);
+                    return acc + ((holding?.totalQuantity || 0) * div.amount_per_share * DIVIDEND_NET_RATIO);
+                  }, 0).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD
+                </span>
+              </div>
+            </div>
           </div>
         </>
       )}
