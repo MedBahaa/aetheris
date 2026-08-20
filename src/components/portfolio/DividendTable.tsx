@@ -126,56 +126,35 @@ export const DividendTable: React.FC<DividendTableProps> = ({
                   );
                 })}
               </tbody>
+              <tfoot className="glass-heavy border-t border-white/10">
+                <tr>
+                  <td colSpan={3} className="text-right text-slate-400 text-xs font-bold tracking-widest pr-4 uppercase py-4">TOTAL DES DIVIDENDES :</td>
+                  <td className="mono text-slate-200 font-bold">
+                    {dividends.reduce((acc, div) => {
+                      const holding = holdings.find((h) => h.symbol === div.symbol);
+                      return acc + ((holding?.totalQuantity || 0) * div.amount_per_share);
+                    }, 0).toLocaleString('fr-FR', { maximumFractionDigits: 2, minimumFractionDigits: 2 })} MAD
+                  </td>
+                  <td className="mono text-rose-400 font-bold">
+                    -{dividends.reduce((acc, div) => {
+                      const holding = holdings.find((h) => h.symbol === div.symbol);
+                      return acc + ((holding?.totalQuantity || 0) * div.amount_per_share * DIVIDEND_TOTAL_TAX_RATE);
+                    }, 0).toLocaleString('fr-FR', { maximumFractionDigits: 2, minimumFractionDigits: 2 })} MAD
+                  </td>
+                  <td>
+                    <div className="momentum-box bull" style={{ background: 'rgba(16, 185, 129, 0.1)', borderColor: 'rgba(16, 185, 129, 0.3)' }}>
+                      <span className="m-abs mono text-emerald font-bold" style={{ textShadow: '0 0 10px rgba(16, 185, 129, 0.3)' }}>
+                        +{dividends.reduce((acc, div) => {
+                          const holding = holdings.find((h) => h.symbol === div.symbol);
+                          return acc + ((holding?.totalQuantity || 0) * div.amount_per_share * DIVIDEND_NET_RATIO);
+                        }, 0).toLocaleString('fr-FR', { maximumFractionDigits: 2, minimumFractionDigits: 2 })} MAD
+                      </span>
+                    </div>
+                  </td>
+                  <td></td>
+                </tr>
+              </tfoot>
             </table>
-          </div>
-          {/* TOTALS SUMMARY - PREMIUM UI */}
-          <div className="tactical-board-new glass-heavy mt-6 border border-emerald-500/10" style={{ boxShadow: '0 0 30px rgba(16, 185, 129, 0.03)' }}>
-            <div className="board-header">
-              <Gift size={14} className="emerald-icon opacity-80" />
-              <span className="mono-label">SYNTHÈSE FINANCIÈRE DES DIVIDENDES</span>
-              <div className="horizon-badge glass active">
-                 <span className="mono">CASHFLOW</span>
-              </div>
-            </div>
-           
-            <div className="tactical-grid">
-              <div className="t-coord entry">
-                 <span className="c-label mono-label text-slate-400">REVENUS BRUTS GLOBAUX</span>
-                 <div className="val-box mt-2">
-                    <span className="c-val mono text-slate-200">
-                      {dividends.reduce((acc, div) => {
-                        const holding = holdings.find((h) => h.symbol === div.symbol);
-                        return acc + ((holding?.totalQuantity || 0) * div.amount_per_share);
-                      }, 0).toLocaleString('fr-FR', { maximumFractionDigits: 2, minimumFractionDigits: 2 })} MAD
-                    </span>
-                 </div>
-              </div>
-              <div className="t-coord sl">
-                 <span className="c-label mono-label text-rose-400/70">TOTAL IMPÔTS & RETENUES</span>
-                 <div className="val-box mt-2">
-                    <span className="c-val mono text-rose-400">
-                      -{dividends.reduce((acc, div) => {
-                        const holding = holdings.find((h) => h.symbol === div.symbol);
-                        return acc + ((holding?.totalQuantity || 0) * div.amount_per_share * DIVIDEND_TOTAL_TAX_RATE);
-                      }, 0).toLocaleString('fr-FR', { maximumFractionDigits: 2, minimumFractionDigits: 2 })} MAD
-                    </span>
-                    <span className="target-tick down">▼</span>
-                 </div>
-              </div>
-              <div className="t-coord tp relative overflow-hidden" style={{ background: 'linear-gradient(to right, rgba(16, 185, 129, 0.02), rgba(16, 185, 129, 0.08))', borderColor: 'rgba(16, 185, 129, 0.2)' }}>
-                 <div className="absolute inset-0 bg-emerald-500/5 mix-blend-overlay"></div>
-                 <span className="c-label mono-label text-emerald-500/80 relative z-10">NET ENCAISSÉ EN COMPTE</span>
-                 <div className="val-box mt-2 relative z-10">
-                    <span className="c-val mono text-emerald-400 font-bold" style={{ fontSize: '1.25rem', textShadow: '0 0 20px rgba(52, 211, 153, 0.4)' }}>
-                      +{dividends.reduce((acc, div) => {
-                        const holding = holdings.find((h) => h.symbol === div.symbol);
-                        return acc + ((holding?.totalQuantity || 0) * div.amount_per_share * DIVIDEND_NET_RATIO);
-                      }, 0).toLocaleString('fr-FR', { maximumFractionDigits: 2, minimumFractionDigits: 2 })} MAD
-                    </span>
-                    <span className="target-tick" style={{ color: '#34d399' }}>▲</span>
-                 </div>
-              </div>
-            </div>
           </div>
         </>
       )}
