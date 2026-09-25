@@ -126,7 +126,7 @@ export default function DividendesPage() {
                       filteredDividends.map((item, idx) => (
                         <tr key={item.symbol} className="hover:bg-slate-800/40 transition-colors group">
                           <td className="px-6 py-4">
-                            <span className={\`font-mono font-medium \${idx < 3 ? 'text-amber-400' : 'text-slate-400'}\`}>
+                            <span className={`font-mono font-medium ${idx < 3 ? 'text-amber-400' : 'text-slate-400'}`}>
                               #{item.rank}
                             </span>
                           </td>
