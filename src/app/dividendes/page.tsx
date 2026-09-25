@@ -29,10 +29,10 @@ export default function DividendesPage() {
 
   return (
     <div className="flex min-h-screen bg-slate-900 text-slate-100 overflow-hidden font-sans">
-      <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      <Sidebar history={[]} onSelect={() => {}} activeAgent="STRATEGY" onAgentChange={() => {}} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
       <main className="flex-1 flex flex-col relative h-screen max-w-full overflow-hidden transition-all duration-300 z-10 lg:ml-64">
-        <Header setIsSidebarOpen={setIsSidebarOpen} />
+        <Header onOpenSidebar={() => setIsSidebarOpen(true)} />
         
         <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 scroll-smooth">
           <div className="max-w-6xl mx-auto space-y-6">
