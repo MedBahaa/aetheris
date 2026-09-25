@@ -248,6 +248,13 @@ export default function Sidebar({
                 </button>
               </Link>
 
+              <Link href="/dividendes" style={{ textDecoration: 'none' }} onClick={() => !isDesktop && onClose()}>
+                <button className={`agent-btn-compact ${pathname === '/dividendes' ? 'active' : ''}`}>
+                  <Landmark size={16} className="nav-icon text-amber-400" />
+                  <span>Palmarès Dividendes</span>
+                </button>
+              </Link>
+
               <Link href="/purification" style={{ textDecoration: 'none' }} onClick={() => !isDesktop && onClose()}>
                 <button className={`agent-btn-compact ${pathname === '/purification' ? 'active' : ''}`}>
                   <Scale size={16} className="nav-icon" />
