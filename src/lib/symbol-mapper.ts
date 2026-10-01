@@ -91,7 +91,12 @@ export const SYMBOL_ALIASES: Record<string, string> = {
   // Gaz
   'AFRIQUIA GAZ': 'AFI',
   'AFG': 'AFI',
-  'AFI': 'AFI'
+  'AFI': 'AFI',
+
+  // Tech / Santé / Divers
+  'T2S GRO HOLDING': 'T2S',
+  'T2S GRO': 'T2S',
+  'T2S': 'T2S'
 };
 
 export const STATIC_SECTOR_MAP: Record<string, string> = {
@@ -114,6 +119,7 @@ export const STATIC_SECTOR_MAP: Record<string, string> = {
   'AKT': 'Santé & Médical',
   'SOT': 'Santé & Médical',
   'PROM': 'Pharmacie',
+  'T2S': 'Santé & Médical',
 
   // Bâtiment, Matériaux & Immobilier
   'LHM': 'Bâtiment & Matériaux',
