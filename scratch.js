@@ -1,1 +1,0 @@
-const cheerio = require("cheerio"); fetch("https://www.bmcecapitalbourse.com/bkbbourse/lists/TK?q=AE31180F8E3BE20E762758E81EDC1204&type=Actions").then(r => r.text()).then(html => { const $ = cheerio.load(html); $("table tbody tr").each((_, el) => { const sym = $(el).find("td").first().text().trim(); if(sym.includes("T2S")) console.log(sym); }); })
