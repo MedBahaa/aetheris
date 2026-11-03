@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { GeminiService } from '@/lib/gemini';
 import { corsHeaders, handleOptionsRequest } from '@/lib/api-headers';
-import { createServerSupabase } from '@/lib/supabase-server';
+import { createServerSupabase, supabaseAdmin } from '@/lib/supabase-server';
 import { checkRateLimitAsync } from '@/lib/rate-limiter';
 import { shariaQuerySchema } from '@/lib/validations';
+import { InputSanitizer } from '@/lib/input-sanitizer';
 
 const MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024; // 10 Mo maximum
 
@@ -115,21 +116,24 @@ export async function POST(req: Request) {
           let result = null;
           let cachedCompanyId = null;
 
-          if (!pdfData) {
+          const dbClient = supabaseAdmin || supabase;
+          const safeFilterQuery = InputSanitizer.sanitizePostgrestFilter(cleanQuery);
+
+          if (!pdfData && safeFilterQuery) {
             // Check cache (7 days)
-            const { data: companyMatch } = await supabase
+            const { data: companyMatch } = await dbClient
               .from('companies')
               .select('id, symbol')
-              .or(`symbol.ilike.${cleanQuery},name.ilike.%${cleanQuery}%`)
+              .or(`symbol.ilike.${safeFilterQuery},name.ilike.%${safeFilterQuery}%`)
               .limit(1)
-              .single();
+              .maybeSingle();
               
             if (companyMatch) {
               cachedCompanyId = companyMatch.id;
               const sevenDaysAgo = new Date();
               sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
               
-              const { data: cacheData } = await supabase
+              const { data: cacheData } = await dbClient
                 .from('analyses_cache')
                 .select('result')
                 .eq('company_id', companyMatch.id)
@@ -137,7 +141,7 @@ export async function POST(req: Request) {
                 .gte('timestamp', sevenDaysAgo.toISOString())
                 .order('timestamp', { ascending: false })
                 .limit(1)
-                .single();
+                .maybeSingle();
                 
               if (cacheData && cacheData.result) {
                 result = cacheData.result;
@@ -149,18 +153,21 @@ export async function POST(req: Request) {
             result = await GeminiService.analyzeShariaCompliance(cleanQuery, pdfData);
             
             if (!pdfData) {
-               if (!cachedCompanyId) {
-                  const { data: companyByTicker } = await supabase
-                    .from('companies')
-                    .select('id')
-                    .ilike('symbol', result.ticker)
-                    .limit(1)
-                    .single();
-                  if (companyByTicker) cachedCompanyId = companyByTicker.id;
+               if (!cachedCompanyId && result.ticker) {
+                  const safeTicker = InputSanitizer.sanitizeForDb(result.ticker);
+                  if (safeTicker) {
+                    const { data: companyByTicker } = await dbClient
+                      .from('companies')
+                      .select('id')
+                      .ilike('symbol', safeTicker)
+                      .limit(1)
+                      .maybeSingle();
+                    if (companyByTicker) cachedCompanyId = companyByTicker.id;
+                  }
                }
 
                if (cachedCompanyId) {
-                  await supabase.from('analyses_cache').insert({
+                  await dbClient.from('analyses_cache').insert({
                     company_id: cachedCompanyId,
                     agent_type: 'SHARIA',
                     result: result
@@ -179,7 +186,7 @@ export async function POST(req: Request) {
           sendEvent({
             step: 4,
             status: 'error',
-            message: error?.message || 'Erreur lors de la recherche des états financiers et du calcul de conformité Sharia'
+            message: 'Erreur lors de la recherche des états financiers et du calcul de conformité Sharia.'
           });
           controller.close();
         }
@@ -209,7 +216,7 @@ export async function POST(req: Request) {
       NextResponse.json(
         {
           status: 'error',
-          message: error?.message || 'Erreur interne du serveur'
+          message: 'Erreur interne du serveur.'
         },
         { status: 500 }
       )

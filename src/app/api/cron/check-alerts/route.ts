@@ -146,10 +146,10 @@ export async function GET(request: Request) {
           await sendWhatsAppAlert(profile.whatsapp_phone, rawMessage);
         }
 
-        // Notification Email
+        // Notification Email (strictement vers l'adresse email vérifiée du compte propriétaire de l'alerte)
         if (channel === 'EMAIL' || channel === 'ALL') {
           const { data: userData } = await supabaseAdmin.auth.admin.getUserById(alert.user_id);
-          const targetEmail = profile?.notification_email || userData?.user?.email;
+          const targetEmail = userData?.user?.email;
 
           if (targetEmail) {
             try {
@@ -190,6 +190,6 @@ export async function GET(request: Request) {
 
   } catch (error: any) {
     console.error('[Cron Check Alerts] Exception:', error.message);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Erreur interne lors du contrôle des alertes.' }, { status: 500 });
   }
 }

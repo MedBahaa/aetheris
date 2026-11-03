@@ -1,4 +1,4 @@
-import { supabaseAdmin as supabase } from '../lib/supabase';
+import { supabaseAdmin as supabase } from '../lib/supabase-server';
 
 const NEW_MAPPINGS = [
   { symbol: 'IAM', id: '1832967' },

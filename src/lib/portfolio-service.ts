@@ -8,20 +8,22 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 const MAX_BULK_IMPORT_ROWS = 500;
 
 /**
- * Hachage déterministe (FNV-1a 64-bit hex) compatible navigateur & serveur
- * pour anonymiser les identifiants utilisateurs publics sur le Leaderboard.
+ * Hachage cryptographique HMAC-SHA256 (Web Crypto API compatible Node.js, Edge & Navigateur)
+ * avec secret serveur pour empêcher toute désanonymisation par force brute des UUIDs sur le Leaderboard.
  */
-function anonymizeUserId(rawId: string): string {
-  let h1 = 0xdeadbeef ^ rawId.length;
-  let h2 = 0x41c6ce57 ^ rawId.length;
-  for (let i = 0; i < rawId.length; i++) {
-    const ch = rawId.charCodeAt(i);
-    h1 = Math.imul(h1 ^ ch, 2654435761);
-    h2 = Math.imul(h2 ^ ch, 1597334677);
-  }
-  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-  return (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0');
+export async function anonymizeUserId(rawId: string, secret: string = 'aetheris-leaderboard-v1'): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await globalThis.crypto.subtle.importKey(
+    'raw',
+    enc.encode(secret || 'aetheris-leaderboard-v1'),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const sig = await globalThis.crypto.subtle.sign('HMAC', key, enc.encode(rawId));
+  return Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 export class PortfolioService {
@@ -413,32 +415,34 @@ export class PortfolioService {
 
   static async upsertUserProfile(client: SupabaseClient, profile: { 
     initial_capital?: number; 
-    subscription_tier?: string;
     telegram_chat_id?: string;
     whatsapp_phone?: string;
     alert_channel?: string;
     notification_email?: string;
     username?: string;
-    virtual_initial_capital?: number;
-    virtual_balance?: number;
   }) {
     const { data: { user } } = await client.auth.getUser();
     if (!user) throw new Error('Non authentifié');
 
-    const payload: any = {
+    const parsed = UserProfileClientInputSchema.safeParse(profile);
+    if (!parsed.success) {
+      throw new Error(parsed.error.issues[0]?.message || 'Données de profil invalides');
+    }
+    const valid = parsed.data;
+
+    // 🔒 SÉCURITÉ : Les champs privilégiés (subscription_tier, virtual_balance, virtual_initial_capital, stripe_*)
+    // ne sont JAMAIS acceptés ici. Ils sont gérés exclusivement côté serveur via supabaseAdmin / RPC atomiques.
+    const payload: Record<string, unknown> = {
       user_id: user.id,
       updated_at: new Date().toISOString()
     };
 
-    if (profile.initial_capital !== undefined) payload.initial_capital = profile.initial_capital;
-    if (profile.subscription_tier !== undefined) payload.subscription_tier = profile.subscription_tier;
-    if (profile.telegram_chat_id !== undefined) payload.telegram_chat_id = profile.telegram_chat_id;
-    if (profile.whatsapp_phone !== undefined) payload.whatsapp_phone = profile.whatsapp_phone;
-    if (profile.alert_channel !== undefined) payload.alert_channel = profile.alert_channel;
-    if (profile.notification_email !== undefined) payload.notification_email = profile.notification_email;
-    if (profile.username !== undefined) payload.username = profile.username;
-    if (profile.virtual_initial_capital !== undefined) payload.virtual_initial_capital = profile.virtual_initial_capital;
-    if (profile.virtual_balance !== undefined) payload.virtual_balance = profile.virtual_balance;
+    if (valid.initial_capital !== undefined) payload.initial_capital = valid.initial_capital;
+    if (valid.telegram_chat_id !== undefined) payload.telegram_chat_id = valid.telegram_chat_id;
+    if (valid.whatsapp_phone !== undefined) payload.whatsapp_phone = valid.whatsapp_phone;
+    if (valid.alert_channel !== undefined) payload.alert_channel = valid.alert_channel;
+    if (valid.notification_email !== undefined) payload.notification_email = valid.notification_email;
+    if (valid.username !== undefined) payload.username = valid.username;
 
     const { error } = await client
       .from('user_profiles')
@@ -446,11 +450,9 @@ export class PortfolioService {
 
     if (error) {
       console.warn('[upsertUserProfile] First attempt error:', error.message);
-      // Fallback for unmigrated columns
-      const safePayload: any = {
+      const safePayload: Record<string, unknown> = {
         user_id: user.id,
         initial_capital: payload.initial_capital ?? 0,
-        subscription_tier: payload.subscription_tier ?? 'free',
         updated_at: payload.updated_at
       };
       const { error: fallbackError } = await client
@@ -609,7 +611,8 @@ export class PortfolioService {
 
   static async addVirtualTransaction(
     client: SupabaseClient, 
-    tx: Omit<PortfolioTransaction, 'id' | 'created_at' | 'user_id' | 'is_virtual'>
+    tx: Omit<PortfolioTransaction, 'id' | 'created_at' | 'user_id' | 'is_virtual'>,
+    adminClient?: SupabaseClient
   ) {
     const { data: { user } } = await client.auth.getUser();
     if (!user) throw new Error('Utilisateur non authentifié. Veuillez vous reconnecter.');
@@ -626,13 +629,40 @@ export class PortfolioService {
       throw new Error(parsed.error.issues[0]?.message || 'Transaction virtuelle invalide');
     }
     const validTx = parsed.data;
+    const txType = validTx.type || 'BUY';
 
-    // Récupérer le profil utilisateur pour le solde virtuel
+    // 🔒 Exécution atomique PostgreSQL (SELECT ... FOR UPDATE) via service_role pour éliminer les conditions de course TOCTOU
+    if (adminClient) {
+      const { data: rpcData, error: rpcError } = await adminClient.rpc('execute_virtual_order', {
+        p_user_id: user.id,
+        p_symbol: validTx.symbol,
+        p_type: txType,
+        p_quantity: validTx.quantity,
+        p_price: validTx.buy_price,
+        p_buy_date: validTx.buy_date,
+        p_fee_rate: BROKERAGE_FEE,
+      });
+
+      if (!rpcError && rpcData) {
+        return rpcData;
+      }
+
+      const isMissingRpc =
+        rpcError?.code === 'PGRST202' ||
+        rpcError?.message?.includes('Could not find the function') ||
+        rpcError?.message?.includes('execute_virtual_order');
+
+      if (rpcError && !isMissingRpc) {
+        throw new Error(rpcError.message);
+      }
+    }
+
+    // Fallback serveur sécurisé via adminClient uniquement si la migration RPC n'a pas encore été exécutée en base
+    const privilegedDb = adminClient || client;
     const profile = await this.getUserProfile(client);
     if (!profile) throw new Error('Profil utilisateur introuvable.');
 
     const currentBalance = profile.virtual_balance ?? 100000;
-    const txType = validTx.type || 'BUY';
     const transactionValue = validTx.quantity * validTx.buy_price;
     const fee = transactionValue * BROKERAGE_FEE;
 
@@ -641,8 +671,8 @@ export class PortfolioService {
       if (currentBalance < totalCost) {
         throw new Error(`Solde virtuel insuffisant (Trésorerie: ${currentBalance.toFixed(2)} MAD vs Requis: ${totalCost.toFixed(2)} MAD)`);
       }
-      
-      const { data, error } = await client
+
+      const { data, error } = await privilegedDb
         .from('portfolio_transactions')
         .insert([{ ...validTx, user_id: user.id, is_virtual: true }])
         .select();
@@ -650,11 +680,13 @@ export class PortfolioService {
       if (error) throw error;
 
       const newBalance = currentBalance - totalCost;
-      await this.upsertUserProfile(client, { virtual_balance: newBalance });
+      const { error: balErr } = await privilegedDb
+        .from('user_profiles')
+        .upsert({ user_id: user.id, virtual_balance: newBalance, updated_at: new Date().toISOString() });
+      if (balErr) throw balErr;
 
       return data[0];
     } else {
-      // Vente
       const txs = await this.getTransactions(client, true);
       const holdings = this.calculateHoldings(txs);
       const holding = holdings.find(h => h.symbol.toLowerCase() === validTx.symbol.toLowerCase());
@@ -663,7 +695,7 @@ export class PortfolioService {
         throw new Error(`Quantité insuffisante d'actions à vendre (${holding?.totalQuantity || 0} possédées vs ${validTx.quantity} demandées)`);
       }
 
-      const { data, error } = await client
+      const { data, error } = await privilegedDb
         .from('portfolio_transactions')
         .insert([{ ...validTx, user_id: user.id, is_virtual: true }])
         .select();
@@ -672,13 +704,20 @@ export class PortfolioService {
 
       const revenue = transactionValue - fee;
       const newBalance = currentBalance + revenue;
-      await this.upsertUserProfile(client, { virtual_balance: newBalance });
+      const { error: balErr } = await privilegedDb
+        .from('user_profiles')
+        .upsert({ user_id: user.id, virtual_balance: newBalance, updated_at: new Date().toISOString() });
+      if (balErr) throw balErr;
 
       return data[0];
     }
   }
 
-  static async resetVirtualPortfolio(client: SupabaseClient, initialCapital: number = 100000) {
+  static async resetVirtualPortfolio(
+    client: SupabaseClient,
+    initialCapital: number = 100000,
+    adminClient?: SupabaseClient
+  ) {
     const { data: { user } } = await client.auth.getUser();
     if (!user) throw new Error('Non authentifié');
 
@@ -686,38 +725,67 @@ export class PortfolioService {
       throw new Error('Le capital virtuel initial doit être compris entre 1 et 10 000 000 MAD.');
     }
 
-    const { error: txError } = await client
+    if (adminClient) {
+      const { error: rpcError } = await adminClient.rpc('reset_virtual_portfolio', {
+        p_user_id: user.id,
+        p_initial_capital: initialCapital,
+      });
+
+      if (!rpcError) return;
+
+      const isMissingRpc =
+        rpcError.code === 'PGRST202' ||
+        rpcError.message?.includes('Could not find the function') ||
+        rpcError.message?.includes('reset_virtual_portfolio');
+
+      if (!isMissingRpc) {
+        throw new Error(rpcError.message);
+      }
+    }
+
+    const privilegedDb = adminClient || client;
+    const { error: txError } = await privilegedDb
       .from('portfolio_transactions')
       .delete()
       .eq('user_id', user.id)
       .eq('is_virtual', true);
     if (txError) throw txError;
 
-    const { error: divError } = await client
+    const { error: divError } = await privilegedDb
       .from('portfolio_dividends')
       .delete()
       .eq('user_id', user.id)
       .eq('is_virtual', true);
     if (divError) throw divError;
 
-    await this.upsertUserProfile(client, {
-      virtual_initial_capital: initialCapital,
-      virtual_balance: initialCapital
-    });
+    const { error: profErr } = await privilegedDb
+      .from('user_profiles')
+      .upsert({
+        user_id: user.id,
+        virtual_initial_capital: initialCapital,
+        virtual_balance: initialCapital,
+        updated_at: new Date().toISOString(),
+      });
+    if (profErr) throw profErr;
   }
 
-  static async getLeaderboard(client: SupabaseClient): Promise<any[]> {
+  static async getLeaderboard(
+    client: SupabaseClient,
+    adminClient?: SupabaseClient,
+    hmacSecret?: string
+  ): Promise<any[]> {
     const { data: { user: currentUser } } = await client.auth.getUser();
+    const readDb = adminClient || client;
 
-    const { data: profiles, error: pError } = await client
+    const { data: profiles, error: pError } = await readDb
       .from('user_profiles')
       .select('user_id, username, virtual_initial_capital, virtual_balance');
     if (pError) throw pError;
     if (!profiles) return [];
 
-    const { data: txs, error: tError } = await client
+    const { data: txs, error: tError } = await readDb
       .from('portfolio_transactions')
-      .select('*')
+      .select('id, user_id, symbol, type, quantity, buy_price, buy_date, is_virtual, created_at')
       .eq('is_virtual', true);
     if (tError) throw tError;
 
@@ -740,35 +808,38 @@ export class PortfolioService {
       userTxsMap.get(tx.user_id)!.push(tx);
     });
 
-    const leaderboard = profiles.map(profile => {
-      const userTxs = userTxsMap.get(profile.user_id) || [];
-      const holdings = this.calculateHoldings(userTxs);
-      
-      let stockValuation = 0;
-      holdings.forEach(h => {
-        const currentPrice = pricesMap.get(h.symbol.toLowerCase()) || h.weightedAveragePrice;
-        stockValuation += h.totalQuantity * currentPrice;
-      });
+    const leaderboard = await Promise.all(
+      profiles.map(async (profile) => {
+        const userTxs = userTxsMap.get(profile.user_id) || [];
+        const holdings = this.calculateHoldings(userTxs);
 
-      const totalValue = Number(profile.virtual_balance) + stockValuation;
-      const initial = Number(profile.virtual_initial_capital) || 100000;
-      const roi = initial > 0 ? ((totalValue / initial) - 1) * 100 : 0;
+        let stockValuation = 0;
+        holdings.forEach(h => {
+          const currentPrice = pricesMap.get(h.symbol.toLowerCase()) || h.weightedAveragePrice;
+          stockValuation += h.totalQuantity * currentPrice;
+        });
 
-      // 🔒 SÉCURITÉ VIE PRIVÉE : Anonymisation des UUIDs (aucun UUID brut auth.users exposé au client)
-      const anonId = anonymizeUserId(String(profile.user_id)).substring(0, 12);
-      const displayName = profile.username || `Trader_${anonId.substring(0, 6)}`;
+        const totalValue = Number(profile.virtual_balance) + stockValuation;
+        const initial = Number(profile.virtual_initial_capital) || 100000;
+        const roi = initial > 0 ? ((totalValue / initial) - 1) * 100 : 0;
 
-      return {
-        userId: `anon_${anonId}`,
-        isCurrentUser: Boolean(currentUser && currentUser.id === profile.user_id),
-        username: displayName,
-        totalValue,
-        virtualBalance: Number(profile.virtual_balance),
-        stockValuation,
-        roi,
-        initial
-      };
-    });
+        // 🔒 SÉCURITÉ VIE PRIVÉE : Anonymisation HMAC-SHA256 salée (aucun UUID brut exposé ni inversible)
+        const fullHmac = await anonymizeUserId(String(profile.user_id), hmacSecret || 'aetheris-leaderboard-v1');
+        const anonId = fullHmac.substring(0, 16);
+        const displayName = profile.username || `Trader_${anonId.substring(0, 6)}`;
+
+        return {
+          userId: `anon_${anonId}`,
+          isCurrentUser: Boolean(currentUser && currentUser.id === profile.user_id),
+          username: displayName,
+          totalValue,
+          virtualBalance: Number(profile.virtual_balance),
+          stockValuation,
+          roi,
+          initial
+        };
+      })
+    );
 
     return leaderboard.sort((a, b) => b.roi - a.roi);
   }

@@ -1,4 +1,4 @@
-import { supabaseAdmin as supabase } from '../lib/supabase';
+import { supabaseAdmin as supabase } from '../lib/supabase-server';
 
 const mapping = [
   { symbol: 'AKT', bmce_id: '123429130', name: 'AKDITAL' },

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { MarketListScraper } from '@/lib/scrapers/market-list-scraper';
 import { IndexScraper } from '@/lib/scrapers/index-scraper';
 import { MacroScraper } from '@/lib/scrapers/macro-scraper';
+import { InputSanitizer } from '@/lib/input-sanitizer';
 import { Resend } from 'resend';
 import crypto from 'crypto';
 
@@ -94,10 +95,10 @@ export async function GET(request: Request) {
             <p>Certains scrapers ont échoué lors du diagnostic.</p>
             <h3>Échecs :</h3>
             <ul>
-              ${failures.map(f => `<li><strong>${f}</strong></li>`).join('')}
+              ${failures.map(f => `<li><strong>${InputSanitizer.escapeHtml(f)}</strong></li>`).join('')}
             </ul>
             <h3>Rapport Complet :</h3>
-            <pre>${JSON.stringify(reports, null, 2)}</pre>
+            <pre>${InputSanitizer.escapeHtml(JSON.stringify(reports, null, 2))}</pre>
             <hr />
             <p>Date : ${new Date().toISOString()}</p>
           `

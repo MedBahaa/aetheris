@@ -58,12 +58,19 @@ CREATE INDEX IF NOT EXISTS idx_market_history_company ON market_history(company_
 CREATE INDEX IF NOT EXISTS idx_news_items_company ON news_items(company_id, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_companies_symbol ON companies(symbol);
 
-  
--- AMMC Brokerage Firms  
-CREATE TABLE IF NOT EXISTS brokerage_firms (  
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,  
-  name TEXT NOT NULL UNIQUE,  
-  agrement TEXT,  
-  date_agrement TEXT,  
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL  
-); 
+-- AMMC Brokerage Firms
+CREATE TABLE IF NOT EXISTS brokerage_firms (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  agrement TEXT,
+  date_agrement TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Sécurisation RLS par défaut sur toutes les tables publiques (voir supabase_rls_policies.sql pour les politiques complètes)
+ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE market_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE news_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE analyses_cache ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE brokerage_firms ENABLE ROW LEVEL SECURITY;

@@ -18,6 +18,31 @@ export enum SourceType {
   GENERAL = 'GENERAL'        // Google News, Presse généraliste
 }
 
+const ALLOWED_DEEP_SCRAPE_HOSTS = new Set([
+  'ammc.ma',
+  'www.ammc.ma',
+  'medias24.com',
+  'www.medias24.com',
+  'boursenews.ma',
+  'www.boursenews.ma',
+  'challenge.ma',
+  'www.challenge.ma',
+  'fr.hespress.com',
+]);
+
+function getValidatedDeepScrapeUrl(rawUrl: string): URL | null {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'https:') return null;
+    if (parsed.username || parsed.password) return null;
+    if (parsed.port && parsed.port !== '443') return null;
+    if (!ALLOWED_DEEP_SCRAPE_HOSTS.has(parsed.hostname.toLowerCase())) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 const FEEDS = [
   { name: 'AMMC Officiel', url: 'https://www.ammc.ma/fr/rss.xml', type: SourceType.OFFICIAL },
   { name: 'Médias24 Actualités', url: 'https://medias24.com/feed/', type: SourceType.SPECIALIZED },
@@ -268,36 +293,55 @@ export class NewsEngine {
   }
 
   /**
-   * Scrape le contenu complet d'un article selon sa source
+   * Scrape le contenu complet d'un article selon sa source (Durci contre les attaques SSRF)
    */
   private async fetchFullContent(url: string, sourceType: SourceType): Promise<string | null> {
+    const safeUrl = getValidatedDeepScrapeUrl(url);
+    if (!safeUrl) {
+      return null;
+    }
+
     try {
-      const response = await axios.get(url, {
+      const response = await axios.get(safeUrl.toString(), {
         timeout: 5000,
+        maxRedirects: 2,
+        maxContentLength: 1_000_000, // 1 Mo max (anti-DoS mémoire)
+        maxBodyLength: 1_000_000,
+        validateStatus: (status) => status >= 200 && status < 300,
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
       });
+
+      // Vérifier l'URL finale après redirection éventuelle (anti-SSRF via Open Redirect)
+      const finalUrl: string | undefined = response.request?.res?.responseUrl;
+      if (finalUrl && !getValidatedDeepScrapeUrl(finalUrl)) {
+        console.warn(`[NewsEngine] Redirection bloquée hors liste blanche : ${finalUrl}`);
+        return null;
+      }
+
+      if (typeof response.data !== 'string') {
+        return null;
+      }
 
       const $ = cheerio.load(response.data);
       let content = '';
 
       if (sourceType === SourceType.SPECIALIZED) {
         // Sélecteurs Medias24 / Le Boursier
-        content = $('.entry-content p, .td-post-content p').map((i, el) => $(el).text()).get().join('\n');
+        content = $('.entry-content p, .td-post-content p').map((_, el) => $(el).text()).get().join('\n');
       } else if (sourceType === SourceType.OFFICIAL) {
         // Sélecteurs AMMC
-        content = $('.field-name-body .field-item, .node-content p').map((i, el) => $(el).text()).get().join('\n');
+        content = $('.field-name-body .field-item, .node-content p').map((_, el) => $(el).text()).get().join('\n');
       }
 
-      // Cas spécifique Bourse News (même si marqué specialized)
-      if (url.includes('boursenews.ma')) {
-        content = $('.corps-article p, .corps-article').map((i, el) => $(el).text()).get().join('\n');
+      // Cas spécifique Bourse News
+      if (safeUrl.hostname === 'boursenews.ma' || safeUrl.hostname === 'www.boursenews.ma') {
+        content = $('.corps-article p, .corps-article').map((_, el) => $(el).text()).get().join('\n');
       }
 
-      // Nettoyage basique
-      return content.trim().length > 100 ? content.trim() : null;
-    } catch (e) {
+      return content.trim().length > 100 ? content.trim().substring(0, 8000) : null;
+    } catch {
       // Échec silencieux du scraping profond, on garde le snippet RSS
       return null;
     }

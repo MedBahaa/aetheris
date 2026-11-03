@@ -1,4 +1,4 @@
-import { supabaseAdmin as supabase } from '../lib/supabase';
+import { supabaseAdmin as supabase } from '../lib/supabase-server';
 
 const companies = [
   { symbol: 'AKT', name: 'AKDITAL', sector: 'Santé' },

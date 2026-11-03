@@ -1,4 +1,4 @@
-import { supabaseAdmin } from './supabase';
+import { supabaseAdmin } from './supabase-server';
 
 // Client REST Upstash Redis ultra-léger sans paquet npm
 class RedisClient {

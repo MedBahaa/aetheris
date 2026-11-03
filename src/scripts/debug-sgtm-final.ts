@@ -1,5 +1,5 @@
 import { AetherisOrchestrator } from '../lib/agent-engine';
-import { supabaseAdmin } from '../lib/supabase';
+import { supabaseAdmin } from '../lib/supabase-server';
 import dotenv from 'dotenv';
 import path from 'path';
 

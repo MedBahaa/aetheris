@@ -35,6 +35,10 @@ export default function SessionGuard() {
           
           localStorage.removeItem(LAST_ACTIVITY_KEY);
           localStorage.removeItem('aetheris_user_profile');
+          localStorage.removeItem('agent_history');
+          if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_AUTH_CACHE' });
+          }
           
           window.location.href = '/login?reason=expired';
           return;

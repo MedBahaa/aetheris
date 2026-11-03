@@ -165,13 +165,26 @@ export default function AnalysisReport({ analysis }: AnalysisReportProps) {
                         <p>{item.explanation}</p>
                         
                         <div className="note-footer">
-                          {item.url ? (
-                            <a href={item.url} target="_blank" rel="noopener noreferrer" className="source-link">
-                               Source: {item.source}
-                            </a>
-                          ) : (
-                            <span className="source-text">Source: {item.source}</span>
-                          )}
+                          {(() => {
+                            let safeHref: string | null = null;
+                            if (item.url) {
+                              try {
+                                const parsed = new URL(item.url);
+                                if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+                                  safeHref = parsed.toString();
+                                }
+                              } catch {
+                                safeHref = null;
+                              }
+                            }
+                            return safeHref ? (
+                              <a href={safeHref} target="_blank" rel="noopener noreferrer" className="source-link">
+                                Source: {item.source}
+                              </a>
+                            ) : (
+                              <span className="source-text">Source: {item.source}</span>
+                            );
+                          })()}
                           {item.date && <span className="date-text">[{item.date}]</span>}
                         </div>
                       </div>

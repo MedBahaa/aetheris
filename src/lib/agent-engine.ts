@@ -1,6 +1,6 @@
 import { NewsWorker, MarketWorker, StrategyWorker, FundamentalWorker } from './agents/worker-agents';
 import { GeminiService } from './gemini';
-import { supabaseAdmin } from './supabase';
+import { supabaseAdmin } from './supabase-server';
 import { CacheService } from './cache-service';
 import { InputSanitizer } from './input-sanitizer';
 import { 
@@ -81,7 +81,7 @@ export class AetherisOrchestrator {
 
     try {
       // 🕵️ PRIORITÉ : Recherche en Base de Données (Plus fiable et rapide)
-      const dbQueryTerm = InputSanitizer.sanitizeForDb(queryTerm);
+      const dbQueryTerm = InputSanitizer.sanitizePostgrestFilter(queryTerm);
       const { data: dbCompany } = await supabaseAdmin
         .from('companies')
         .select('id, name, symbol, sector')

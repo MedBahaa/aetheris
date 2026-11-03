@@ -1,6 +1,6 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import { supabaseAdmin as supabase } from '../lib/supabase';
+import { supabaseAdmin as supabase } from '../lib/supabase-server';
 
 async function scrapeAmmcBrokers() {
   console.log('🚀 Démarrage du scraping des Sociétés de Bourse depuis l\'AMMC...');

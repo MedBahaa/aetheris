@@ -30,7 +30,10 @@ export async function GET(request: NextRequest) {
     return corsHeaders(NextResponse.json([]));
   }
 
-  const query = InputSanitizer.sanitizeForDb(validation.data.query);
+  const query = InputSanitizer.sanitizePostgrestFilter(validation.data.query);
+  if (!query) {
+    return corsHeaders(NextResponse.json([]));
+  }
 
   try {
     const { data, error } = await supabaseAdmin

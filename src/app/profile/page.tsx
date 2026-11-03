@@ -501,6 +501,10 @@ export default function ProfilePage() {
                           await supabase.auth.signOut();
                           localStorage.removeItem('aetheris_last_activity_time');
                           localStorage.removeItem('aetheris_user_profile');
+                          localStorage.removeItem('agent_history');
+                          if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                            navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_AUTH_CACHE' });
+                          }
                           window.location.href = '/login';
                         }}
                         className="profile-logout-btn"
@@ -538,7 +542,7 @@ export default function ProfilePage() {
                         <span className="mono-tiny text-slate-500">MODE DE PAIEMENT</span>
                         <div className="c-details">
                           <CreditCard size={12} className="text-purple" />
-                          <span className="mono text-slate-300">VISA •••• 4242</span>
+                          <span className="mono text-slate-300">Facturation Stripe Sécurisée</span>
                         </div>
                       </div>
                       

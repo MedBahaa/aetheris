@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 import StyledJsxRegistry from "@/lib/registry";
 import SessionGuard from "@/components/SessionGuard";
@@ -49,16 +50,19 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html lang="fr">
       <head>
-        {/* Capture beforeinstallprompt AVANT le chargement de React */}
+        {/* Capture beforeinstallprompt AVANT le chargement de React (sécurisé par nonce CSP) */}
         <script
+          nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: `
               window.__pwaInstallEvent = null;
@@ -66,7 +70,6 @@ export default function RootLayout({
               window.addEventListener('beforeinstallprompt', function(e) {
                 e.preventDefault();
                 window.__pwaInstallEvent = e;
-                // Déclencher un événement custom pour que React puisse l'intercepter
                 window.dispatchEvent(new CustomEvent('pwa-install-available'));
               });
             `,

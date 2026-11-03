@@ -1,6 +1,6 @@
 import { CompanyAnalysis, FundamentalDataSchema, DataSource } from '../schemas';
 import { BMCEBourseScraper } from '../scrapers/bmce-scraper';
-import { supabaseAdmin } from '../supabase';
+import { supabaseAdmin } from '../supabase-server';
 import { TechnicalEngine } from '../technical-engine';
 import { newsEngine } from '../news-engine';
 import { GeminiService } from '../gemini';

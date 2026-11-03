@@ -1,12 +1,29 @@
 'use server';
 
+import { headers } from 'next/headers';
+import { z } from 'zod';
 import { PortfolioService } from './portfolio-service';
-import { PortfolioTransaction, DividendTransaction, PriceAlert, UserProfileClientInputSchema } from './schemas';
+import {
+  PortfolioTransaction,
+  DividendTransaction,
+  PriceAlert,
+  UserProfileClientInputSchema,
+  PortfolioOptimizationHoldingSchema,
+} from './schemas';
 import { revalidatePath } from 'next/cache';
-import { createServerSupabase } from './supabase-server';
+import { createServerSupabase, supabaseAdmin } from './supabase-server';
 import { GeminiService } from './gemini';
-import { checkRateLimitAsync } from './rate-limiter';
+import { checkRateLimitAsync, getClientIpFromHeaders } from './rate-limiter';
 import { Resend } from 'resend';
+import { SupabaseClient } from '@supabase/supabase-js';
+
+async function requireAuthenticatedUser(client: SupabaseClient) {
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) {
+    throw new Error('Authentification requise.');
+  }
+  return user;
+}
 
 // ──────────────────────────────────────
 // TRANSACTIONS (BUY & SELL)
@@ -14,13 +31,15 @@ import { Resend } from 'resend';
 
 export async function getPortfolioTransactionsAction(isVirtual: boolean = false): Promise<PortfolioTransaction[]> {
   const client = await createServerSupabase();
-  return await PortfolioService.getTransactions(client, isVirtual);
+  await requireAuthenticatedUser(client);
+  return await PortfolioService.getTransactions(client, Boolean(isVirtual));
 }
 
 export async function addPortfolioTransactionAction(
   tx: Omit<PortfolioTransaction, 'id' | 'created_at' | 'user_id'>
 ) {
   const client = await createServerSupabase();
+  await requireAuthenticatedUser(client);
   const result = await PortfolioService.addTransaction(client, tx);
   revalidatePath('/portfolio');
   return result;
@@ -28,23 +47,24 @@ export async function addPortfolioTransactionAction(
 
 export async function deletePortfolioTransactionAction(id: string) {
   const client = await createServerSupabase();
+  await requireAuthenticatedUser(client);
   await PortfolioService.deleteTransaction(client, id);
   revalidatePath('/portfolio');
 }
 
 export async function deleteSymbolPortfolioAction(symbol: string) {
   const client = await createServerSupabase();
+  await requireAuthenticatedUser(client);
   await PortfolioService.deleteSymbolTransactions(client, symbol);
   revalidatePath('/portfolio');
 }
 
-export async function bulkImportAction(data: { 
-  transactions: Omit<PortfolioTransaction, 'id' | 'created_at' | 'user_id'>[],
-  dividends: Omit<DividendTransaction, 'id' | 'created_at' | 'user_id'>[]
+export async function bulkImportAction(data: {
+  transactions: Omit<PortfolioTransaction, 'id' | 'created_at' | 'user_id'>[];
+  dividends: Omit<DividendTransaction, 'id' | 'created_at' | 'user_id'>[];
 }) {
   const client = await createServerSupabase();
-  const { data: { user } } = await client.auth.getUser();
-  if (!user) throw new Error('Non authentifié');
+  const user = await requireAuthenticatedUser(client);
 
   const limit = await checkRateLimitAsync(`bulk-import:${user.id}`, 5, 10 * 60_000);
   if (!limit.allowed) {
@@ -61,13 +81,15 @@ export async function bulkImportAction(data: {
 
 export async function getDividendsAction(isVirtual: boolean = false): Promise<DividendTransaction[]> {
   const client = await createServerSupabase();
-  return await PortfolioService.getDividends(client, isVirtual);
+  await requireAuthenticatedUser(client);
+  return await PortfolioService.getDividends(client, Boolean(isVirtual));
 }
 
 export async function addDividendAction(
   div: Omit<DividendTransaction, 'id' | 'created_at' | 'user_id'>
 ) {
   const client = await createServerSupabase();
+  await requireAuthenticatedUser(client);
   const result = await PortfolioService.addDividend(client, div);
   revalidatePath('/portfolio');
   return result;
@@ -75,6 +97,7 @@ export async function addDividendAction(
 
 export async function deleteDividendAction(id: string) {
   const client = await createServerSupabase();
+  await requireAuthenticatedUser(client);
   await PortfolioService.deleteDividend(client, id);
   revalidatePath('/portfolio');
 }
@@ -85,6 +108,7 @@ export async function deleteDividendAction(id: string) {
 
 export async function getAlertsAction(): Promise<PriceAlert[]> {
   const client = await createServerSupabase();
+  await requireAuthenticatedUser(client);
   return await PortfolioService.getAlerts(client);
 }
 
@@ -92,6 +116,14 @@ export async function upsertAlertAction(
   alert: { symbol: string; sl_price?: number | null; tp_price?: number | null }
 ) {
   const client = await createServerSupabase();
+  const user = await requireAuthenticatedUser(client);
+
+  // Anti-abus : empêcher la réactivation en boucle d'alertes pour saturer les quotas SMS/Email
+  const limit = await checkRateLimitAsync(`alert-upsert:${user.id}`, 15, 5 * 60_000);
+  if (!limit.allowed) {
+    throw new Error('Trop de modifications d\'alertes récentes. Veuillez patienter quelques minutes.');
+  }
+
   const result = await PortfolioService.upsertAlert(client, alert);
   revalidatePath('/portfolio');
   return result;
@@ -108,12 +140,12 @@ export async function getUserProfileAction() {
     return { success: true, data };
   } catch (err: any) {
     console.error('Error in getUserProfileAction:', err);
-    return { success: false, error: err.message || 'Impossible de charger le profil' };
+    return { success: false, error: 'Impossible de charger le profil' };
   }
 }
 
-export async function upsertUserProfileAction(profile: { 
-  initial_capital?: number; 
+export async function upsertUserProfileAction(profile: {
+  initial_capital?: number;
   telegram_chat_id?: string;
   whatsapp_phone?: string;
   alert_channel?: string;
@@ -121,8 +153,6 @@ export async function upsertUserProfileAction(profile: {
   username?: string;
 }) {
   try {
-    // 🔒 SÉCURITÉ CRITIQUE : Valider avec Zod et interdire toute modification directe
-    // de `subscription_tier`, `virtual_balance` ou `virtual_initial_capital` depuis le client.
     const parsed = UserProfileClientInputSchema.safeParse({
       initial_capital: profile.initial_capital,
       telegram_chat_id: profile.telegram_chat_id,
@@ -140,8 +170,28 @@ export async function upsertUserProfileAction(profile: {
     }
 
     const client = await createServerSupabase();
+    const user = await requireAuthenticatedUser(client);
+
+    const limit = await checkRateLimitAsync(`profile-upsert:${user.id}`, 10, 60_000);
+    if (!limit.allowed) {
+      return { success: false, error: 'Trop de modifications récentes. Veuillez patienter.' };
+    }
+
+    // 🔒 SÉCURITÉ ANTI-SPAM TIERS : L'email de notification doit correspondre à l'email vérifié du compte
+    if (
+      parsed.data.notification_email &&
+      user.email &&
+      parsed.data.notification_email.trim().toLowerCase() !== user.email.trim().toLowerCase()
+    ) {
+      return {
+        success: false,
+        error: "Pour votre sécurité et contre les abus, l'email de notification doit correspondre à l'adresse vérifiée de votre compte.",
+      };
+    }
+
     const data = await PortfolioService.upsertUserProfile(client, parsed.data);
     revalidatePath('/portfolio');
+    revalidatePath('/profile');
     return { success: true, data };
   } catch (err: any) {
     console.error('Error in upsertUserProfileAction:', err);
@@ -153,14 +203,28 @@ export async function addVirtualTransactionAction(
   tx: Omit<PortfolioTransaction, 'id' | 'created_at' | 'user_id' | 'is_virtual'>
 ) {
   const client = await createServerSupabase();
-  const result = await PortfolioService.addVirtualTransaction(client, tx);
+  const user = await requireAuthenticatedUser(client);
+
+  const limit = await checkRateLimitAsync(`virtual-order:${user.id}`, 30, 60_000);
+  if (!limit.allowed) {
+    throw new Error('Trop d\'ordres virtuels rapprochés. Veuillez patienter quelques secondes.');
+  }
+
+  const result = await PortfolioService.addVirtualTransaction(client, tx, supabaseAdmin || undefined);
   revalidatePath('/portfolio');
   return result;
 }
 
 export async function resetVirtualPortfolioAction(initialCapital?: number) {
   const client = await createServerSupabase();
-  const result = await PortfolioService.resetVirtualPortfolio(client, initialCapital);
+  const user = await requireAuthenticatedUser(client);
+
+  const limit = await checkRateLimitAsync(`virtual-reset:${user.id}`, 5, 10 * 60_000);
+  if (!limit.allowed) {
+    throw new Error('Réinitialisation limitée. Veuillez patienter quelques minutes.');
+  }
+
+  const result = await PortfolioService.resetVirtualPortfolio(client, initialCapital, supabaseAdmin || undefined);
   revalidatePath('/portfolio');
   return result;
 }
@@ -168,19 +232,29 @@ export async function resetVirtualPortfolioAction(initialCapital?: number) {
 export async function getLeaderboardAction() {
   const client = await createServerSupabase();
   const { data: { user } } = await client.auth.getUser();
-  const limit = await checkRateLimitAsync(`leaderboard:${user?.id || 'anon'}`, 20, 60_000);
+  const reqHeaders = await headers();
+  const clientIp = getClientIpFromHeaders(reqHeaders);
+  const limit = await checkRateLimitAsync(`leaderboard:${user?.id || clientIp}`, 20, 60_000);
   if (!limit.allowed) {
     throw new Error('Trop de requêtes sur le classement. Veuillez patienter.');
   }
-  return await PortfolioService.getLeaderboard(client);
+
+  const hmacSecret =
+    process.env.LEADERBOARD_SECRET ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    'aetheris-leaderboard-v1';
+
+  return await PortfolioService.getLeaderboard(client, supabaseAdmin || undefined, hmacSecret);
 }
 
-export async function optimizePortfolioAction(holdings: any[]) {
+const OptimizeHoldingsArraySchema = z
+  .array(PortfolioOptimizationHoldingSchema)
+  .min(1, 'Portefeuille vide.')
+  .max(60, 'Trop de positions pour une seule optimisation.');
+
+export async function optimizePortfolioAction(holdings: unknown[]) {
   const client = await createServerSupabase();
-  const { data: { user } } = await client.auth.getUser();
-  if (!user) {
-    throw new Error('Authentification requise pour utiliser le Robo-Advisor.');
-  }
+  const user = await requireAuthenticatedUser(client);
 
   // 🔒 SÉCURITÉ SAAS : Vérifier l'abonnement PRO côté serveur
   const profile = await PortfolioService.getUserProfile(client);
@@ -194,8 +268,13 @@ export async function optimizePortfolioAction(holdings: any[]) {
     throw new Error('Limite d\'optimisations IA atteinte. Veuillez patienter quelques minutes.');
   }
 
-  const safeHoldings = Array.isArray(holdings) ? holdings.slice(0, 50) : [];
-  return await GeminiService.optimizePortfolio(safeHoldings);
+  // 🔒 Validation stricte Zod pour bloquer l'injection de prompt et le DoS de contexte via faux holdings
+  const parsedHoldings = OptimizeHoldingsArraySchema.safeParse(holdings);
+  if (!parsedHoldings.success) {
+    throw new Error(parsedHoldings.error.issues[0]?.message || 'Données de portefeuille invalides.');
+  }
+
+  return await GeminiService.optimizePortfolio(parsedHoldings.data);
 }
 
 export async function sendTestAlertAction(): Promise<{ success: boolean; message?: string; error?: string }> {
@@ -215,7 +294,8 @@ export async function sendTestAlertAction(): Promise<{ success: boolean; message
     }
 
     const profile = await PortfolioService.getUserProfile(client);
-    const targetEmail = profile?.notification_email || user.email;
+    // 🔒 SÉCURITÉ : Envoi strictement vers l'adresse email vérifiée du compte authentifié
+    const targetEmail = user.email;
     const channel = profile?.alert_channel || 'EMAIL';
     const telegramChatId = profile?.telegram_chat_id;
     const whatsappPhone = profile?.whatsapp_phone;
@@ -228,7 +308,7 @@ export async function sendTestAlertAction(): Promise<{ success: boolean; message
       try {
         const apiKey = process.env.RESEND_API_KEY;
         if (!apiKey) {
-          errors.push('RESEND_API_KEY non configurée');
+          errors.push('Service email non configuré');
         } else {
           const resend = new Resend(apiKey);
           const { error } = await resend.emails.send({
@@ -246,21 +326,18 @@ export async function sendTestAlertAction(): Promise<{ success: boolean; message
                 </div>
                 <p style="color: #64748b; font-size: 12px; margin-bottom: 0;">Aetheris Terminal • Bourse de Casablanca & International</p>
               </div>
-            `
+            `,
           });
           if (error) {
             console.error('[sendTestAlertAction] Resend error:', error);
-            const msg = error.message?.toLowerCase().includes('api key') 
-              ? 'Clé RESEND_API_KEY invalide ou expirée dans vos variables .env.local' 
-              : error.message;
-            errors.push(`Email: ${msg}`);
+            errors.push('Email: Échec d\'envoi du message');
           } else {
             dispatched.push(`Email (${targetEmail})`);
           }
         }
       } catch (e: any) {
         console.error('[sendTestAlertAction] Email exception:', e.message);
-        errors.push(`Email: ${e.message}`);
+        errors.push('Email: Service temporairement indisponible');
       }
     }
 
@@ -269,7 +346,7 @@ export async function sendTestAlertAction(): Promise<{ success: boolean; message
       try {
         const token = process.env.TELEGRAM_BOT_TOKEN;
         if (!token) {
-          errors.push('TELEGRAM_BOT_TOKEN non configuré');
+          errors.push('Canal Telegram non configuré');
         } else {
           const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
             method: 'POST',
@@ -277,17 +354,17 @@ export async function sendTestAlertAction(): Promise<{ success: boolean; message
             body: JSON.stringify({
               chat_id: telegramChatId,
               text: `🧪 <b>Test d'Alerte Aetheris</b>\n\nVotre Telegram Bot est 100% opérationnel ! Vous recevrez ici vos alertes de Stop Loss & Take Profit.`,
-              parse_mode: 'HTML'
-            })
+              parse_mode: 'HTML',
+            }),
           });
           if (res.ok) {
             dispatched.push(`Telegram (${telegramChatId})`);
           } else {
-            errors.push(`Telegram: ID chat invalide ou bot non démarré`);
+            errors.push('Telegram: ID chat invalide ou bot non démarré');
           }
         }
-      } catch (e: any) {
-        errors.push(`Telegram: ${e.message}`);
+      } catch {
+        errors.push('Telegram: Service indisponible');
       }
     }
 
@@ -296,7 +373,7 @@ export async function sendTestAlertAction(): Promise<{ success: boolean; message
       try {
         const apiKey = process.env.CALLMEBOT_API_KEY;
         if (!apiKey) {
-          errors.push('CALLMEBOT_API_KEY non configurée');
+          errors.push('Canal WhatsApp non configuré');
         } else {
           const cleanPhone = whatsappPhone.replace(/[^0-9]/g, '');
           const text = encodeURIComponent("🧪 Test d'Alerte Aetheris: Votre canal WhatsApp est 100% opérationnel !");
@@ -305,27 +382,28 @@ export async function sendTestAlertAction(): Promise<{ success: boolean; message
           if (res.ok) {
             dispatched.push(`WhatsApp (${cleanPhone})`);
           } else {
-            errors.push(`WhatsApp: Échec envoi CallMeBot`);
+            errors.push('WhatsApp: Échec envoi CallMeBot');
           }
         }
-      } catch (e: any) {
-        errors.push(`WhatsApp: ${e.message}`);
+      } catch {
+        errors.push('WhatsApp: Service indisponible');
       }
     }
 
     if (dispatched.length > 0) {
       return {
         success: true,
-        message: `Notification de test envoyée avec succès sur : ${dispatched.join(', ')} !` + (errors.length ? ` (Note: ${errors.join('; ')})` : '')
+        message:
+          `Notification de test envoyée avec succès sur : ${dispatched.join(', ')} !` +
+          (errors.length ? ` (Note: ${errors.join('; ')})` : ''),
       };
     } else {
       return {
         success: false,
-        error: errors.length ? errors.join(' | ') : 'Aucun canal de notification configuré ou disponible.'
+        error: errors.length ? errors.join(' | ') : 'Aucun canal de notification configuré ou disponible.',
       };
     }
-  } catch (err: any) {
-    return { success: false, error: err.message || 'Erreur lors de l\'envoi du test.' };
+  } catch {
+    return { success: false, error: 'Erreur lors de l\'envoi du test.' };
   }
 }
-

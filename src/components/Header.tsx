@@ -85,6 +85,10 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
                   await supabase.auth.signOut();
                   localStorage.removeItem('aetheris_last_activity_time');
                   localStorage.removeItem('aetheris_user_profile');
+                  localStorage.removeItem('agent_history');
+                  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_AUTH_CACHE' });
+                  }
                   window.location.href = '/login';
                 }}
               >

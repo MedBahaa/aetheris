@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local debug & scratch scripts (never track credentials or dumps)
+/scratch/
+bmce_dump.html
+iam.json

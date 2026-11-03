@@ -1,4 +1,4 @@
-import { supabaseAdmin } from './supabase';
+import { supabaseAdmin } from './supabase-server';
 
 export interface ImpactValidationResult {
   newsTitle: string;

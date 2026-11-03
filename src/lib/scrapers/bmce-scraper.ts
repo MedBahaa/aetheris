@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
-import { supabaseAdmin } from '../supabase';
+import { supabaseAdmin } from '../supabase-server';
+import { InputSanitizer } from '../input-sanitizer';
 
 export interface ScrapedStockData {
   price: string;
@@ -43,7 +44,8 @@ export class BMCEBourseScraper {
    * Résout une société via Supabase (utilise le client admin pour bypasser RLS)
    */
   public static async resolveStock(input: string): Promise<{ id: string, name: string, uuid: string, symbol: string } | null> {
-    const query = input.toUpperCase().trim();
+    const query = InputSanitizer.sanitizePostgrestFilter(input);
+    if (!query) return null;
 
     try {
       // Recherche par symbole exact OU par nom (partiel)

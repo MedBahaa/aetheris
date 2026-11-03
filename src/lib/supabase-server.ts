@@ -4,7 +4,11 @@ import { cookies } from 'next/headers';
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Support pour les scripts standalone
+if (typeof window !== 'undefined') {
+  throw new Error('SECURITY VIOLATION: supabase-server ne doit jamais être importé dans un composant client.');
+}
+
+// Support pour les scripts standalone côté serveur / CLI
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
   dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 }
@@ -39,7 +43,7 @@ export async function createServerSupabase() {
             cookieStore.set(name, value, options)
           );
         } catch {
-          // Géré par le middleware de rafraîchissement des sessions
+          // Géré par le proxy de rafraîchissement des sessions
         }
       },
     },

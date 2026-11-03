@@ -397,7 +397,15 @@ export default function ResultDashboard({
           }}>
             <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
               {sources.map((source, i) => {
-                const isUrl = source.startsWith('http');
+                let safeSourceUrl: string | null = null;
+                try {
+                  const parsed = new URL(source.trim());
+                  if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+                    safeSourceUrl = parsed.toString();
+                  }
+                } catch {
+                  safeSourceUrl = null;
+                }
                 return (
                   <li key={i} style={{
                     padding: '8px 0',
@@ -406,11 +414,11 @@ export default function ResultDashboard({
                     alignItems: 'center',
                     gap: '8px'
                   }}>
-                    {isUrl ? (
+                    {safeSourceUrl ? (
                       <>
                         <ExternalLink size={12} style={{ color: '#38bdf8', flexShrink: 0 }} />
                         <a
-                          href={source}
+                          href={safeSourceUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{ fontSize: '12px', color: '#38bdf8', textDecoration: 'none', wordBreak: 'break-all' }}

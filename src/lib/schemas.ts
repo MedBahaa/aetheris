@@ -68,6 +68,19 @@ export interface ShariaResult {
 }
 
 
+export const SafeExternalUrlSchema = z
+  .string()
+  .optional()
+  .transform((val) => {
+    if (!val) return undefined;
+    try {
+      const parsed = new URL(val.trim());
+      return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.toString() : undefined;
+    } catch {
+      return undefined;
+    }
+  });
+
 export const NewsItemSchema = z.object({
   id: z.string(),
   title: z.string().optional(),
@@ -77,7 +90,7 @@ export const NewsItemSchema = z.object({
   explanation: z.string(),
   source: z.string().optional(),
   date: z.string().optional(),
-  url: z.string().optional(),
+  url: SafeExternalUrlSchema,
   fullContent: z.string().optional(), // Contenu scrapé en profondeur
   sourceType: z.string().optional(), // RSS, WEB, etc.
 });
@@ -258,6 +271,22 @@ export const UserProfileClientInputSchema = z.object({
   alert_channel: z.enum(['EMAIL', 'TELEGRAM', 'WHATSAPP', 'ALL']).optional(),
   notification_email: z.string().trim().max(120).email("Adresse email invalide").or(z.literal('')).optional(),
   username: z.string().trim().max(40, "Pseudo trop long (max 40 caractères)").regex(/^[A-Za-zÀ-ÿ0-9_\-. ]*$/, "Caractères non autorisés dans le pseudo").optional(),
+});
+
+export const PortfolioOptimizationHoldingSchema = z.object({
+  symbol: z.string().trim().min(1).max(30).regex(/^[A-Za-zÀ-ÿ0-9.\-_&\s]+$/),
+  totalQuantity: z.number().nonnegative().finite().max(1_000_000_000),
+  weightedAveragePrice: z.number().nonnegative().finite().max(1_000_000_000),
+  totalCost: z.number().nonnegative().finite().max(100_000_000_000),
+  curPrice: z.number().nonnegative().finite().max(1_000_000_000).optional(),
+  valuation: z.number().nonnegative().finite().max(100_000_000_000).optional(),
+  gainLossPercentage: z.number().finite().min(-100).max(1_000_000).optional(),
+  sector: z.string().trim().max(80).optional(),
+});
+
+export const PortfolioOptimizationInputSchema = z.object({
+  holdings: z.array(PortfolioOptimizationHoldingSchema).min(1, "Portefeuille vide").max(60, "Trop de lignes pour l'optimisation IA"),
+  totalValue: z.number().positive("La valorisation totale doit être positive").finite().max(100_000_000_000),
 });
 
 export interface PortfolioHolding {

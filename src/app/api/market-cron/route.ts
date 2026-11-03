@@ -98,6 +98,6 @@ export async function GET(req: Request) {
 
   } catch (error: any) {
     console.error('[Market Cron] Exception:', error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Erreur interne lors de la synchronisation globale.' }, { status: 500 });
   }
 }

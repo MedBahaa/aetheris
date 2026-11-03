@@ -1,4 +1,4 @@
-import { supabaseAdmin as supabase } from '../lib/supabase';
+import { supabaseAdmin as supabase } from '../lib/supabase-server';
 
 async function deduplicate() {
   console.log('🔍 Starting database deduplication...');

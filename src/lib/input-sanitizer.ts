@@ -1,8 +1,8 @@
 /**
- * INPUT SANITIZER — Protection contre le Prompt Injection et l'injection SQL/LIKE
+ * INPUT SANITIZER — Protection contre le Prompt Injection, PostgREST Injection, XSS et CSV Formula Injection
  * 
  * Ce module est le point de contrôle unique pour toutes les entrées utilisateur
- * avant injection dans les prompts IA (Gemini) et les requêtes Supabase.
+ * avant injection dans les prompts IA (Gemini), les requêtes Supabase et le rendu UI.
  */
 export class InputSanitizer {
 
@@ -27,6 +27,7 @@ export class InputSanitizer {
     /do\s+not\s+follow/i,
     /override/i,
     /disregard/i,
+    /<\s*\/?\s*untrusted_data\s*>/i,
   ];
 
   /**
@@ -62,7 +63,7 @@ export class InputSanitizer {
   }
 
   /**
-   * Sanitize pour les requêtes DB (Supabase .ilike/.eq)
+   * Sanitize pour les requêtes DB paramétrées (Supabase .ilike/.eq)
    * Échappe les caractères spéciaux SQL LIKE : % et _
    */
   static sanitizeForDb(input: string): string {
@@ -70,6 +71,53 @@ export class InputSanitizer {
     // Échapper % et _ qui sont des wildcards dans LIKE/ILIKE
     clean = clean.replace(/%/g, '').replace(/_/g, '');
     return clean;
+  }
+
+  /**
+   * Sanitize strict pour l'interpolation dans un filtre PostgREST `.or(...)`.
+   * Supprime tous les délimiteurs syntaxiques PostgREST (virgules, points, parenthèses, wildcards, quotes)
+   * afin d'empêcher l'injection de prédicats logiques arbitraires.
+   */
+  static sanitizePostgrestFilter(input: string): string {
+    if (!input) return '';
+    return input
+      .trim()
+      .toUpperCase()
+      .substring(0, this.MAX_COMPANY_NAME_LENGTH)
+      .replace(/[^A-ZÀ-ÿ0-9\s\-&]/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
+   * Valide qu'une URL externe utilise exclusivement les protocoles http: ou https:
+   * Retourne null si l'URL est malformée ou utilise un schéma dangereux (javascript:, data:, vbscript:, file:).
+   */
+  static sanitizeHttpUrl(rawUrl: string | null | undefined): string | null {
+    if (!rawUrl || typeof rawUrl !== 'string') return null;
+    const trimmed = rawUrl.trim();
+    if (!trimmed) return null;
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        return null;
+      }
+      return parsed.toString();
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Nettoie le texte externe non fiable avant inclusion dans une balise <untrusted_data>
+   * afin d'empêcher la fermeture prématurée du délimiteur XML.
+   */
+  static wrapUntrustedForPrompt(label: string, content: string, maxChars: number = 15000): string {
+    const safeLabel = label.replace(/[^A-Za-z0-9_\- ]/g, '').substring(0, 40);
+    const cleaned = String(content || '')
+      .substring(0, maxChars)
+      .replace(/<\s*\/?\s*untrusted_data[^>]*>/gi, '[DELIMITER_STRIPPED]');
+    return `<untrusted_data source="${safeLabel}">\n${cleaned}\n</untrusted_data>`;
   }
 
   /**
