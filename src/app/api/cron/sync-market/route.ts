@@ -1,20 +1,9 @@
 import { NextResponse } from 'next/server';
 import { MarketListScraper } from '@/lib/scrapers/market-list-scraper';
 import { supabaseAdmin } from '@/lib/supabase-server';
-import crypto from 'crypto';
+import { verifyCronSecret } from '@/lib/cron-auth';
 
 export const dynamic = 'force-dynamic';
-
-function verifyCronSecret(request: Request): boolean {
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) {
-    return process.env.NODE_ENV !== 'production';
-  }
-  const authHeader = request.headers.get('authorization') || '';
-  const expected = `Bearer ${cronSecret}`;
-  if (authHeader.length !== expected.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
-}
 
 export async function GET(request: Request) {
   // 🔒 Sécurité Fail-Closed : Vérifier le token CRON_SECRET

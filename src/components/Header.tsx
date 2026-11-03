@@ -81,14 +81,9 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
                 title="Se déconnecter"
                 aria-label="Déconnexion"
                 onClick={async () => {
-                  const { supabase } = await import('@/lib/supabase');
+                  const { supabase, purgeClientSessionData } = await import('@/lib/supabase');
                   await supabase.auth.signOut();
-                  localStorage.removeItem('aetheris_last_activity_time');
-                  localStorage.removeItem('aetheris_user_profile');
-                  localStorage.removeItem('agent_history');
-                  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                    navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_AUTH_CACHE' });
-                  }
+                  purgeClientSessionData();
                   window.location.href = '/login';
                 }}
               >

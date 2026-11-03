@@ -19,6 +19,7 @@ export class CasabourseScraper {
       
       const response = await fetch('https://casabourse.ma/screener/', {
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+        signal: AbortSignal.timeout(10000),
       });
       
       if (!response.ok) throw new Error(`HTTP ${response.status}`);

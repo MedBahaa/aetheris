@@ -1,9 +1,24 @@
 -- ──────────────────────────────────────────────────────────
--- SCRIPT DE CRÉATION DES TABLES ET DE SÉCURISATION ZERO TRUST (RLS + RPC)
+-- SCRIPT DE CRÉATION DES TABLES ET DE SÉCURISATION ZERO TRUST (RLS + RESTRICTIVE + RPC)
 -- Exécuter ce script dans l'éditeur SQL de Supabase (100% idempotent)
 -- ──────────────────────────────────────────────────────────
 
 -- 0. Création des tables et colonnes manquantes (100% idempotent)
+
+CREATE TABLE IF NOT EXISTS public.portfolio_transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+    symbol TEXT NOT NULL,
+    type TEXT DEFAULT 'BUY',
+    quantity NUMERIC NOT NULL CHECK (quantity > 0),
+    buy_price NUMERIC NOT NULL CHECK (buy_price >= 0),
+    buy_date DATE DEFAULT CURRENT_DATE NOT NULL,
+    is_virtual BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+ALTER TABLE public.portfolio_transactions ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'BUY';
+ALTER TABLE public.portfolio_transactions ADD COLUMN IF NOT EXISTS is_virtual BOOLEAN DEFAULT FALSE;
 
 CREATE TABLE IF NOT EXISTS public.user_profiles (
     user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -12,7 +27,13 @@ CREATE TABLE IF NOT EXISTS public.user_profiles (
     stripe_customer_id TEXT,
     stripe_subscription_id TEXT,
     telegram_chat_id TEXT,
+    telegram_verified BOOLEAN DEFAULT FALSE,
+    telegram_verify_code_hash TEXT,
+    telegram_verify_expires_at TIMESTAMPTZ,
     whatsapp_phone TEXT,
+    whatsapp_verified BOOLEAN DEFAULT FALSE,
+    whatsapp_verify_code_hash TEXT,
+    whatsapp_verify_expires_at TIMESTAMPTZ,
     alert_channel TEXT DEFAULT 'EMAIL',
     notification_email TEXT,
     username TEXT,
@@ -26,7 +47,13 @@ ALTER TABLE public.user_profiles ADD COLUMN IF NOT EXISTS subscription_tier TEXT
 ALTER TABLE public.user_profiles ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
 ALTER TABLE public.user_profiles ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT;
 ALTER TABLE public.user_profiles ADD COLUMN IF NOT EXISTS telegram_chat_id TEXT;
+ALTER TABLE public.user_profiles ADD COLUMN IF NOT EXISTS telegram_verified BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.user_profiles ADD COLUMN IF NOT EXISTS telegram_verify_code_hash TEXT;
+ALTER TABLE public.user_profiles ADD COLUMN IF NOT EXISTS telegram_verify_expires_at TIMESTAMPTZ;
 ALTER TABLE public.user_profiles ADD COLUMN IF NOT EXISTS whatsapp_phone TEXT;
+ALTER TABLE public.user_profiles ADD COLUMN IF NOT EXISTS whatsapp_verified BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.user_profiles ADD COLUMN IF NOT EXISTS whatsapp_verify_code_hash TEXT;
+ALTER TABLE public.user_profiles ADD COLUMN IF NOT EXISTS whatsapp_verify_expires_at TIMESTAMPTZ;
 ALTER TABLE public.user_profiles ADD COLUMN IF NOT EXISTS alert_channel TEXT DEFAULT 'EMAIL';
 ALTER TABLE public.user_profiles ADD COLUMN IF NOT EXISTS notification_email TEXT;
 ALTER TABLE public.user_profiles ADD COLUMN IF NOT EXISTS username TEXT;
@@ -43,6 +70,8 @@ CREATE TABLE IF NOT EXISTS public.portfolio_dividends (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE public.portfolio_dividends ADD COLUMN IF NOT EXISTS is_virtual BOOLEAN DEFAULT FALSE;
+
 CREATE TABLE IF NOT EXISTS public.portfolio_alerts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -54,7 +83,7 @@ CREATE TABLE IF NOT EXISTS public.portfolio_alerts (
     UNIQUE(user_id, symbol)
 );
 
--- Table d'idempotence pour les webhooks Stripe (accès exclusif service_role)
+-- Table d'idempotence atomique pour les webhooks Stripe (accès exclusif service_role)
 CREATE TABLE IF NOT EXISTS public.processed_stripe_events (
     event_id TEXT PRIMARY KEY,
     event_type TEXT NOT NULL,
@@ -68,7 +97,29 @@ ALTER TABLE public.portfolio_alerts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.processed_stripe_events ENABLE ROW LEVEL SECURITY;
 
--- 1b. Activer RLS sur toutes les tables de données marché, actualités et caches IA
+-- 1b. Purge dynamique intégrale des anciennes politiques (anglaises ET françaises) sur les tables sensibles
+-- Élimine tout contournement par combinaison OR de politiques PERMISSIVE résiduelles.
+DO $$
+DECLARE
+  pol RECORD;
+BEGIN
+  FOR pol IN
+    SELECT policyname, tablename
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename IN (
+        'portfolio_transactions',
+        'portfolio_dividends',
+        'portfolio_alerts',
+        'user_profiles',
+        'processed_stripe_events'
+      )
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', pol.policyname, pol.tablename);
+  END LOOP;
+END $$;
+
+-- 1c. Activer RLS sur toutes les tables de données marché, actualités et caches IA
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'companies') THEN
@@ -106,70 +157,133 @@ BEGIN
   END IF;
 END $$;
 
--- 2. Politiques pour portfolio_transactions
-DROP POLICY IF EXISTS "Les utilisateurs peuvent voir leurs propres transactions" ON public.portfolio_transactions;
+-- 2. Politiques Zero Trust pour portfolio_transactions (PERMISSIVE + barrières AS RESTRICTIVE)
 CREATE POLICY "Les utilisateurs peuvent voir leurs propres transactions"
-ON public.portfolio_transactions FOR SELECT
+ON public.portfolio_transactions
+FOR SELECT
+TO authenticated
 USING (auth.uid() = user_id);
 
-DROP POLICY IF EXISTS "Les utilisateurs peuvent insérer leurs propres transactions" ON public.portfolio_transactions;
 CREATE POLICY "Les utilisateurs peuvent insérer leurs propres transactions"
-ON public.portfolio_transactions FOR INSERT
+ON public.portfolio_transactions
+FOR INSERT
+TO authenticated
 WITH CHECK (auth.uid() = user_id AND COALESCE(is_virtual, FALSE) = FALSE);
 
-DROP POLICY IF EXISTS "Les utilisateurs peuvent mettre à jour leurs propres transactions" ON public.portfolio_transactions;
 CREATE POLICY "Les utilisateurs peuvent mettre à jour leurs propres transactions"
-ON public.portfolio_transactions FOR UPDATE
+ON public.portfolio_transactions
+FOR UPDATE
+TO authenticated
 USING (auth.uid() = user_id AND COALESCE(is_virtual, FALSE) = FALSE)
 WITH CHECK (auth.uid() = user_id AND COALESCE(is_virtual, FALSE) = FALSE);
 
-DROP POLICY IF EXISTS "Les utilisateurs peuvent supprimer leurs propres transactions" ON public.portfolio_transactions;
 CREATE POLICY "Les utilisateurs peuvent supprimer leurs propres transactions"
-ON public.portfolio_transactions FOR DELETE
+ON public.portfolio_transactions
+FOR DELETE
+TO authenticated
 USING (auth.uid() = user_id AND COALESCE(is_virtual, FALSE) = FALSE);
 
--- 3. Politiques pour portfolio_dividends
-DROP POLICY IF EXISTS "Les utilisateurs peuvent voir leurs propres dividendes" ON public.portfolio_dividends;
+-- Barrières AS RESTRICTIVE infranchissables empêchant toute écriture client directe sur le Paper Trading
+CREATE POLICY "rls_restrict_virtual_tx_insert"
+ON public.portfolio_transactions
+AS RESTRICTIVE
+FOR INSERT
+TO anon, authenticated
+WITH CHECK (auth.uid() = user_id AND COALESCE(is_virtual, FALSE) = FALSE);
+
+CREATE POLICY "rls_restrict_virtual_tx_update"
+ON public.portfolio_transactions
+AS RESTRICTIVE
+FOR UPDATE
+TO anon, authenticated
+USING (auth.uid() = user_id AND COALESCE(is_virtual, FALSE) = FALSE)
+WITH CHECK (auth.uid() = user_id AND COALESCE(is_virtual, FALSE) = FALSE);
+
+CREATE POLICY "rls_restrict_virtual_tx_delete"
+ON public.portfolio_transactions
+AS RESTRICTIVE
+FOR DELETE
+TO anon, authenticated
+USING (auth.uid() = user_id AND COALESCE(is_virtual, FALSE) = FALSE);
+
+-- 3. Politiques Zero Trust pour portfolio_dividends (PERMISSIVE + barrières AS RESTRICTIVE)
 CREATE POLICY "Les utilisateurs peuvent voir leurs propres dividendes"
-ON public.portfolio_dividends FOR SELECT
+ON public.portfolio_dividends
+FOR SELECT
+TO authenticated
 USING (auth.uid() = user_id);
 
-DROP POLICY IF EXISTS "Les utilisateurs peuvent insérer leurs propres dividendes" ON public.portfolio_dividends;
 CREATE POLICY "Les utilisateurs peuvent insérer leurs propres dividendes"
-ON public.portfolio_dividends FOR INSERT
-WITH CHECK (auth.uid() = user_id);
+ON public.portfolio_dividends
+FOR INSERT
+TO authenticated
+WITH CHECK (auth.uid() = user_id AND COALESCE(is_virtual, FALSE) = FALSE);
 
-DROP POLICY IF EXISTS "Les utilisateurs peuvent supprimer leurs propres dividendes" ON public.portfolio_dividends;
+CREATE POLICY "Les utilisateurs peuvent mettre à jour leurs propres dividendes"
+ON public.portfolio_dividends
+FOR UPDATE
+TO authenticated
+USING (auth.uid() = user_id AND COALESCE(is_virtual, FALSE) = FALSE)
+WITH CHECK (auth.uid() = user_id AND COALESCE(is_virtual, FALSE) = FALSE);
+
 CREATE POLICY "Les utilisateurs peuvent supprimer leurs propres dividendes"
-ON public.portfolio_dividends FOR DELETE
-USING (auth.uid() = user_id);
+ON public.portfolio_dividends
+FOR DELETE
+TO authenticated
+USING (auth.uid() = user_id AND COALESCE(is_virtual, FALSE) = FALSE);
+
+CREATE POLICY "rls_restrict_virtual_div_insert"
+ON public.portfolio_dividends
+AS RESTRICTIVE
+FOR INSERT
+TO anon, authenticated
+WITH CHECK (auth.uid() = user_id AND COALESCE(is_virtual, FALSE) = FALSE);
+
+CREATE POLICY "rls_restrict_virtual_div_update"
+ON public.portfolio_dividends
+AS RESTRICTIVE
+FOR UPDATE
+TO anon, authenticated
+USING (auth.uid() = user_id AND COALESCE(is_virtual, FALSE) = FALSE)
+WITH CHECK (auth.uid() = user_id AND COALESCE(is_virtual, FALSE) = FALSE);
+
+CREATE POLICY "rls_restrict_virtual_div_delete"
+ON public.portfolio_dividends
+AS RESTRICTIVE
+FOR DELETE
+TO anon, authenticated
+USING (auth.uid() = user_id AND COALESCE(is_virtual, FALSE) = FALSE);
 
 -- 4. Politiques pour portfolio_alerts
-DROP POLICY IF EXISTS "Les utilisateurs peuvent voir leurs propres alertes" ON public.portfolio_alerts;
 CREATE POLICY "Les utilisateurs peuvent voir leurs propres alertes"
-ON public.portfolio_alerts FOR SELECT
+ON public.portfolio_alerts
+FOR SELECT
+TO authenticated
 USING (auth.uid() = user_id);
 
-DROP POLICY IF EXISTS "Les utilisateurs peuvent gérer leurs propres alertes" ON public.portfolio_alerts;
 CREATE POLICY "Les utilisateurs peuvent gérer leurs propres alertes"
-ON public.portfolio_alerts FOR ALL
+ON public.portfolio_alerts
+FOR ALL
+TO authenticated
 USING (auth.uid() = user_id)
 WITH CHECK (auth.uid() = user_id);
 
 -- 5. Politiques pour user_profiles
-DROP POLICY IF EXISTS "Les utilisateurs peuvent voir leur propre profil" ON public.user_profiles;
 CREATE POLICY "Les utilisateurs peuvent voir leur propre profil"
-ON public.user_profiles FOR SELECT
+ON public.user_profiles
+FOR SELECT
+TO authenticated
 USING (auth.uid() = user_id);
 
-DROP POLICY IF EXISTS "Les utilisateurs peuvent gérer leur propre profil" ON public.user_profiles;
 CREATE POLICY "Les utilisateurs peuvent gérer leur propre profil"
-ON public.user_profiles FOR ALL
+ON public.user_profiles
+FOR ALL
+TO authenticated
 USING (auth.uid() = user_id)
 WITH CHECK (auth.uid() = user_id);
 
--- 6. Protection Anti-Élévation de Privilèges & Anti-Altération Financière (Trigger PostgreSQL)
--- Verrouille subscription_tier, stripe_*, virtual_balance et virtual_initial_capital contre toute écriture client directe.
+-- 6. Protection Anti-Élévation de Privilèges, Anti-Altération Financière & Vérification Canaux (Trigger PostgreSQL)
+-- Verrouille subscription_tier, stripe_*, virtual_balance, virtual_initial_capital et *_verified contre toute écriture client directe.
 CREATE OR REPLACE FUNCTION public.protect_user_profile_privileged_fields()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -184,6 +298,12 @@ BEGIN
       NEW.stripe_subscription_id := NULL;
       NEW.virtual_initial_capital := 100000;
       NEW.virtual_balance := 100000;
+      NEW.telegram_verified := FALSE;
+      NEW.telegram_verify_code_hash := NULL;
+      NEW.telegram_verify_expires_at := NULL;
+      NEW.whatsapp_verified := FALSE;
+      NEW.whatsapp_verify_code_hash := NULL;
+      NEW.whatsapp_verify_expires_at := NULL;
     ELSIF TG_OP = 'UPDATE' THEN
       IF NEW.subscription_tier IS DISTINCT FROM OLD.subscription_tier AND NEW.subscription_tier <> 'free' THEN
         RAISE EXCEPTION 'Modification non autorisée de subscription_tier. Passage par le serveur requis.';
@@ -195,6 +315,34 @@ BEGIN
       IF NEW.virtual_balance IS DISTINCT FROM OLD.virtual_balance
          OR NEW.virtual_initial_capital IS DISTINCT FROM OLD.virtual_initial_capital THEN
         RAISE EXCEPTION 'Modification directe du solde virtuel interdite. Passage par le serveur requis.';
+      END IF;
+
+      -- Si l'identifiant Telegram change, révoquer automatiquement la vérification
+      IF NEW.telegram_chat_id IS DISTINCT FROM OLD.telegram_chat_id THEN
+        NEW.telegram_verified := FALSE;
+        NEW.telegram_verify_code_hash := NULL;
+        NEW.telegram_verify_expires_at := NULL;
+      ELSIF NEW.telegram_verified IS DISTINCT FROM OLD.telegram_verified AND NEW.telegram_verified = TRUE THEN
+        RAISE EXCEPTION 'Validation directe de telegram_verified interdite. Passage par le serveur requis.';
+      END IF;
+
+      -- Si le numéro WhatsApp change, révoquer automatiquement la vérification
+      IF NEW.whatsapp_phone IS DISTINCT FROM OLD.whatsapp_phone THEN
+        NEW.whatsapp_verified := FALSE;
+        NEW.whatsapp_verify_code_hash := NULL;
+        NEW.whatsapp_verify_expires_at := NULL;
+      ELSIF NEW.whatsapp_verified IS DISTINCT FROM OLD.whatsapp_verified AND NEW.whatsapp_verified = TRUE THEN
+        RAISE EXCEPTION 'Validation directe de whatsapp_verified interdite. Passage par le serveur requis.';
+      END IF;
+
+      -- Interdire au client d'écrire ses propres condensats OTP
+      IF NEW.telegram_verify_code_hash IS DISTINCT FROM OLD.telegram_verify_code_hash
+         AND NEW.telegram_verify_code_hash IS NOT NULL THEN
+        RAISE EXCEPTION 'Modification directe du code de vérification Telegram interdite.';
+      END IF;
+      IF NEW.whatsapp_verify_code_hash IS DISTINCT FROM OLD.whatsapp_verify_code_hash
+         AND NEW.whatsapp_verify_code_hash IS NOT NULL THEN
+        RAISE EXCEPTION 'Modification directe du code de vérification WhatsApp interdite.';
       END IF;
     END IF;
   END IF;
@@ -208,7 +356,7 @@ BEFORE INSERT OR UPDATE ON public.user_profiles
 FOR EACH ROW
 EXECUTE FUNCTION public.protect_user_profile_privileged_fields();
 
--- 7. Transactions Atomiques Paper Trading (Anti-Race Condition TOCTOU avec SELECT ... FOR UPDATE)
+-- 7. Transactions Atomiques Paper Trading (Anti-Race Condition TOCTOU avec SELECT ... FOR UPDATE & Date Serveur)
 CREATE OR REPLACE FUNCTION public.execute_virtual_order(
   p_user_id UUID,
   p_symbol TEXT,
@@ -282,8 +430,9 @@ BEGIN
     WHERE user_id = p_user_id;
   END IF;
 
+  -- Forcer CURRENT_DATE côté base pour empêcher l'antidatage des ordres Paper Trading
   INSERT INTO public.portfolio_transactions (user_id, symbol, type, quantity, buy_price, buy_date, is_virtual)
-  VALUES (p_user_id, p_symbol, p_type, p_quantity, p_price, p_buy_date::DATE, TRUE)
+  VALUES (p_user_id, UPPER(TRIM(p_symbol)), p_type, p_quantity, p_price, CURRENT_DATE, TRUE)
   RETURNING * INTO v_tx;
 
   RETURN to_jsonb(v_tx);

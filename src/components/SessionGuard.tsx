@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { supabase, purgeClientSessionData } from '@/lib/supabase';
 
 // Durée maximale d'inactivité avant déconnexion automatique de sécurité (4 heures = 14 400 000 ms)
 const MAX_INACTIVITY_MS = 4 * 60 * 60 * 1000;
@@ -33,12 +33,7 @@ export default function SessionGuard() {
             console.error('[SessionGuard] Erreur signOut:', err);
           }
           
-          localStorage.removeItem(LAST_ACTIVITY_KEY);
-          localStorage.removeItem('aetheris_user_profile');
-          localStorage.removeItem('agent_history');
-          if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-            navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_AUTH_CACHE' });
-          }
+          purgeClientSessionData();
           
           window.location.href = '/login?reason=expired';
           return;

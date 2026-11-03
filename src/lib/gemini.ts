@@ -1,3 +1,4 @@
+import 'server-only';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { CompanyAnalysis, OrchestratorResult, Sentiment, Impact } from './schemas';
 import { InputSanitizer } from './input-sanitizer';
@@ -134,7 +135,8 @@ async function callMistral(prompt: string, systemInstruction?: string): Promise<
           { role: 'user', content: prompt }
         ],
         response_format: { type: 'json_object' }
-      })
+      }),
+      signal: AbortSignal.timeout(25000),
     });
 
     if (!response.ok) {
@@ -150,38 +152,75 @@ async function callMistral(prompt: string, systemInstruction?: string): Promise<
   }
 }
 
-/** Orchestrateur d'IA avec Fallback automatique */
-async function unifiedAICall(prompt: string, isJson: boolean = true, preferredModel?: string, customApiKey?: string, useGrounding: boolean = false, fileData?: { data: string, mimeType: string }, responseSchema?: any, temperature?: number, systemInstruction?: string): Promise<string> {
-  const hashObj = prompt + (systemInstruction || '') + isJson + (preferredModel || '') + (customApiKey ? 'CUSTOM_KEY' : '') + useGrounding + (fileData ? 'FILE' : '');
-  const hash = crypto.createHash('sha256').update(hashObj).digest('hex');
-  const cacheKey = `aetheris:prompt:${hash}`;
+function sanitizeAiTextField(raw: unknown, maxLen: number = 1500): string {
+  if (typeof raw !== 'string') return '';
+  return raw
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    .replace(/<\/?(?:script|iframe|object|embed|style|untrusted_data)[^>]*>/gi, '')
+    .trim()
+    .slice(0, maxLen);
+}
 
-  try {
-    // 0. Vérification du cache de prompt
-    const cachedResult = await CacheService.getGeneric(cacheKey);
-    if (cachedResult) {
-      console.log(`[GeminiService] ⚡ PROMPT CACHE HIT: Réutilisation du résultat de génération (${hash})`);
-      return cachedResult;
+/** Orchestrateur d'IA avec Fallback sécurisé et isolation stricte des PDF utilisateurs */
+async function unifiedAICall(prompt: string, isJson: boolean = true, preferredModel?: string, customApiKey?: string, useGrounding: boolean = false, fileData?: { data: string, mimeType: string }, responseSchema?: any, temperature?: number, systemInstruction?: string): Promise<string> {
+  // 🔒 SÉCURITÉ : Empreinte cryptographique réelle du PDF (élimine toute collision SHA-256 inter-fichiers)
+  const fileDigest = fileData
+    ? crypto.createHash('sha256').update(`${fileData.mimeType}:${fileData.data}`).digest('hex')
+    : 'NO_FILE';
+
+  const hash = crypto
+    .createHash('sha256')
+    .update(
+      JSON.stringify({
+        prompt,
+        systemInstruction: systemInstruction || '',
+        isJson,
+        preferredModel: preferredModel || '',
+        hasCustomKey: Boolean(customApiKey),
+        useGrounding,
+        fileDigest,
+      })
+    )
+    .digest('hex');
+
+  const cacheKey = `aetheris:prompt:${hash}`;
+  // Ne jamais partager en cache global un document PDF privé uploadé par un utilisateur
+  const canUseSharedCache = !fileData && !customApiKey;
+
+  if (canUseSharedCache) {
+    try {
+      const cachedResult = await CacheService.getGeneric(cacheKey);
+      if (cachedResult) {
+        console.log(`[GeminiService] ⚡ PROMPT CACHE HIT: Réutilisation du résultat de génération (${hash})`);
+        return cachedResult;
+      }
+    } catch (cacheErr: any) {
+      console.warn("[GeminiService] Erreur lecture cache prompt:", cacheErr.message);
     }
-  } catch (cacheErr: any) {
-    console.warn("[GeminiService] Erreur lecture cache prompt:", cacheErr.message);
   }
 
   let resultText = '';
   try {
     const result = await callGoogleAI(prompt, isJson, preferredModel, customApiKey, useGrounding, fileData, responseSchema, temperature, systemInstruction);
     if (isJson && safeJsonParse(result) === null) throw new Error('Invalid JSON from Gemini');
-    
-    CacheService.setGeneric(cacheKey, result);
+
+    if (canUseSharedCache) {
+      await CacheService.setGeneric(cacheKey, result).catch((err: any) =>
+        console.warn("[GeminiService] Erreur écriture cache prompt:", err.message)
+      );
+    }
     return result;
   } catch (e: any) {
+    // 🔒 SÉCURITÉ : Interdire le fallback Mistral si un PDF ou Google Search Grounding est requis
+    // (Mistral ne reçoit ni le binaire PDF ni les sources web, ce qui produirait des données hallucinées)
+    if (fileData || useGrounding) {
+      throw e;
+    }
     console.log(`🔄 [Fallback] Échec Google AI (${e.message || e}). Passage sur Mistral...`);
-    // 2. Basculement sur Mistral
     resultText = await callMistral(prompt, systemInstruction);
   }
 
-  // Enregistrer le résultat dans le cache de prompts pour les appels futurs
-  if (resultText) {
+  if (resultText && canUseSharedCache) {
     try {
       await CacheService.setGeneric(cacheKey, resultText);
     } catch (cacheSetErr: any) {
@@ -804,11 +843,31 @@ ${pdfData ? "Un document financier officiel (PDF) a été fourni en pièce joint
             return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(num) + ' MAD';
         };
 
+        const safeSources: string[] = Array.isArray(parsed.sources)
+          ? parsed.sources
+              .slice(0, 10)
+              .map((src: unknown) => {
+                if (typeof src !== 'string') return null;
+                const trimmed = src.trim();
+                if (!trimmed) return null;
+                if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)) {
+                  return InputSanitizer.sanitizeHttpUrl(trimmed);
+                }
+                return sanitizeAiTextField(trimmed, 200) || null;
+              })
+              .filter((s: string | null): s is string => Boolean(s))
+          : ['Recherche Automatisée Web'];
+
+        const clampedConfidence =
+          typeof parsed.confidenceScore === 'number' && Number.isFinite(parsed.confidenceScore)
+            ? Math.max(0, Math.min(100, Math.round(parsed.confidenceScore)))
+            : 70;
+
         return {
-          companyName: parsed.companyName || parsed.company || query.toUpperCase(),
-          ticker: parsed.ticker || query.toUpperCase(),
-          sector: parsed.sector || 'Inconnu',
-          fiscalYear: parsed.fiscalYear || '2024/2025',
+          companyName: sanitizeAiTextField(parsed.companyName || parsed.company, 120) || query.toUpperCase(),
+          ticker: sanitizeAiTextField(parsed.ticker, 20).toUpperCase() || query.toUpperCase(),
+          sector: sanitizeAiTextField(parsed.sector, 80) || 'Inconnu',
+          fiscalYear: sanitizeAiTextField(parsed.fiscalYear, 20) || '2024/2025',
           isCompliant: isHaramSector ? false : null,
           estimatedCompliance: isHaramSector ? false : strictCompliant,
           isHaramSector,
@@ -828,10 +887,13 @@ ${pdfData ? "Un document financier officiel (PDF) a été fourni en pièce joint
             interestCash: formatMAD(interestCash),
             marketCap: formatMAD(marketCap)
           },
-          summary: parsed.summary || parsed.description || `Analyse de conformité Sharia et extraction des données financières brutes pour ${query}. Les ratios ont été calculés avec précision par notre moteur interne.`,
-          confidenceScore: typeof parsed.confidenceScore === 'number' ? parsed.confidenceScore : 70,
-          explanation: parsed.explanation || 'Analyse mathématique sans précision supplémentaire.',
-          sources: Array.isArray(parsed.sources) ? parsed.sources : ['Recherche Automatisée Web']
+          summary:
+            sanitizeAiTextField(parsed.summary || parsed.description, 1500) ||
+            `Analyse de conformité Sharia et extraction des données financières brutes pour ${query}. Les ratios ont été calculés avec précision par notre moteur interne.`,
+          confidenceScore: clampedConfidence,
+          explanation:
+            sanitizeAiTextField(parsed.explanation, 1500) || 'Analyse mathématique sans précision supplémentaire.',
+          sources: safeSources.length > 0 ? safeSources : ['Recherche Automatisée Web']
         };
       }
       throw new Error("Impossible d'extraire les données JSON de la réponse de l'IA.");

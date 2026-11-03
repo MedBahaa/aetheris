@@ -1,3 +1,4 @@
+import 'server-only';
 import { NewsWorker, MarketWorker, StrategyWorker, FundamentalWorker } from './agents/worker-agents';
 import { GeminiService } from './gemini';
 import { supabaseAdmin } from './supabase-server';

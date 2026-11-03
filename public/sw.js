@@ -1,19 +1,17 @@
 // ============================================================
-// AETHERIS ADVANCED SERVICE WORKER v4.0 (Zero-Trust Auth Cache)
-// Stratégie : Network-only API & routes privées, Cache-first assets publics, Offline fallback
+// AETHERIS ADVANCED SERVICE WORKER v5.0 (Zero-Trust Auth & CSP Nonce Safe)
+// Stratégie : Network-only HTML (nonces CSP dynamiques), API & routes privées, Cache-first assets statiques
 // ============================================================
 
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v5';
 const STATIC_CACHE = `aetheris-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `aetheris-dynamic-${CACHE_VERSION}`;
 const IMAGE_CACHE = `aetheris-images-${CACHE_VERSION}`;
 const OFFLINE_URL = '/offline';
 
-// Uniquement les assets et pages publiques non authentifiées
+// Uniquement les assets statiques et le fallback hors-ligne (jamais les pages HTML dynamiques avec nonce CSP)
 const PRECACHE_ASSETS = [
-  '/',
   '/offline',
-  '/marche-live',
   '/icon-192.png',
   '/icon-512.png',
 ];
@@ -98,8 +96,12 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 2. Network-only (aucune persistance CacheStorage) pour les pages authentifiées / privées
-  if (url.origin === self.location.origin && isPrivatePath(url.pathname)) {
+  // 2. Network-only pour toute navigation HTML (préserve les nonces CSP uniques par requête et l'isolation auth)
+  if (
+    request.mode === 'navigate' ||
+    request.destination === 'document' ||
+    (url.origin === self.location.origin && isPrivatePath(url.pathname))
+  ) {
     event.respondWith(
       fetch(request).catch(async () => {
         const offlinePage = await caches.match(OFFLINE_URL);

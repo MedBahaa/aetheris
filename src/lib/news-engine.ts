@@ -1,6 +1,7 @@
 import Parser from 'rss-parser';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { InputSanitizer } from './input-sanitizer';
 
 
 export interface NewsArticle {
@@ -245,10 +246,19 @@ export class NewsEngine {
       totalFeeds: allFeeds.length,
     };
 
-    // FILTRAGE STRICT par nom de société
+    // FILTRAGE STRICT par nom de société + bouclier anti-injection indirecte de prompt (OWASP LLM01)
     // On exige que le NOM COMPLET ou un ALIAS CONNU apparaisse dans le titre ou snippet
     const filtered = articles.filter(article => {
-      const fullText = (article.title + ' ' + article.contentSnippet).toLowerCase();
+      if (article.link && !InputSanitizer.sanitizeHttpUrl(article.link)) {
+        return false;
+      }
+      const rawCombined = `${article.title} ${article.contentSnippet}`;
+      if (InputSanitizer.detectInjection(rawCombined)) {
+        console.warn(`[NewsEngine] 🛡️ Article RSS suspect bloqué (Prompt Injection détectée): ${article.title.slice(0, 60)}`);
+        return false;
+      }
+
+      const fullText = rawCombined.toLowerCase();
       
       // Vérifier le nom complet (ex: "maroc telecom")
       for (const term of allTerms) {

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { signInWithRateLimitAction, signUpWithPolicyAction } from '@/lib/auth-actions';
 import { useRouter } from 'next/navigation';
 import { ShieldCheck, Lock, Mail, Loader2, Zap, Wifi, Database, Activity } from 'lucide-react';
 
@@ -78,43 +79,25 @@ export default function LoginPage() {
         return;
       }
 
-      const { error: signUpError } = await supabase.auth.signUp({
-        email: cleanEmail,
-        password: rawPassword,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
+      const res = await signUpWithPolicyAction(cleanEmail, rawPassword);
 
-      if (signUpError) {
-        setError(signUpError.message || "ÉCHEC DE L'INSCRIPTION.");
+      if (!res.success) {
+        setError(res.error || "ÉCHEC DE L'INSCRIPTION.");
         setLoading(false);
       } else {
         setSuccess("ACCÈS RÉSERVÉ. Vérifiez votre boîte mail (uplink) pour valider votre compte.");
         setLoading(false);
       }
     } else {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password: rawPassword,
-      });
+      const res = await signInWithRateLimitAction(cleanEmail, rawPassword);
 
-      if (signInError) {
-        let msg = signInError.message;
-        if (msg.includes('Invalid login credentials')) {
-          msg = "IDENTIFIANTS INVALIDES. VÉRIFIEZ VOTRE EMAIL ET MOT DE PASSE.";
-        } else if (msg.includes('Email not confirmed')) {
-          msg = "EMAIL NON CONFIRMÉ. VÉRIFIEZ VOTRE BOÎTE MAIL DE VALIDATION.";
-        }
-        setError(msg);
+      if (!res.success) {
+        setError(res.error || "IDENTIFIANTS INVALIDES. VÉRIFIEZ VOTRE EMAIL ET MOT DE PASSE.");
         setLoading(false);
-      } else if (data?.session) {
+      } else {
         setSuccess("LIAISON ÉTABLIE. REDIRECTION...");
         // Redirection ferme compatible mobile
         window.location.href = '/portfolio';
-      } else {
-        setError("SESSION NON ÉTABLIE. VÉRIFIEZ VOS IDENTIFIANTS.");
-        setLoading(false);
       }
     }
   };

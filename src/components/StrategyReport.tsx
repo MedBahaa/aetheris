@@ -1,6 +1,6 @@
 'use client';
 
-import { CompanyAnalysis } from '@/lib/agent-engine';
+import type { CompanyAnalysis } from '@/lib/schemas';
 import { BarChart3 } from 'lucide-react';
 import OrchestratorReport from './OrchestratorReport';
 

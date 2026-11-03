@@ -42,5 +42,12 @@ next-env.d.ts
 
 # local debug & scratch scripts (never track credentials or dumps)
 /scratch/
+/.kilo/
 bmce_dump.html
 iam.json
+test.js
+test-browser.js
+test_*.ts
+test-*.ts
+fetch_*.ts
+list_models.ts

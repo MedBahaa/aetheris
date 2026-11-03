@@ -36,7 +36,7 @@ export async function proxy(request: NextRequest) {
     default-src 'self';
     script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''} https://js.stripe.com;
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    img-src 'self' blob: data: https:;
+    img-src 'self' blob: data: https://*.supabase.co https://*.stripe.com;
     font-src 'self' data: https://fonts.gstatic.com;
     connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://checkout.stripe.com;
     frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com;
@@ -100,8 +100,10 @@ export async function proxy(request: NextRequest) {
   const isApiRoute = pathname.startsWith('/api/')
   const isServerAction = request.headers.has('next-action')
 
-  // Routes publiques accessibles sans être connecté
+  // Routes publiques accessibles en navigation GET sans être connecté
   const publicRoutes = ['/', '/console', '/login', '/auth/callback', '/marche-live', '/offline']
+  // Routes publiques explicitement autorisées à invoquer une Server Action sans session (analyse démo / auth)
+  const publicServerActionRoutes = ['/console', '/login']
   const publicApiPrefixes = [
     '/api/market-live',
     '/api/market-index',
@@ -116,6 +118,17 @@ export async function proxy(request: NextRequest) {
     publicRoutes.includes(pathname) ||
     pathname.startsWith('/auth/') ||
     publicApiPrefixes.some((prefix) => pathname.startsWith(prefix))
+
+  // 🔒 SÉCURITÉ : Bloquer l'invocation anonyme de Server Actions sur les routes publiques qui n'en exposent pas
+  if (!user && isServerAction && !publicServerActionRoutes.includes(pathname)) {
+    return applySecurityHeaders(
+      NextResponse.json(
+        { error: 'Unauthorized', message: 'Authentication required for this action' },
+        { status: 401 }
+      ),
+      cspHeaderValue
+    )
+  }
 
   // Si l'utilisateur n'est pas connecté et tente d'accéder à une page ou API protégée
   if (!user && !isPublicRoute) {

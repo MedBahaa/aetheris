@@ -3,25 +3,12 @@ import { MarketListScraper } from '@/lib/scrapers/market-list-scraper';
 import { IndexScraper } from '@/lib/scrapers/index-scraper';
 import { MacroScraper } from '@/lib/scrapers/macro-scraper';
 import { InputSanitizer } from '@/lib/input-sanitizer';
+import { verifyCronSecret } from '@/lib/cron-auth';
 import { Resend } from 'resend';
-import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
 const resend = new Resend(process.env.RESEND_API_KEY || '');
-
-function verifyCronSecret(request: Request): boolean {
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) {
-    return process.env.NODE_ENV !== 'production';
-  }
-  const authHeader = request.headers.get('authorization') || '';
-  const expected = `Bearer ${cronSecret}`;
-  if (authHeader.length === expected.length && crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))) {
-    return true;
-  }
-  return false;
-}
 
 export async function GET(request: Request) {
   // 🔒 Protection Fail-Closed par en-tête Authorization: Bearer <CRON_SECRET>

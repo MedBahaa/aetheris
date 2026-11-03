@@ -6,7 +6,7 @@ import {
   Landmark, Briefcase, ChevronDown, ChevronRight,
   User, LogOut, Sparkles, XCircle
 } from 'lucide-react';
-import { CompanyAnalysis, AgentType } from '@/lib/agent-engine';
+import type { CompanyAnalysis, AgentType } from '@/lib/schemas';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
@@ -41,10 +41,9 @@ export default function Sidebar({
 
   const handleLogout = async () => {
     try {
-      const { supabase } = await import('@/lib/supabase');
+      const { supabase, purgeClientSessionData } = await import('@/lib/supabase');
       await supabase.auth.signOut();
-      localStorage.removeItem('aetheris_last_activity_time');
-      localStorage.removeItem('aetheris_user_profile');
+      purgeClientSessionData();
       window.location.href = '/login';
     } catch (err) {
       console.error('Error logging out:', err);

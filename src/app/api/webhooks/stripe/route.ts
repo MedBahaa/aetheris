@@ -72,16 +72,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Configuration serveur incomplète.' }, { status: 500 });
   }
 
-  try {
-    // 🔒 IDEMPOTENCE : Ignorer tout événement Stripe déjà traité (table processed_stripe_events)
-    const { data: existingEvent, error: checkEventErr } = await supabaseAdmin
-      .from('processed_stripe_events')
-      .select('event_id')
-      .eq('event_id', event.id)
-      .maybeSingle();
+  let lockedEventId: string | null = null;
 
-    if (!checkEventErr && existingEvent) {
-      return NextResponse.json({ received: true, duplicate: true });
+  try {
+    // 🔒 IDEMPOTENCE ATOMIQUE : Verrouiller l'événement AVANT traitement via contrainte UNIQUE (event_id PRIMARY KEY)
+    const { error: lockErr } = await supabaseAdmin
+      .from('processed_stripe_events')
+      .insert({ event_id: event.id, event_type: event.type });
+
+    if (lockErr) {
+      // Code PostgreSQL 23505 = unique_violation => événement déjà traité ou en cours de traitement concurrent
+      if (lockErr.code === '23505') {
+        return NextResponse.json({ received: true, duplicate: true });
+      }
+      // Tolérance uniquement si la table n'a pas encore été migrée (42P01 / PGRST205)
+      const isMissingTable = lockErr.code === '42P01' || lockErr.code === 'PGRST205';
+      if (!isMissingTable) {
+        throw lockErr;
+      }
+    } else {
+      lockedEventId = event.id;
     }
 
     switch (event.type) {
@@ -180,14 +190,16 @@ export async function POST(req: Request) {
         break;
     }
 
-    // Enregistrer l'événement comme traité (tolérant si la table n'a pas encore été créée)
-    await supabaseAdmin
-      .from('processed_stripe_events')
-      .insert({ event_id: event.id, event_type: event.type })
-      .then(() => undefined, () => undefined);
-
     return NextResponse.json({ received: true });
   } catch (err: any) {
+    // Libérer le verrou d'idempotence en cas d'erreur transitoire pour autoriser le retry officiel de Stripe
+    if (lockedEventId) {
+      await supabaseAdmin
+        .from('processed_stripe_events')
+        .delete()
+        .eq('event_id', lockedEventId)
+        .then(() => undefined, () => undefined);
+    }
     console.error('[Stripe Webhook] Erreur de traitement :', err.message);
     return NextResponse.json({ error: 'Erreur interne lors du traitement du webhook.' }, { status: 500 });
   }

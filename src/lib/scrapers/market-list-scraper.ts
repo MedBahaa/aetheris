@@ -220,11 +220,27 @@ export class MarketListScraper {
         if (parsedUrl.protocol !== 'https:') {
           throw new Error('MARKET_FEED_FALLBACK_URL doit utiliser HTTPS');
         }
+        const hostLower = parsedUrl.hostname.toLowerCase();
+        const isPrivateOrMetadataHost =
+          hostLower === 'localhost' ||
+          hostLower.endsWith('.local') ||
+          hostLower.endsWith('.internal') ||
+          /^127\./.test(hostLower) ||
+          /^10\./.test(hostLower) ||
+          /^192\.168\./.test(hostLower) ||
+          /^169\.254\./.test(hostLower) ||
+          /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostLower) ||
+          hostLower === '0.0.0.0' ||
+          hostLower === '[::1]';
+        if (isPrivateOrMetadataHost) {
+          throw new Error('MARKET_FEED_FALLBACK_URL vers hôte privé ou métadonnées bloqué (Anti-SSRF)');
+        }
 
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 6000);
         const response = await fetch(parsedUrl.toString(), {
           signal: controller.signal,
+          redirect: 'error',
           headers: { Accept: 'application/json' },
         });
         clearTimeout(timeout);

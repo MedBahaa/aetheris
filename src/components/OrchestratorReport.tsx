@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CompanyAnalysis } from '@/lib/agent-engine';
+import type { CompanyAnalysis } from '@/lib/schemas';
 import { AlertCircle, CheckCircle2, Zap, ChevronDown, ChevronUp, BarChart3, Newspaper, Activity, ShieldCheck, Target, Crosshair, Clock } from 'lucide-react';
 import AetherisChart from './AetherisChart';
 import AnalysisReport from './AnalysisReport';

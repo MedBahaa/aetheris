@@ -47,7 +47,8 @@ export class TradingViewScraper {
           'Content-Type': 'application/json',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         },
-        body: JSON.stringify(postData)
+        body: JSON.stringify(postData),
+        signal: AbortSignal.timeout(10000),
       });
 
       if (!res.ok) {

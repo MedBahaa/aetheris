@@ -166,7 +166,13 @@ export async function POST(req: Request) {
                   }
                }
 
-               if (cachedCompanyId) {
+               const hasInjectionArtifact = InputSanitizer.detectInjection(
+                 `${result.summary || ''} ${result.explanation || ''}`
+               );
+               const isCacheableConfidence =
+                 typeof result.confidenceScore === 'number' && result.confidenceScore >= 50;
+
+               if (cachedCompanyId && isCacheableConfidence && !hasInjectionArtifact) {
                   await dbClient.from('analyses_cache').insert({
                     company_id: cachedCompanyId,
                     agent_type: 'SHARIA',

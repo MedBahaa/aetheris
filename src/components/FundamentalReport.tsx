@@ -1,6 +1,6 @@
 'use client';
 
-import { CompanyAnalysis } from '@/lib/agent-engine';
+import type { CompanyAnalysis } from '@/lib/schemas';
 import { Landmark, TrendingUp, PieChart, BarChart3, Globe, Shield, Zap, Activity } from 'lucide-react';
 
 interface FundamentalReportProps {

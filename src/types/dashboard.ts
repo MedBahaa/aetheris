@@ -1,5 +1,5 @@
 import React from 'react';
-import { CompanyAnalysis, AgentType } from '@/lib/agent-engine';
+import type { CompanyAnalysis, AgentType } from '@/lib/schemas';
 
 export interface DashboardProps {
   // State

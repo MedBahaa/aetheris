@@ -2,23 +2,21 @@ import { NextResponse } from 'next/server';
 import { MarketListScraper } from '@/lib/scrapers/market-list-scraper';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { InputSanitizer } from '@/lib/input-sanitizer';
+import { verifyCronSecret } from '@/lib/cron-auth';
 import { Resend } from 'resend';
-import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
 const resend = new Resend(process.env.RESEND_API_KEY || '');
 
-function verifyCronSecret(request: Request): boolean {
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) {
-    // En production, fail-closed obligatoire si CRON_SECRET est manquant
-    return process.env.NODE_ENV !== 'production';
+function sanitizeGatewayError(message: string): string {
+  let clean = message || '';
+  for (const secret of [process.env.CALLMEBOT_API_KEY, process.env.TELEGRAM_BOT_TOKEN]) {
+    if (secret && secret.length > 4) {
+      clean = clean.split(secret).join('[REDACTED]');
+    }
   }
-  const authHeader = request.headers.get('authorization') || '';
-  const expected = `Bearer ${cronSecret}`;
-  if (authHeader.length !== expected.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
+  return clean;
 }
 
 // Helper pour Telegram Bot API
@@ -35,20 +33,21 @@ async function sendTelegramAlert(chatId: string, text: string) {
       body: JSON.stringify({
         chat_id: chatId,
         text: text,
-        parse_mode: 'HTML'
-      })
+        parse_mode: 'HTML',
+      }),
+      signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) {
-      console.error('[Telegram Alert] Erreur API Telegram:', await res.text());
+      console.error('[Telegram Alert] Erreur API Telegram HTTP:', res.status);
     } else {
-      console.log('[Telegram Alert] Message envoyé avec succès à', chatId);
+      console.log('[Telegram Alert] Message envoyé avec succès.');
     }
   } catch (err: any) {
-    console.error('[Telegram Alert] Exception:', err.message);
+    console.error('[Telegram Alert] Exception:', sanitizeGatewayError(err?.message || ''));
   }
 }
 
-// Helper pour WhatsApp (via CallMeBot API - passerelle gratuite très populaire au Maroc)
+// Helper pour WhatsApp (via CallMeBot API)
 async function sendWhatsAppAlert(phone: string, text: string) {
   const apiKey = process.env.CALLMEBOT_API_KEY;
   if (!apiKey) {
@@ -56,17 +55,16 @@ async function sendWhatsAppAlert(phone: string, text: string) {
     return;
   }
   try {
-    // Nettoyer le numéro de téléphone pour CallMeBot (format sans + ni espaces, ex: 212600000000)
     const cleanPhone = phone.replace(/[^0-9]/g, '');
     const url = `https://api.callmebot.com/whatsapp.php?phone=${cleanPhone}&text=${encodeURIComponent(text)}&apikey=${apiKey}`;
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!res.ok) {
-      console.error('[WhatsApp Alert] Erreur API CallMeBot:', await res.text());
+      console.error('[WhatsApp Alert] Erreur API CallMeBot HTTP:', res.status);
     } else {
-      console.log('[WhatsApp Alert] Message WhatsApp envoyé avec succès à', phone);
+      console.log('[WhatsApp Alert] Message WhatsApp envoyé avec succès.');
     }
   } catch (err: any) {
-    console.error('[WhatsApp Alert] Exception WhatsApp:', err.message);
+    console.error('[WhatsApp Alert] Exception WhatsApp:', sanitizeGatewayError(err?.message || ''));
   }
 }
 
@@ -77,7 +75,7 @@ export async function GET(request: Request) {
 
   try {
     console.log('[Cron Check Alerts] Début de la vérification des alertes...');
-    
+
     // 1. Récupérer toutes les alertes actives
     const { data: alerts, error: alertsError } = await supabaseAdmin
       .from('portfolio_alerts')
@@ -99,9 +97,10 @@ export async function GET(request: Request) {
 
     // 3. Vérifier chaque alerte
     for (const alert of alerts) {
-      const stock = result.stocks.find((s: { symbol: string; price: string }) => 
-        s.symbol.toLowerCase() === alert.symbol.toLowerCase() ||
-        s.symbol.toLowerCase().includes(alert.symbol.toLowerCase())
+      const stock = result.stocks.find(
+        (s: { symbol: string; price: string }) =>
+          s.symbol.toLowerCase() === alert.symbol.toLowerCase() ||
+          s.symbol.toLowerCase().includes(alert.symbol.toLowerCase())
       );
 
       if (!stock) continue;
@@ -122,11 +121,13 @@ export async function GET(request: Request) {
 
       if (triggered) {
         alertsTriggered++;
-        
-        // 4. Récupérer le profil utilisateur pour les préférences d'alertes
+
+        // 4. Récupérer le profil utilisateur (incluant la preuve de possession *_verified)
         const { data: profile } = await supabaseAdmin
           .from('user_profiles')
-          .select('telegram_chat_id, whatsapp_phone, alert_channel, notification_email')
+          .select(
+            'telegram_chat_id, telegram_verified, whatsapp_phone, whatsapp_verified, alert_channel, notification_email'
+          )
           .eq('user_id', alert.user_id)
           .single();
 
@@ -135,14 +136,22 @@ export async function GET(request: Request) {
         const safeReason = InputSanitizer.escapeHtml(reason);
         const rawMessage = `🚨 *Alerte Aetheris (${alert.symbol})*\n\n${reason}\n\nConnectez-vous à votre terminal pour gérer vos positions.`;
 
-        // Notification Telegram
-        if ((channel === 'TELEGRAM' || channel === 'ALL') && profile?.telegram_chat_id) {
+        // Notification Telegram (uniquement si le Chat ID a été vérifié par OTP)
+        if (
+          (channel === 'TELEGRAM' || channel === 'ALL') &&
+          profile?.telegram_chat_id &&
+          profile?.telegram_verified === true
+        ) {
           const telegramMessage = `🚨 <b>Alerte Aetheris (${safeSymbol})</b>\n\n${safeReason}\n\n<i>Connectez-vous à votre terminal pour gérer vos positions.</i>`;
           await sendTelegramAlert(profile.telegram_chat_id, telegramMessage);
         }
 
-        // Notification WhatsApp
-        if ((channel === 'WHATSAPP' || channel === 'ALL') && profile?.whatsapp_phone) {
+        // Notification WhatsApp (uniquement si le numéro a été vérifié par OTP)
+        if (
+          (channel === 'WHATSAPP' || channel === 'ALL') &&
+          profile?.whatsapp_phone &&
+          profile?.whatsapp_verified === true
+        ) {
           await sendWhatsAppAlert(profile.whatsapp_phone, rawMessage);
         }
 
@@ -169,9 +178,9 @@ export async function GET(request: Request) {
                     <br/>
                     <p><small>L'équipe Aetheris Terminal</small></p>
                   </div>
-                `
+                `,
               });
-              console.log(`[Cron Check Alerts] Email envoyé à ${targetEmail} pour ${alert.symbol}`);
+              console.log(`[Cron Check Alerts] Email envoyé pour ${alert.symbol}`);
             } catch (emailError: any) {
               console.error(`[Cron Check Alerts] Erreur envoi email:`, emailError.message);
             }
@@ -187,9 +196,8 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({ success: true, alertsTriggered });
-
   } catch (error: any) {
-    console.error('[Cron Check Alerts] Exception:', error.message);
+    console.error('[Cron Check Alerts] Exception:', sanitizeGatewayError(error?.message || ''));
     return NextResponse.json({ success: false, error: 'Erreur interne lors du contrôle des alertes.' }, { status: 500 });
   }
 }

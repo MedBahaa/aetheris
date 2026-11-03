@@ -171,13 +171,14 @@ export class PortfolioService {
     }
 
     if (data.transactions.length > 0) {
-      const txs = data.transactions.map(t => ({ ...t, user_id: userId }));
+      // 🔒 SÉCURITÉ : Interdire l'injection de positions Paper Trading (is_virtual: true) via import CSV
+      const txs = data.transactions.map(t => ({ ...t, user_id: userId, is_virtual: false }));
       const { error: txError } = await client.from('portfolio_transactions').insert(txs);
       if (txError) throw txError;
     }
 
     if (data.dividends.length > 0) {
-      const divs = data.dividends.map(d => ({ ...d, user_id: userId }));
+      const divs = data.dividends.map(d => ({ ...d, user_id: userId, is_virtual: false }));
       const { error: divError } = await client.from('portfolio_dividends').insert(divs);
       if (divError) throw divError;
     }
@@ -199,7 +200,8 @@ export class PortfolioService {
 
   static async addDividend(
     client: SupabaseClient,
-    div: Omit<DividendTransaction, 'id' | 'created_at' | 'user_id'>
+    div: Omit<DividendTransaction, 'id' | 'created_at' | 'user_id'>,
+    adminClient?: SupabaseClient
   ) {
     const { data: { user } } = await client.auth.getUser();
     if (!user) throw new Error('Non authentifié');
@@ -210,21 +212,23 @@ export class PortfolioService {
       throw new Error(parsed.error.issues[0]?.message || 'Données de dividende invalides');
     }
 
-    const { data, error } = await client
+    const dbClient = parsed.data.is_virtual && adminClient ? adminClient : client;
+    const { data, error } = await dbClient
       .from('portfolio_dividends')
-      .insert([{ ...parsed.data, user_id: user.id }])
+      .insert([{ ...parsed.data, is_virtual: Boolean(parsed.data.is_virtual), user_id: user.id }])
       .select();
     if (error) throw error;
     if (!data || data.length === 0) throw new Error("Erreur lors de l'enregistrement du dividende");
     return data[0];
   }
 
-  static async deleteDividend(client: SupabaseClient, id: string) {
+  static async deleteDividend(client: SupabaseClient, id: string, adminClient?: SupabaseClient) {
     const { data: { user } } = await client.auth.getUser();
     if (!user) throw new Error('Non authentifié');
     if (!UUID_REGEX.test(id)) throw new Error('Identifiant de dividende invalide');
 
-    const { error } = await client
+    const dbClient = adminClient || client;
+    const { error } = await dbClient
       .from('portfolio_dividends')
       .delete()
       .eq('id', id)
@@ -333,7 +337,7 @@ export class PortfolioService {
 
     const { data, error } = await client
       .from('portfolio_transactions')
-      .insert([{ ...parsed.data, user_id: user.id }])
+      .insert([{ ...parsed.data, is_virtual: false, user_id: user.id }])
       .select();
     if (error) throw error;
     if (!data || data.length === 0) throw new Error("Erreur lors de l'enregistrement de la transaction");
@@ -349,7 +353,8 @@ export class PortfolioService {
       .from('portfolio_transactions')
       .delete()
       .eq('id', id)
-      .eq('user_id', user.id);
+      .eq('user_id', user.id)
+      .eq('is_virtual', false);
     if (error) throw error;
   }
 
@@ -363,7 +368,8 @@ export class PortfolioService {
       .from('portfolio_transactions')
       .delete()
       .eq('symbol', cleanSymbol)
-      .eq('user_id', user.id);
+      .eq('user_id', user.id)
+      .eq('is_virtual', false);
     if (error) throw error;
   }
 
@@ -375,7 +381,9 @@ export class PortfolioService {
     initial_capital: number; 
     subscription_tier: string;
     telegram_chat_id?: string;
+    telegram_verified?: boolean;
     whatsapp_phone?: string;
+    whatsapp_verified?: boolean;
     alert_channel?: string;
     notification_email?: string;
     username?: string;
@@ -404,7 +412,9 @@ export class PortfolioService {
       initial_capital: data?.initial_capital ?? 0,
       subscription_tier: data?.subscription_tier ?? 'free',
       telegram_chat_id: data?.telegram_chat_id ?? '',
+      telegram_verified: Boolean(data?.telegram_verified),
       whatsapp_phone: data?.whatsapp_phone ?? '',
+      whatsapp_verified: Boolean(data?.whatsapp_verified),
       alert_channel: data?.alert_channel ?? 'EMAIL',
       notification_email: data?.notification_email ?? user.email ?? '',
       username: data?.username ?? '',
@@ -609,6 +619,59 @@ export class PortfolioService {
   // PAPER TRADING & CLASSEMENT
   // ──────────────────────────────────
 
+  private static leaderboardCache: { entries: any[]; expiresAt: number } | null = null;
+  private static readonly LEADERBOARD_CACHE_TTL_MS = 45_000;
+
+  static invalidateLeaderboardCache() {
+    this.leaderboardCache = null;
+  }
+
+  /**
+   * Résout le cours officiel côté serveur (jamais le prix fourni par le client).
+   */
+  private static async resolveServerMarketPrice(
+    symbol: string,
+    dbClient: SupabaseClient
+  ): Promise<number> {
+    const liveStock = await MarketListScraper.getLiveStock(symbol);
+    if (liveStock?.price) {
+      const parsedLive = parseFloat(liveStock.price.replace(',', '.').replace(/\s/g, ''));
+      if (Number.isFinite(parsedLive) && parsedLive > 0) {
+        return parsedLive;
+      }
+    }
+
+    // Fallback serveur de confiance : dernier cours officiel persisté dans market_history (hors horaires BVC)
+    const cleanSymbol = InputSanitizer.sanitizeForDb(symbol);
+    if (cleanSymbol) {
+      const { data: comp } = await dbClient
+        .from('companies')
+        .select('id')
+        .ilike('symbol', cleanSymbol)
+        .limit(1)
+        .maybeSingle();
+
+      if (comp?.id) {
+        const { data: lastHist } = await dbClient
+          .from('market_history')
+          .select('price')
+          .eq('company_id', comp.id)
+          .order('timestamp', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const histPrice = Number(lastHist?.price);
+        if (Number.isFinite(histPrice) && histPrice > 0) {
+          return histPrice;
+        }
+      }
+    }
+
+    throw new Error(
+      `Cotation officielle temps réel indisponible pour ${symbol.toUpperCase()}. Ordre virtuel refusé par sécurité.`
+    );
+  }
+
   static async addVirtualTransaction(
     client: SupabaseClient, 
     tx: Omit<PortfolioTransaction, 'id' | 'created_at' | 'user_id' | 'is_virtual'>,
@@ -617,7 +680,7 @@ export class PortfolioService {
     const { data: { user } } = await client.auth.getUser();
     if (!user) throw new Error('Utilisateur non authentifié. Veuillez vous reconnecter.');
 
-    // 🔒 Validation stricte Zod (empêche les quantités ou prix négatifs / NaN / Infinity)
+    // 🔒 Validation stricte Zod (empêche les quantités négatives / NaN / Infinity)
     const VirtualInputSchema = PortfolioTransactionSchema.omit({
       id: true,
       created_at: true,
@@ -630,20 +693,27 @@ export class PortfolioService {
     }
     const validTx = parsed.data;
     const txType = validTx.type || 'BUY';
+    const canonicalSymbol = validTx.symbol.trim().toUpperCase();
+    const privilegedDb = adminClient || client;
+
+    // 🔒 SÉCURITÉ ANTI-TRICHE : Ignorer buy_price et buy_date envoyés par le client
+    const marketPrice = await this.resolveServerMarketPrice(canonicalSymbol, privilegedDb);
+    const serverToday = new Date().toISOString().split('T')[0];
 
     // 🔒 Exécution atomique PostgreSQL (SELECT ... FOR UPDATE) via service_role pour éliminer les conditions de course TOCTOU
     if (adminClient) {
       const { data: rpcData, error: rpcError } = await adminClient.rpc('execute_virtual_order', {
         p_user_id: user.id,
-        p_symbol: validTx.symbol,
+        p_symbol: canonicalSymbol,
         p_type: txType,
         p_quantity: validTx.quantity,
-        p_price: validTx.buy_price,
-        p_buy_date: validTx.buy_date,
+        p_price: marketPrice,
+        p_buy_date: serverToday,
         p_fee_rate: BROKERAGE_FEE,
       });
 
       if (!rpcError && rpcData) {
+        this.invalidateLeaderboardCache();
         return rpcData;
       }
 
@@ -658,13 +728,18 @@ export class PortfolioService {
     }
 
     // Fallback serveur sécurisé via adminClient uniquement si la migration RPC n'a pas encore été exécutée en base
-    const privilegedDb = adminClient || client;
     const profile = await this.getUserProfile(client);
     if (!profile) throw new Error('Profil utilisateur introuvable.');
 
     const currentBalance = profile.virtual_balance ?? 100000;
-    const transactionValue = validTx.quantity * validTx.buy_price;
+    const transactionValue = validTx.quantity * marketPrice;
     const fee = transactionValue * BROKERAGE_FEE;
+    const certifiedTx = {
+      ...validTx,
+      symbol: canonicalSymbol,
+      buy_price: marketPrice,
+      buy_date: serverToday,
+    };
 
     if (txType === 'BUY') {
       const totalCost = transactionValue + fee;
@@ -674,7 +749,7 @@ export class PortfolioService {
 
       const { data, error } = await privilegedDb
         .from('portfolio_transactions')
-        .insert([{ ...validTx, user_id: user.id, is_virtual: true }])
+        .insert([{ ...certifiedTx, user_id: user.id, is_virtual: true }])
         .select();
 
       if (error) throw error;
@@ -685,11 +760,12 @@ export class PortfolioService {
         .upsert({ user_id: user.id, virtual_balance: newBalance, updated_at: new Date().toISOString() });
       if (balErr) throw balErr;
 
+      this.invalidateLeaderboardCache();
       return data[0];
     } else {
       const txs = await this.getTransactions(client, true);
       const holdings = this.calculateHoldings(txs);
-      const holding = holdings.find(h => h.symbol.toLowerCase() === validTx.symbol.toLowerCase());
+      const holding = holdings.find(h => h.symbol.toLowerCase() === canonicalSymbol.toLowerCase());
 
       if (!holding || holding.totalQuantity < validTx.quantity) {
         throw new Error(`Quantité insuffisante d'actions à vendre (${holding?.totalQuantity || 0} possédées vs ${validTx.quantity} demandées)`);
@@ -697,7 +773,7 @@ export class PortfolioService {
 
       const { data, error } = await privilegedDb
         .from('portfolio_transactions')
-        .insert([{ ...validTx, user_id: user.id, is_virtual: true }])
+        .insert([{ ...certifiedTx, user_id: user.id, is_virtual: true }])
         .select();
 
       if (error) throw error;
@@ -709,6 +785,7 @@ export class PortfolioService {
         .upsert({ user_id: user.id, virtual_balance: newBalance, updated_at: new Date().toISOString() });
       if (balErr) throw balErr;
 
+      this.invalidateLeaderboardCache();
       return data[0];
     }
   }
@@ -731,7 +808,10 @@ export class PortfolioService {
         p_initial_capital: initialCapital,
       });
 
-      if (!rpcError) return;
+      if (!rpcError) {
+        this.invalidateLeaderboardCache();
+        return;
+      }
 
       const isMissingRpc =
         rpcError.code === 'PGRST202' ||
@@ -767,6 +847,7 @@ export class PortfolioService {
         updated_at: new Date().toISOString(),
       });
     if (profErr) throw profErr;
+    this.invalidateLeaderboardCache();
   }
 
   static async getLeaderboard(
@@ -775,6 +856,19 @@ export class PortfolioService {
     hmacSecret?: string
   ): Promise<any[]> {
     const { data: { user: currentUser } } = await client.auth.getUser();
+    const now = Date.now();
+    const currentAnonHash = currentUser
+      ? (await anonymizeUserId(String(currentUser.id), hmacSecret || 'aetheris-leaderboard-v1')).substring(0, 16)
+      : null;
+
+    // 🔒 SÉCURITÉ ANTI-DoS : Cache mémoire court terme (45s) évitant un scan complet O(N) à chaque requête
+    if (this.leaderboardCache && now < this.leaderboardCache.expiresAt) {
+      return this.leaderboardCache.entries.map((entry) => ({
+        ...entry,
+        isCurrentUser: Boolean(currentAnonHash && entry.userId === `anon_${currentAnonHash}`),
+      }));
+    }
+
     const readDb = adminClient || client;
 
     const { data: profiles, error: pError } = await readDb
@@ -841,6 +935,12 @@ export class PortfolioService {
       })
     );
 
-    return leaderboard.sort((a, b) => b.roi - a.roi);
+    const sorted = leaderboard.sort((a, b) => b.roi - a.roi);
+    this.leaderboardCache = {
+      entries: sorted.map((e) => ({ ...e, isCurrentUser: false })),
+      expiresAt: Date.now() + this.LEADERBOARD_CACHE_TTL_MS,
+    };
+
+    return sorted;
   }
 }

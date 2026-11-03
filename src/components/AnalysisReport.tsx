@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CompanyAnalysis, Sentiment } from '@/lib/agent-engine';
+import type { CompanyAnalysis, Sentiment } from '@/lib/schemas';
 import { TrendingUp, TrendingDown, Minus, Info, Calendar, Building2, ChevronDown, ChevronUp, Newspaper } from 'lucide-react';
 
 interface AnalysisReportProps {

@@ -1,4 +1,4 @@
-import { CompanyAnalysis, AgentType } from './agent-engine';
+import type { CompanyAnalysis, AgentType } from './schemas';
 
 /**
  * CLIENT-SIDE HISTORY SERVICE

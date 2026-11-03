@@ -16,7 +16,8 @@ export class WafabourseScraper {
           'Referer': 'https://www.wafabourse.com/fr/market-tracking',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': 'application/json'
-        }
+        },
+        signal: AbortSignal.timeout(10000),
       });
 
       if (!tokenRes.ok) {
@@ -65,7 +66,8 @@ export class WafabourseScraper {
       const graphRes = await fetch('https://www.wafabourse.com/api/proxy/data/JNNJ', {
         method: 'POST',
         headers,
-        body: JSON.stringify(postData)
+        body: JSON.stringify(postData),
+        signal: AbortSignal.timeout(10000),
       });
 
       if (!graphRes.ok) {
@@ -105,7 +107,8 @@ export class WafabourseScraper {
           'Referer': 'https://www.wafabourse.com/fr/market-tracking',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': 'application/json'
-        }
+        },
+        signal: AbortSignal.timeout(10000),
       });
 
       if (!tokenRes.ok) {
@@ -151,7 +154,8 @@ export class WafabourseScraper {
       const graphRes = await fetch('https://www.wafabourse.com/api/proxy/data/JNNJ', {
         method: 'POST',
         headers,
-        body: JSON.stringify(postData)
+        body: JSON.stringify(postData),
+        signal: AbortSignal.timeout(10000),
       });
 
       if (!graphRes.ok) {

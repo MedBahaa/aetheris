@@ -1,6 +1,6 @@
 'use client';
 
-import { CompanyAnalysis } from '@/lib/agent-engine';
+import type { CompanyAnalysis } from '@/lib/schemas';
 import { Target, Zap, Activity, Shield, TrendingUp, TrendingDown, Minus, AlertTriangle, BarChart3, Info } from 'lucide-react';
 
 interface TechnicalReportProps {

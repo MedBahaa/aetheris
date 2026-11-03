@@ -8,7 +8,13 @@ import {
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
-import { getUserProfileAction, upsertUserProfileAction, sendTestAlertAction } from '@/lib/portfolio-actions';
+import {
+  getUserProfileAction,
+  upsertUserProfileAction,
+  sendTestAlertAction,
+  requestChannelVerificationAction,
+  confirmChannelVerificationAction,
+} from '@/lib/portfolio-actions';
 import { cancelSubscriptionAction, activateSandboxSubscriptionAction } from '@/lib/stripe-actions';
 import { useRouter } from 'next/navigation';
 import { PremiumPaywallModal } from '@/components/portfolio/PremiumPaywallModal';
@@ -28,7 +34,12 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<any>(null);
   const [newCapital, setNewCapital] = useState('0');
   const [telegramChatId, setTelegramChatId] = useState('');
+  const [telegramVerified, setTelegramVerified] = useState(false);
+  const [telegramOtp, setTelegramOtp] = useState('');
   const [whatsappPhone, setWhatsappPhone] = useState('');
+  const [whatsappVerified, setWhatsappVerified] = useState(false);
+  const [whatsappOtp, setWhatsappOtp] = useState('');
+  const [verifyingChannel, setVerifyingChannel] = useState<string | null>(null);
   const [alertChannel, setAlertChannel] = useState('EMAIL');
   const [notificationEmail, setNotificationEmail] = useState('');
   const [username, setUsername] = useState('');
@@ -65,7 +76,9 @@ export default function ProfilePage() {
         setProfile(prof);
         if (prof.initial_capital) setNewCapital(prof.initial_capital.toString());
         if (prof.telegram_chat_id) setTelegramChatId(prof.telegram_chat_id);
+        setTelegramVerified(Boolean(prof.telegram_verified));
         if (prof.whatsapp_phone) setWhatsappPhone(prof.whatsapp_phone);
+        setWhatsappVerified(Boolean(prof.whatsapp_verified));
         if (prof.alert_channel) setAlertChannel(prof.alert_channel);
         if (prof.notification_email) setNotificationEmail(prof.notification_email);
         if (prof.username) setUsername(prof.username);
@@ -174,6 +187,40 @@ export default function ProfilePage() {
       setTimeout(() => setSaveMessage(null), 6000);
     } finally {
       setTestingAlert(false);
+    }
+  };
+
+  const handleRequestChannelOtp = async (channel: 'TELEGRAM' | 'WHATSAPP') => {
+    try {
+      setVerifyingChannel(`${channel}_REQ`);
+      const res = await requestChannelVerificationAction(channel);
+      setSaveMessage({
+        type: res.success ? 'success' : 'error',
+        text: (res.success ? res.message : res.error) || 'Opération terminée.',
+      });
+      setTimeout(() => setSaveMessage(null), 6000);
+    } finally {
+      setVerifyingChannel(null);
+    }
+  };
+
+  const handleConfirmChannelOtp = async (channel: 'TELEGRAM' | 'WHATSAPP') => {
+    const code = channel === 'TELEGRAM' ? telegramOtp : whatsappOtp;
+    try {
+      setVerifyingChannel(`${channel}_CONFIRM`);
+      const res = await confirmChannelVerificationAction(channel, code);
+      setSaveMessage({
+        type: res.success ? 'success' : 'error',
+        text: (res.success ? res.message : res.error) || 'Opération terminée.',
+      });
+      if (res.success) {
+        if (channel === 'TELEGRAM') setTelegramOtp('');
+        else setWhatsappOtp('');
+        loadProfile(false);
+      }
+      setTimeout(() => setSaveMessage(null), 6000);
+    } finally {
+      setVerifyingChannel(null);
     }
   };
 
@@ -407,6 +454,44 @@ export default function ProfilePage() {
                           />
                         </div>
 
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', marginTop: '10px' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 700, color: telegramVerified ? '#10b981' : '#f59e0b' }}>
+                            {telegramVerified ? '✅ CANAL VÉRIFIÉ' : '⚠️ VÉRIFICATION OTP REQUISE'}
+                          </span>
+                          {!telegramVerified && telegramChatId.trim() && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleRequestChannelOtp('TELEGRAM')}
+                                disabled={verifyingChannel !== null}
+                                className="integration-link purple"
+                                style={{ cursor: 'pointer', border: 'none' }}
+                              >
+                                {verifyingChannel === 'TELEGRAM_REQ' ? 'ENVOI...' : 'ENVOYER CODE OTP'}
+                              </button>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={6}
+                                value={telegramOtp}
+                                onChange={(e) => setTelegramOtp(e.target.value.replace(/[^0-9]/g, ''))}
+                                placeholder="Code 6 chiffres"
+                                className="terminal-input purple-focus"
+                                style={{ width: '130px', height: '32px', padding: '0 8px', fontSize: '12px' }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleConfirmChannelOtp('TELEGRAM')}
+                                disabled={verifyingChannel !== null || telegramOtp.length !== 6}
+                                className="integration-link emerald"
+                                style={{ cursor: 'pointer', border: 'none' }}
+                              >
+                                {verifyingChannel === 'TELEGRAM_CONFIRM' ? '...' : 'VALIDER'}
+                              </button>
+                            </>
+                          )}
+                        </div>
+
                         <div className="setup-guide">
                           <h4>🛠️ Instructions rapides :</h4>
                           <ol>
@@ -442,6 +527,44 @@ export default function ProfilePage() {
                             placeholder="Ex: 212661000000 (sans le +)" 
                             className="terminal-input emerald-focus"
                           />
+                        </div>
+
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', marginTop: '10px' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 700, color: whatsappVerified ? '#10b981' : '#f59e0b' }}>
+                            {whatsappVerified ? '✅ NUMÉRO VÉRIFIÉ' : '⚠️ VÉRIFICATION OTP REQUISE'}
+                          </span>
+                          {!whatsappVerified && whatsappPhone.trim() && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleRequestChannelOtp('WHATSAPP')}
+                                disabled={verifyingChannel !== null}
+                                className="integration-link emerald"
+                                style={{ cursor: 'pointer', border: 'none' }}
+                              >
+                                {verifyingChannel === 'WHATSAPP_REQ' ? 'ENVOI...' : 'ENVOYER CODE OTP'}
+                              </button>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={6}
+                                value={whatsappOtp}
+                                onChange={(e) => setWhatsappOtp(e.target.value.replace(/[^0-9]/g, ''))}
+                                placeholder="Code 6 chiffres"
+                                className="terminal-input emerald-focus"
+                                style={{ width: '130px', height: '32px', padding: '0 8px', fontSize: '12px' }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleConfirmChannelOtp('WHATSAPP')}
+                                disabled={verifyingChannel !== null || whatsappOtp.length !== 6}
+                                className="integration-link emerald"
+                                style={{ cursor: 'pointer', border: 'none' }}
+                              >
+                                {verifyingChannel === 'WHATSAPP_CONFIRM' ? '...' : 'VALIDER'}
+                              </button>
+                            </>
+                          )}
                         </div>
 
                         <div className="setup-guide">
@@ -497,14 +620,9 @@ export default function ProfilePage() {
                       <button 
                         type="button" 
                         onClick={async () => {
-                          const { supabase } = await import('@/lib/supabase');
+                          const { supabase, purgeClientSessionData } = await import('@/lib/supabase');
                           await supabase.auth.signOut();
-                          localStorage.removeItem('aetheris_last_activity_time');
-                          localStorage.removeItem('aetheris_user_profile');
-                          localStorage.removeItem('agent_history');
-                          if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                            navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_AUTH_CACHE' });
-                          }
+                          purgeClientSessionData();
                           window.location.href = '/login';
                         }}
                         className="profile-logout-btn"

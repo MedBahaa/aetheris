@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useTransition, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { CompanyAnalysis, AgentType } from '@/lib/agent-engine';
+import type { CompanyAnalysis, AgentType } from '@/lib/schemas';
 import { analyzeCompanyAction } from '@/lib/actions';
 import { HistoryService } from '@/lib/history-service';
 import { PremiumPaywallModal } from '@/components/portfolio/PremiumPaywallModal';
