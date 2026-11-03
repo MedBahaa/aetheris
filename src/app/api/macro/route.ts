@@ -1,10 +1,22 @@
 import { NextResponse } from 'next/server';
 import { MacroScraper } from '@/lib/scrapers/macro-scraper';
 import { corsHeaders, handleOptionsRequest } from '@/lib/api-headers';
+import { checkRateLimitAsync, getClientIp } from '@/lib/rate-limiter';
 
 export function OPTIONS() { return handleOptionsRequest(); }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const clientIp = getClientIp(req);
+  const rateCheck = await checkRateLimitAsync(`macro:${clientIp}`, 30, 60_000);
+  if (!rateCheck.allowed) {
+    return corsHeaders(
+      NextResponse.json(
+        { error: 'Trop de requêtes.' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(rateCheck.retryAfterMs / 1000)) } }
+      )
+    );
+  }
+
   try {
     const data = await MacroScraper.getMacroData();
     if (!data) {

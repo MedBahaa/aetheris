@@ -1,7 +1,28 @@
-import { PortfolioTransaction, PortfolioHolding, DividendTransaction, PriceAlert, PortfolioTransactionSchema, DividendTransactionSchema } from './schemas';
+import { PortfolioTransaction, PortfolioHolding, DividendTransaction, PriceAlert, PortfolioTransactionSchema, DividendTransactionSchema, UpsertAlertInputSchema, UserProfileClientInputSchema } from './schemas';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { BROKERAGE_FEE, TAX_ON_PROFIT, DIVIDEND_NET_RATIO } from './portfolio-constants';
 import { MarketListScraper } from './scrapers/market-list-scraper';
+import { InputSanitizer } from './input-sanitizer';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_BULK_IMPORT_ROWS = 500;
+
+/**
+ * Hachage déterministe (FNV-1a 64-bit hex) compatible navigateur & serveur
+ * pour anonymiser les identifiants utilisateurs publics sur le Leaderboard.
+ */
+function anonymizeUserId(rawId: string): string {
+  let h1 = 0xdeadbeef ^ rawId.length;
+  let h2 = 0x41c6ce57 ^ rawId.length;
+  for (let i = 0; i < rawId.length; i++) {
+    const ch = rawId.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0');
+}
 
 export class PortfolioService {
   /**
@@ -120,6 +141,15 @@ export class PortfolioService {
     if (!userResp.data.user) throw new Error("Non autorisé");
     const userId = userResp.data.user.id;
 
+    if (
+      !Array.isArray(data.transactions) ||
+      !Array.isArray(data.dividends) ||
+      data.transactions.length > MAX_BULK_IMPORT_ROWS ||
+      data.dividends.length > MAX_BULK_IMPORT_ROWS
+    ) {
+      throw new Error(`Import limité à ${MAX_BULK_IMPORT_ROWS} lignes maximum par lot.`);
+    }
+
     // Validation Zod pour les transactions
     const ImportTransactionSchema = PortfolioTransactionSchema.omit({ id: true, created_at: true, user_id: true });
     for (const tx of data.transactions) {
@@ -171,9 +201,16 @@ export class PortfolioService {
   ) {
     const { data: { user } } = await client.auth.getUser();
     if (!user) throw new Error('Non authentifié');
+
+    const InputSchema = DividendTransactionSchema.omit({ id: true, created_at: true, user_id: true });
+    const parsed = InputSchema.safeParse(div);
+    if (!parsed.success) {
+      throw new Error(parsed.error.issues[0]?.message || 'Données de dividende invalides');
+    }
+
     const { data, error } = await client
       .from('portfolio_dividends')
-      .insert([{ ...div, user_id: user.id }])
+      .insert([{ ...parsed.data, user_id: user.id }])
       .select();
     if (error) throw error;
     if (!data || data.length === 0) throw new Error("Erreur lors de l'enregistrement du dividende");
@@ -181,7 +218,15 @@ export class PortfolioService {
   }
 
   static async deleteDividend(client: SupabaseClient, id: string) {
-    const { error } = await client.from('portfolio_dividends').delete().eq('id', id);
+    const { data: { user } } = await client.auth.getUser();
+    if (!user) throw new Error('Non authentifié');
+    if (!UUID_REGEX.test(id)) throw new Error('Identifiant de dividende invalide');
+
+    const { error } = await client
+      .from('portfolio_dividends')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id);
     if (error) throw error;
   }
 
@@ -252,9 +297,15 @@ export class PortfolioService {
   ) {
     const { data: { user } } = await client.auth.getUser();
     if (!user) throw new Error('Non authentifié');
+
+    const parsed = UpsertAlertInputSchema.safeParse(alert);
+    if (!parsed.success) {
+      throw new Error(parsed.error.issues[0]?.message || "Paramètres d'alerte invalides");
+    }
+
     const { data, error } = await client
       .from('portfolio_alerts')
-      .upsert({ ...alert, user_id: user.id, is_active: true }, { onConflict: 'user_id,symbol' })
+      .upsert({ ...parsed.data, user_id: user.id, is_active: true }, { onConflict: 'user_id,symbol' })
       .select();
     if (error) throw error;
     if (!data || data.length === 0) throw new Error("Erreur lors de l'enregistrement de l'alerte");
@@ -271,9 +322,16 @@ export class PortfolioService {
   ) {
     const { data: { user } } = await client.auth.getUser();
     if (!user) throw new Error('Utilisateur non authentifié. Veuillez vous reconnecter.');
+
+    const InputSchema = PortfolioTransactionSchema.omit({ id: true, created_at: true, user_id: true });
+    const parsed = InputSchema.safeParse(tx);
+    if (!parsed.success) {
+      throw new Error(parsed.error.issues[0]?.message || 'Données de transaction invalides');
+    }
+
     const { data, error } = await client
       .from('portfolio_transactions')
-      .insert([{ ...tx, user_id: user.id }])
+      .insert([{ ...parsed.data, user_id: user.id }])
       .select();
     if (error) throw error;
     if (!data || data.length === 0) throw new Error("Erreur lors de l'enregistrement de la transaction");
@@ -281,12 +339,29 @@ export class PortfolioService {
   }
 
   static async deleteTransaction(client: SupabaseClient, id: string) {
-    const { error } = await client.from('portfolio_transactions').delete().eq('id', id);
+    const { data: { user } } = await client.auth.getUser();
+    if (!user) throw new Error('Non authentifié');
+    if (!UUID_REGEX.test(id)) throw new Error('Identifiant de transaction invalide');
+
+    const { error } = await client
+      .from('portfolio_transactions')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id);
     if (error) throw error;
   }
 
   static async deleteSymbolTransactions(client: SupabaseClient, symbol: string) {
-    const { error } = await client.from('portfolio_transactions').delete().eq('symbol', symbol);
+    const { data: { user } } = await client.auth.getUser();
+    if (!user) throw new Error('Non authentifié');
+    const cleanSymbol = InputSanitizer.sanitizeForDb(symbol);
+    if (!cleanSymbol) throw new Error('Symbole invalide');
+
+    const { error } = await client
+      .from('portfolio_transactions')
+      .delete()
+      .eq('symbol', cleanSymbol)
+      .eq('user_id', user.id);
     if (error) throw error;
   }
 
@@ -539,13 +614,26 @@ export class PortfolioService {
     const { data: { user } } = await client.auth.getUser();
     if (!user) throw new Error('Utilisateur non authentifié. Veuillez vous reconnecter.');
 
+    // 🔒 Validation stricte Zod (empêche les quantités ou prix négatifs / NaN / Infinity)
+    const VirtualInputSchema = PortfolioTransactionSchema.omit({
+      id: true,
+      created_at: true,
+      user_id: true,
+      is_virtual: true,
+    });
+    const parsed = VirtualInputSchema.safeParse(tx);
+    if (!parsed.success) {
+      throw new Error(parsed.error.issues[0]?.message || 'Transaction virtuelle invalide');
+    }
+    const validTx = parsed.data;
+
     // Récupérer le profil utilisateur pour le solde virtuel
     const profile = await this.getUserProfile(client);
     if (!profile) throw new Error('Profil utilisateur introuvable.');
 
     const currentBalance = profile.virtual_balance ?? 100000;
-    const txType = tx.type || 'BUY';
-    const transactionValue = tx.quantity * tx.buy_price;
+    const txType = validTx.type || 'BUY';
+    const transactionValue = validTx.quantity * validTx.buy_price;
     const fee = transactionValue * BROKERAGE_FEE;
 
     if (txType === 'BUY') {
@@ -556,7 +644,7 @@ export class PortfolioService {
       
       const { data, error } = await client
         .from('portfolio_transactions')
-        .insert([{ ...tx, user_id: user.id, is_virtual: true }])
+        .insert([{ ...validTx, user_id: user.id, is_virtual: true }])
         .select();
 
       if (error) throw error;
@@ -569,15 +657,15 @@ export class PortfolioService {
       // Vente
       const txs = await this.getTransactions(client, true);
       const holdings = this.calculateHoldings(txs);
-      const holding = holdings.find(h => h.symbol.toLowerCase() === tx.symbol.toLowerCase());
+      const holding = holdings.find(h => h.symbol.toLowerCase() === validTx.symbol.toLowerCase());
 
-      if (!holding || holding.totalQuantity < tx.quantity) {
-        throw new Error(`Quantité insuffisante d'actions à vendre (${holding?.totalQuantity || 0} possédées vs ${tx.quantity} demandées)`);
+      if (!holding || holding.totalQuantity < validTx.quantity) {
+        throw new Error(`Quantité insuffisante d'actions à vendre (${holding?.totalQuantity || 0} possédées vs ${validTx.quantity} demandées)`);
       }
 
       const { data, error } = await client
         .from('portfolio_transactions')
-        .insert([{ ...tx, user_id: user.id, is_virtual: true }])
+        .insert([{ ...validTx, user_id: user.id, is_virtual: true }])
         .select();
 
       if (error) throw error;
@@ -593,6 +681,10 @@ export class PortfolioService {
   static async resetVirtualPortfolio(client: SupabaseClient, initialCapital: number = 100000) {
     const { data: { user } } = await client.auth.getUser();
     if (!user) throw new Error('Non authentifié');
+
+    if (!Number.isFinite(initialCapital) || initialCapital <= 0 || initialCapital > 10_000_000) {
+      throw new Error('Le capital virtuel initial doit être compris entre 1 et 10 000 000 MAD.');
+    }
 
     const { error: txError } = await client
       .from('portfolio_transactions')
@@ -615,6 +707,8 @@ export class PortfolioService {
   }
 
   static async getLeaderboard(client: SupabaseClient): Promise<any[]> {
+    const { data: { user: currentUser } } = await client.auth.getUser();
+
     const { data: profiles, error: pError } = await client
       .from('user_profiles')
       .select('user_id, username, virtual_initial_capital, virtual_balance');
@@ -660,10 +754,13 @@ export class PortfolioService {
       const initial = Number(profile.virtual_initial_capital) || 100000;
       const roi = initial > 0 ? ((totalValue / initial) - 1) * 100 : 0;
 
-      const displayName = profile.username || `Trader_${profile.user_id.substring(0, 6)}`;
+      // 🔒 SÉCURITÉ VIE PRIVÉE : Anonymisation des UUIDs (aucun UUID brut auth.users exposé au client)
+      const anonId = anonymizeUserId(String(profile.user_id)).substring(0, 12);
+      const displayName = profile.username || `Trader_${anonId.substring(0, 6)}`;
 
       return {
-        userId: profile.user_id,
+        userId: `anon_${anonId}`,
+        isCurrentUser: Boolean(currentUser && currentUser.id === profile.user_id),
         username: displayName,
         totalValue,
         virtualBalance: Number(profile.virtual_balance),

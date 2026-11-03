@@ -71,4 +71,38 @@ export class InputSanitizer {
     clean = clean.replace(/%/g, '').replace(/_/g, '');
     return clean;
   }
+
+  /**
+   * Échappe les caractères HTML spéciaux pour prévenir l'injection HTML/XSS
+   * dans les emails transactionnels (Resend) et messages Telegram (parse_mode: HTML).
+   */
+  static escapeHtml(input: string): string {
+    if (!input) return '';
+    return String(input)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  /**
+   * Protège contre l'injection de formules CSV (CSV / DDE Formula Injection)
+   * Préfixe toute cellule commençant par =, +, -, @, \t ou \r et échappe les guillemets.
+   */
+  static sanitizeCsvCell(val: unknown): string {
+    if (val === null || val === undefined) return '';
+    if (typeof val === 'number') {
+      return Number.isFinite(val) ? String(val) : '0';
+    }
+    const str = String(val).replace(/[\r\n]+/g, ' ').trim();
+    const escaped = str.replace(/"/g, '""');
+    if (/^[=+\-@\t\r]/.test(escaped)) {
+      return `"'${escaped}"`;
+    }
+    if (escaped.includes(',') || escaped.includes('"') || escaped.includes(';')) {
+      return `"${escaped}"`;
+    }
+    return escaped;
+  }
 }

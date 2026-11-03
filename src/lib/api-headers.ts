@@ -26,6 +26,8 @@ export function corsHeaders(response: NextResponse): NextResponse {
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('X-Frame-Options', 'DENY');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set('X-Permitted-Cross-Domain-Policies', 'none');
+  response.headers.set('X-DNS-Prefetch-Control', 'off');
   
   return response;
 }

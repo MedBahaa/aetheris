@@ -140,7 +140,7 @@ async function callMistral(prompt: string): Promise<string> {
 /** Orchestrateur d'IA avec Fallback automatique */
 async function unifiedAICall(prompt: string, isJson: boolean = true, preferredModel?: string, customApiKey?: string, useGrounding: boolean = false, fileData?: { data: string, mimeType: string }, responseSchema?: any, temperature?: number): Promise<string> {
   const hashObj = prompt + isJson + (preferredModel || '') + (customApiKey || '') + useGrounding + (fileData ? 'FILE' : '');
-  const hash = crypto.createHash('md5').update(hashObj).digest('hex');
+  const hash = crypto.createHash('sha256').update(hashObj).digest('hex');
   const cacheKey = `aetheris:prompt:${hash}`;
 
   try {

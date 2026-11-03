@@ -1,10 +1,11 @@
 'use server';
 
 import { PortfolioService } from './portfolio-service';
-import { PortfolioTransaction, DividendTransaction, PriceAlert } from './schemas';
+import { PortfolioTransaction, DividendTransaction, PriceAlert, UserProfileClientInputSchema } from './schemas';
 import { revalidatePath } from 'next/cache';
 import { createServerSupabase } from './supabase-server';
 import { GeminiService } from './gemini';
+import { checkRateLimitAsync } from './rate-limiter';
 import { Resend } from 'resend';
 
 // ──────────────────────────────────────
@@ -42,6 +43,14 @@ export async function bulkImportAction(data: {
   dividends: Omit<DividendTransaction, 'id' | 'created_at' | 'user_id'>[]
 }) {
   const client = await createServerSupabase();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) throw new Error('Non authentifié');
+
+  const limit = await checkRateLimitAsync(`bulk-import:${user.id}`, 5, 10 * 60_000);
+  if (!limit.allowed) {
+    throw new Error('Trop d\'imports CSV récents. Veuillez patienter quelques minutes.');
+  }
+
   await PortfolioService.bulkImport(client, data);
   revalidatePath('/portfolio');
 }
@@ -105,18 +114,33 @@ export async function getUserProfileAction() {
 
 export async function upsertUserProfileAction(profile: { 
   initial_capital?: number; 
-  subscription_tier?: string;
   telegram_chat_id?: string;
   whatsapp_phone?: string;
   alert_channel?: string;
   notification_email?: string;
   username?: string;
-  virtual_initial_capital?: number;
-  virtual_balance?: number;
 }) {
   try {
+    // 🔒 SÉCURITÉ CRITIQUE : Valider avec Zod et interdire toute modification directe
+    // de `subscription_tier`, `virtual_balance` ou `virtual_initial_capital` depuis le client.
+    const parsed = UserProfileClientInputSchema.safeParse({
+      initial_capital: profile.initial_capital,
+      telegram_chat_id: profile.telegram_chat_id,
+      whatsapp_phone: profile.whatsapp_phone,
+      alert_channel: profile.alert_channel,
+      notification_email: profile.notification_email,
+      username: profile.username,
+    });
+
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: parsed.error.issues[0]?.message || 'Paramètres de profil invalides',
+      };
+    }
+
     const client = await createServerSupabase();
-    const data = await PortfolioService.upsertUserProfile(client, profile);
+    const data = await PortfolioService.upsertUserProfile(client, parsed.data);
     revalidatePath('/portfolio');
     return { success: true, data };
   } catch (err: any) {
@@ -143,11 +167,35 @@ export async function resetVirtualPortfolioAction(initialCapital?: number) {
 
 export async function getLeaderboardAction() {
   const client = await createServerSupabase();
+  const { data: { user } } = await client.auth.getUser();
+  const limit = await checkRateLimitAsync(`leaderboard:${user?.id || 'anon'}`, 20, 60_000);
+  if (!limit.allowed) {
+    throw new Error('Trop de requêtes sur le classement. Veuillez patienter.');
+  }
   return await PortfolioService.getLeaderboard(client);
 }
 
 export async function optimizePortfolioAction(holdings: any[]) {
-  return await GeminiService.optimizePortfolio(holdings);
+  const client = await createServerSupabase();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) {
+    throw new Error('Authentification requise pour utiliser le Robo-Advisor.');
+  }
+
+  // 🔒 SÉCURITÉ SAAS : Vérifier l'abonnement PRO côté serveur
+  const profile = await PortfolioService.getUserProfile(client);
+  if (profile?.subscription_tier !== 'premium') {
+    throw new Error('PAYWALL_BLOCKED: Le Robo-Advisor IA est réservé aux abonnés PRO.');
+  }
+
+  // 🔒 Rate Limiting anti-abus IA (max 6 optimisations par 10 minutes par utilisateur)
+  const limit = await checkRateLimitAsync(`optimize:${user.id}`, 6, 10 * 60 * 1000);
+  if (!limit.allowed) {
+    throw new Error('Limite d\'optimisations IA atteinte. Veuillez patienter quelques minutes.');
+  }
+
+  const safeHoldings = Array.isArray(holdings) ? holdings.slice(0, 50) : [];
+  return await GeminiService.optimizePortfolio(safeHoldings);
 }
 
 export async function sendTestAlertAction(): Promise<{ success: boolean; message?: string; error?: string }> {
@@ -155,6 +203,16 @@ export async function sendTestAlertAction(): Promise<{ success: boolean; message
     const client = await createServerSupabase();
     const { data: { user } } = await client.auth.getUser();
     if (!user) return { success: false, error: 'Non authentifié. Veuillez vous connecter.' };
+
+    // 🔒 Rate Limiting strict (max 3 tests d'alerte toutes les 15 minutes)
+    const rateLimit = await checkRateLimitAsync(`test-alert:${user.id}`, 3, 15 * 60 * 1000);
+    if (!rateLimit.allowed) {
+      const waitMin = Math.ceil(rateLimit.retryAfterMs / 60000);
+      return {
+        success: false,
+        error: `Trop de tests envoyés. Veuillez patienter ${waitMin} minute(s) avant de réessayer.`,
+      };
+    }
 
     const profile = await PortfolioService.getUserProfile(client);
     const targetEmail = profile?.notification_email || user.email;

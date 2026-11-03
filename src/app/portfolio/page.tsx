@@ -24,6 +24,7 @@ import {
   getLeaderboardAction,
   optimizePortfolioAction
 } from '@/lib/portfolio-actions';
+import { activateSandboxSubscriptionAction } from '@/lib/stripe-actions';
 import { PortfolioStats } from '@/components/portfolio/PortfolioStats';
 import { SectorAllocationDonut } from '@/components/portfolio/SectorAllocationDonut';
 import { PortfolioEvolutionChart } from '@/components/portfolio/PortfolioEvolutionChart';
@@ -36,6 +37,7 @@ import { RoboAdvisorPanel } from '@/components/portfolio/RoboAdvisorPanel';
 import { PortfolioService } from '@/lib/portfolio-service';
 import { BROKERAGE_FEE, TAX_ON_PROFIT } from '@/lib/portfolio-constants';
 import { SymbolMapper } from '@/lib/symbol-mapper';
+import { InputSanitizer } from '@/lib/input-sanitizer';
 import { useRouter } from 'next/navigation';
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
@@ -311,10 +313,12 @@ export default function PortfolioPage() {
 
   const handleUpgrade = async () => {
     try {
-      setSubscriptionTier('premium');
-      await upsertUserProfileAction({ initial_capital: initialCapital, subscription_tier: 'premium' });
-      setShowPaywallModal(false);
-      setShowRoboPanel(true);
+      const res = await activateSandboxSubscriptionAction();
+      if (res.success) {
+        setSubscriptionTier('premium');
+        setShowPaywallModal(false);
+        setShowRoboPanel(true);
+      }
     } catch (err) {
       console.error(err);
     }
@@ -327,9 +331,21 @@ export default function PortfolioPage() {
   const exportToCsv = (txs: any[], divs: any[]) => {
     const rows = [
       ["TYPE", "SYMBOLE", "QUANTITÉ", "PRIX", "DATE"],
-      ...txs.map(t => [t.type || 'BUY', t.symbol, t.quantity, t.buy_price, t.buy_date]),
+      ...txs.map(t => [
+        InputSanitizer.sanitizeCsvCell(t.type || 'BUY'),
+        InputSanitizer.sanitizeCsvCell(t.symbol),
+        InputSanitizer.sanitizeCsvCell(t.quantity),
+        InputSanitizer.sanitizeCsvCell(t.buy_price),
+        InputSanitizer.sanitizeCsvCell(t.buy_date),
+      ]),
       ["DIVIDENDE", "SYMBOLE", "-", "MONTANT_UNIT", "DATE"],
-      ...divs.map(d => ["DIV", d.symbol, "-", d.amount_per_share, d.dividend_date])
+      ...divs.map(d => [
+        "DIV",
+        InputSanitizer.sanitizeCsvCell(d.symbol),
+        "-",
+        InputSanitizer.sanitizeCsvCell(d.amount_per_share),
+        InputSanitizer.sanitizeCsvCell(d.dividend_date),
+      ])
     ];
     const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
     const encodedUri = encodeURI(csvContent);
@@ -344,10 +360,17 @@ export default function PortfolioPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // 🔒 SÉCURITÉ : Limiter la taille du fichier CSV à 2 Mo maximum
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Le fichier CSV dépasse la taille maximale autorisée (2 Mo).");
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = async (event) => {
       const text = event.target?.result as string;
-      const lines = text.split('\n').filter(line => line.trim());
+      const lines = text.split('\n').filter(line => line.trim()).slice(0, 505);
       
       const importedTransactions = [];
       const importedDividends = [];
@@ -761,7 +784,7 @@ export default function PortfolioPage() {
                     {leaderboard.map((item, index) => {
                       const isTop3 = index < 3;
                       const badgeColor = index === 0 ? '#f59e0b' : index === 1 ? '#cbd5e1' : index === 2 ? '#b45309' : '';
-                      const isCurrentUser = item.userId === (transactions[0]?.user_id || item.userId);
+                      const isCurrentUser = Boolean(item.isCurrentUser);
                       
                       return (
                         <tr 

@@ -17,6 +17,13 @@ export async function proxy(request: NextRequest) {
   response.headers.set('X-Frame-Options', 'DENY')
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  response.headers.set('X-Permitted-Cross-Domain-Policies', 'none')
+  response.headers.set('X-DNS-Prefetch-Control', 'off')
+  response.headers.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups')
+  response.headers.set(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=(), interest-cohort=()'
+  )
   response.headers.set(
     'Strict-Transport-Security',
     'max-age=31536000; includeSubDomains; preload'
@@ -82,9 +89,22 @@ export async function proxy(request: NextRequest) {
 
   // Routes publiques accessibles sans être connecté
   const publicRoutes = ['/', '/console', '/login', '/auth/callback', '/marche-live', '/offline']
-  const isPublicRoute = publicRoutes.includes(pathname) || pathname.startsWith('/auth/')
+  const publicApiPrefixes = [
+    '/api/market-live',
+    '/api/market-index',
+    '/api/macro',
+    '/api/dividendes',
+    '/api/companies/',
+    '/api/cron/',
+    '/api/market-cron',
+    '/api/webhooks/stripe',
+  ]
+  const isPublicRoute =
+    publicRoutes.includes(pathname) ||
+    pathname.startsWith('/auth/') ||
+    publicApiPrefixes.some((prefix) => pathname.startsWith(prefix))
 
-  // Si l'utilisateur n'est pas connecté et tente d'accéder à une page protégée
+  // Si l'utilisateur n'est pas connecté et tente d'accéder à une page ou API protégée
   if (!user && !isPublicRoute) {
     if (isApiRoute || isServerAction) {
       return NextResponse.json(
@@ -111,8 +131,8 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for static assets
+     * Match all request paths (including /api/) except for static assets
      */
-    '/((?!api/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

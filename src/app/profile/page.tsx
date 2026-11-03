@@ -9,6 +9,7 @@ import {
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import { getUserProfileAction, upsertUserProfileAction, sendTestAlertAction } from '@/lib/portfolio-actions';
+import { cancelSubscriptionAction, activateSandboxSubscriptionAction } from '@/lib/stripe-actions';
 import { useRouter } from 'next/navigation';
 import { PremiumPaywallModal } from '@/components/portfolio/PremiumPaywallModal';
 
@@ -127,7 +128,6 @@ export default function ProfilePage() {
 
       const payload = {
         initial_capital: cap,
-        subscription_tier: targetTier,
         telegram_chat_id: telegramChatId,
         whatsapp_phone: whatsappPhone,
         alert_channel: alertChannel,
@@ -179,17 +179,13 @@ export default function ProfilePage() {
 
   const handleUpgrade = async () => {
     try {
+      const sbRes = await activateSandboxSubscriptionAction();
+      if (!sbRes.success) {
+        setSaveMessage({ type: 'error', text: sbRes.error || 'Veuillez utiliser le paiement Stripe officiel.' });
+        setTimeout(() => setSaveMessage(null), 4000);
+        return;
+      }
       setSubscriptionTier('premium');
-      const cap = parseFloat(newCapital) || 0;
-      await upsertUserProfileAction({
-        initial_capital: cap,
-        subscription_tier: 'premium',
-        telegram_chat_id: telegramChatId,
-        whatsapp_phone: whatsappPhone,
-        alert_channel: alertChannel,
-        notification_email: notificationEmail,
-        username: username
-      });
       setShowPaywallModal(false);
       setSaveMessage({ type: 'success', text: 'Abonnement activé avec succès ! Bienvenue chez Aetheris Pro.' });
       setTimeout(() => setSaveMessage(null), 4000);
@@ -204,15 +200,10 @@ export default function ProfilePage() {
   const confirmDowngrade = async () => {
     try {
       setSaving(true);
-      const cap = parseFloat(newCapital) || 0;
-      await upsertUserProfileAction({
-        initial_capital: cap,
-        subscription_tier: 'free',
-        telegram_chat_id: telegramChatId,
-        whatsapp_phone: whatsappPhone,
-        alert_channel: alertChannel,
-        username: username
-      });
+      const cancelRes = await cancelSubscriptionAction();
+      if (!cancelRes.success) {
+        throw new Error(cancelRes.error || 'Impossible de résilier l\'abonnement.');
+      }
       setSubscriptionTier('free');
       setShowCancelConfirmModal(false);
       setSaveMessage({ type: 'success', text: 'Abonnement résilié avec succès.' });

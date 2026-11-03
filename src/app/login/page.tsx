@@ -55,18 +55,32 @@ export default function LoginPage() {
     setSuccess(null);
 
     const cleanEmail = email.trim().toLowerCase();
-    const cleanPassword = password.trim();
+    const rawPassword = password;
 
-    if (!cleanEmail || !cleanPassword) {
+    if (!cleanEmail || !rawPassword) {
       setError("VEUILLEZ SAISIR VOTRE EMAIL ET VOTRE MOT DE PASSE.");
       setLoading(false);
       return;
     }
 
     if (mode === 'signup') {
+      // 🔒 SÉCURITÉ : Politique de mot de passe fort à l'inscription (NIST / OWASP)
+      const hasMinLength = rawPassword.length >= 10;
+      const hasUpper = /[A-Z]/.test(rawPassword);
+      const hasLower = /[a-z]/.test(rawPassword);
+      const hasDigitOrSymbol = /[0-9!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(rawPassword);
+
+      if (!hasMinLength || !hasUpper || !hasLower || !hasDigitOrSymbol) {
+        setError(
+          "MOT DE PASSE TROP FAIBLE : Minimum 10 caractères incluant majuscule, minuscule et chiffre ou symbole."
+        );
+        setLoading(false);
+        return;
+      }
+
       const { error: signUpError } = await supabase.auth.signUp({
         email: cleanEmail,
-        password: cleanPassword,
+        password: rawPassword,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
@@ -82,7 +96,7 @@ export default function LoginPage() {
     } else {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
-        password: cleanPassword,
+        password: rawPassword,
       });
 
       if (signInError) {

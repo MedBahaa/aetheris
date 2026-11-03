@@ -1,23 +1,32 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-server';
 import { MarketListScraper } from '@/lib/scrapers/market-list-scraper';
-import { checkRateLimit } from '@/lib/rate-limiter';
+import { checkRateLimitAsync } from '@/lib/rate-limiter';
+import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
+function verifyCronSecret(req: Request): boolean {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    return process.env.NODE_ENV !== 'production';
+  }
+  const authHeader = req.headers.get('authorization') || '';
+  const expected = `Bearer ${cronSecret}`;
+  if (authHeader.length !== expected.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
+}
+
 export async function GET(req: Request) {
-  // Rate limiting strict pour le cron (1 appel par minute max)
-  const rateCheck = checkRateLimit('market-cron', 2, 60000);
-  if (!rateCheck.allowed) {
-    return NextResponse.json({ error: 'Rate limited — Cron déjà en cours' }, { status: 429 });
+  // 🔒 Vérification Fail-Closed de la clé secrète via Authorization: Bearer
+  if (!verifyCronSecret(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Vérification d'une clé secrète pour éviter les appels abusifs
-  const { searchParams } = new URL(req.url);
-  const secret = searchParams.get('secret');
-
-  if (process.env.CRON_SECRET && secret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // Rate limiting strict pour le cron (max 2 appels par minute)
+  const rateCheck = await checkRateLimitAsync('market-cron', 2, 60000);
+  if (!rateCheck.allowed) {
+    return NextResponse.json({ error: 'Rate limited — Cron déjà en cours' }, { status: 429 });
   }
 
   console.log('--- CRON TRIGGERED VIA API (GLOBAL SYNC) ---');

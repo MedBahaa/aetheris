@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-server';
 import { SymbolMapper } from '@/lib/symbol-mapper';
 import { InputSanitizer } from '@/lib/input-sanitizer';
 import { corsHeaders, handleOptionsRequest } from '@/lib/api-headers';
+import { checkRateLimitAsync, getClientIp } from '@/lib/rate-limiter';
 
 import { companySearchSchema } from '@/lib/validations';
 
@@ -11,6 +12,17 @@ export function OPTIONS() {
 }
 
 export async function GET(request: NextRequest) {
+  const clientIp = getClientIp(request);
+  const rateCheck = await checkRateLimitAsync(`search:${clientIp}`, 60, 60_000);
+  if (!rateCheck.allowed) {
+    return corsHeaders(
+      NextResponse.json(
+        { error: 'Trop de requêtes de recherche.' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(rateCheck.retryAfterMs / 1000)) } }
+      )
+    );
+  }
+
   const rawQuery = request.nextUrl.searchParams.get('q') || '';
   const validation = companySearchSchema.safeParse({ query: rawQuery });
 

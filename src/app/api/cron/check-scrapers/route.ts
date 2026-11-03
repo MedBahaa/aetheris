@@ -3,17 +3,28 @@ import { MarketListScraper } from '@/lib/scrapers/market-list-scraper';
 import { IndexScraper } from '@/lib/scrapers/index-scraper';
 import { MacroScraper } from '@/lib/scrapers/macro-scraper';
 import { Resend } from 'resend';
+import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
 const resend = new Resend(process.env.RESEND_API_KEY || '');
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const secret = searchParams.get('secret');
+function verifyCronSecret(request: Request): boolean {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    return process.env.NODE_ENV !== 'production';
+  }
+  const authHeader = request.headers.get('authorization') || '';
+  const expected = `Bearer ${cronSecret}`;
+  if (authHeader.length === expected.length && crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))) {
+    return true;
+  }
+  return false;
+}
 
-  // Protection par clé secrète
-  if (process.env.CRON_SECRET && secret !== process.env.CRON_SECRET) {
+export async function GET(request: Request) {
+  // 🔒 Protection Fail-Closed par en-tête Authorization: Bearer <CRON_SECRET>
+  if (!verifyCronSecret(request)) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
 

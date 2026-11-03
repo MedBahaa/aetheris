@@ -1,11 +1,25 @@
 import { NextResponse } from 'next/server';
 import { MarketListScraper } from '@/lib/scrapers/market-list-scraper';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-server';
+import { InputSanitizer } from '@/lib/input-sanitizer';
 import { Resend } from 'resend';
+import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
 const resend = new Resend(process.env.RESEND_API_KEY || '');
+
+function verifyCronSecret(request: Request): boolean {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    // En production, fail-closed obligatoire si CRON_SECRET est manquant
+    return process.env.NODE_ENV !== 'production';
+  }
+  const authHeader = request.headers.get('authorization') || '';
+  const expected = `Bearer ${cronSecret}`;
+  if (authHeader.length !== expected.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
+}
 
 // Helper pour Telegram Bot API
 async function sendTelegramAlert(chatId: string, text: string) {
@@ -57,11 +71,7 @@ async function sendWhatsAppAlert(phone: string, text: string) {
 }
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get('authorization');
-  if (
-    process.env.NODE_ENV === 'production' &&
-    authHeader !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
+  if (!verifyCronSecret(request)) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
 
@@ -121,11 +131,13 @@ export async function GET(request: Request) {
           .single();
 
         const channel = profile?.alert_channel || 'EMAIL';
+        const safeSymbol = InputSanitizer.escapeHtml(alert.symbol);
+        const safeReason = InputSanitizer.escapeHtml(reason);
         const rawMessage = `🚨 *Alerte Aetheris (${alert.symbol})*\n\n${reason}\n\nConnectez-vous à votre terminal pour gérer vos positions.`;
 
         // Notification Telegram
         if ((channel === 'TELEGRAM' || channel === 'ALL') && profile?.telegram_chat_id) {
-          const telegramMessage = `🚨 <b>Alerte Aetheris (${alert.symbol})</b>\n\n${reason}\n\n<i>Connectez-vous à votre terminal pour gérer vos positions.</i>`;
+          const telegramMessage = `🚨 <b>Alerte Aetheris (${safeSymbol})</b>\n\n${safeReason}\n\n<i>Connectez-vous à votre terminal pour gérer vos positions.</i>`;
           await sendTelegramAlert(profile.telegram_chat_id, telegramMessage);
         }
 
@@ -144,14 +156,14 @@ export async function GET(request: Request) {
               await resend.emails.send({
                 from: 'Aetheris Terminal <onboarding@resend.dev>',
                 to: targetEmail,
-                subject: `🚨 Alerte Aetheris : ${alert.symbol} a déclenché une alerte`,
+                subject: `🚨 Alerte Aetheris : ${safeSymbol} a déclenché une alerte`,
                 html: `
                   <div style="font-family: sans-serif; padding: 20px; color: #1e293b;">
-                    <h2>Alerte de Prix : ${alert.symbol}</h2>
+                    <h2>Alerte de Prix : ${safeSymbol}</h2>
                     <p>Bonjour,</p>
-                    <p>Votre alerte sur <strong>${alert.symbol}</strong> vient de se déclencher :</p>
+                    <p>Votre alerte sur <strong>${safeSymbol}</strong> vient de se déclencher :</p>
                     <div style="background-color: #f1f5f9; padding: 15px; border-left: 4px solid #3b82f6; margin: 20px 0;">
-                      <strong>${reason}</strong>
+                      <strong>${safeReason}</strong>
                     </div>
                     <p>Connectez-vous à votre terminal pour gérer votre position.</p>
                     <br/>

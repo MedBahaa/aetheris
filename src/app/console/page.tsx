@@ -6,7 +6,8 @@ import { CompanyAnalysis, AgentType } from '@/lib/agent-engine';
 import { analyzeCompanyAction } from '@/lib/actions';
 import { HistoryService } from '@/lib/history-service';
 import { PremiumPaywallModal } from '@/components/portfolio/PremiumPaywallModal';
-import { getUserProfileAction, upsertUserProfileAction } from '@/lib/portfolio-actions';
+import { getUserProfileAction } from '@/lib/portfolio-actions';
+import { activateSandboxSubscriptionAction } from '@/lib/stripe-actions';
 import { useDevice } from '@/hooks/useDevice';
 import { DashboardProps } from '@/types/dashboard';
 import MobileDashboard from '@/components/adaptive/MobileDashboard';
@@ -204,9 +205,11 @@ function ConsoleHome() {
 
   const handleUpgrade = async () => {
     try {
-      setSubscriptionTier('premium');
-      await upsertUserProfileAction({ initial_capital: 0, subscription_tier: 'premium' });
-      setShowPaywallModal(false);
+      const res = await activateSandboxSubscriptionAction();
+      if (res.success) {
+        setSubscriptionTier('premium');
+        setShowPaywallModal(false);
+      }
     } catch (err) {
       console.error(err);
     }

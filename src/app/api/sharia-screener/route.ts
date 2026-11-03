@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server';
 import { GeminiService } from '@/lib/gemini';
 import { corsHeaders, handleOptionsRequest } from '@/lib/api-headers';
 import { createServerSupabase } from '@/lib/supabase-server';
-import { checkRateLimit } from '@/lib/rate-limiter';
+import { checkRateLimitAsync } from '@/lib/rate-limiter';
 import { shariaQuerySchema } from '@/lib/validations';
+
+const MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024; // 10 Mo maximum
 
 export function OPTIONS() {
   return handleOptionsRequest();
@@ -20,7 +22,7 @@ export async function POST(req: Request) {
       ));
     }
 
-    const limit = checkRateLimit(`sharia:${user.id}`, 6, 60 * 60 * 1000);
+    const limit = await checkRateLimitAsync(`sharia:${user.id}`, 6, 60 * 60 * 1000);
     if (!limit.allowed) {
       return corsHeaders(NextResponse.json(
         { status: 'error', message: 'Limite d’analyses atteinte. Réessayez plus tard.' },
@@ -38,11 +40,36 @@ export async function POST(req: Request) {
       
       const file = formData.get('pdf');
       if (file && file instanceof File) {
+        // 🔒 SÉCURITÉ : Limite de taille stricte (anti-OOM / DoS)
+        if (file.size > MAX_PDF_SIZE_BYTES) {
+          return corsHeaders(NextResponse.json(
+            { status: 'error', message: 'Le fichier PDF dépasse la taille maximale autorisée (10 Mo).' },
+            { status: 413 }
+          ));
+        }
+
+        if (file.type && file.type !== 'application/pdf') {
+          return corsHeaders(NextResponse.json(
+            { status: 'error', message: 'Format de fichier non autorisé. Seuls les fichiers PDF sont acceptés.' },
+            { status: 400 }
+          ));
+        }
+
         const buffer = await file.arrayBuffer();
-        const base64Data = Buffer.from(buffer).toString('base64');
+        const bytes = Buffer.from(buffer);
+
+        // 🔒 SÉCURITÉ : Vérification de la signature binaire (Magic Bytes %PDF-)
+        if (bytes.length < 5 || bytes.subarray(0, 5).toString('ascii') !== '%PDF-') {
+          return corsHeaders(NextResponse.json(
+            { status: 'error', message: 'Le fichier fourni n\'est pas un document PDF valide.' },
+            { status: 400 }
+          ));
+        }
+
+        const base64Data = bytes.toString('base64');
         pdfData = {
           data: base64Data,
-          mimeType: file.type || 'application/pdf'
+          mimeType: 'application/pdf'
         };
       }
     } else {
@@ -163,10 +190,17 @@ export async function POST(req: Request) {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-transform',
       'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
     });
+
+    if (process.env.NEXT_PUBLIC_APP_URL) {
+      headers.set('Access-Control-Allow-Origin', process.env.NEXT_PUBLIC_APP_URL);
+      headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      headers.set('Vary', 'Origin');
+    }
 
     return new Response(stream, { headers });
   } catch (error: any) {

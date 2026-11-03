@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { MarketListScraper } from '@/lib/scrapers/market-list-scraper';
-import { checkRateLimit } from '@/lib/rate-limiter';
+import { checkRateLimitAsync, getClientIp } from '@/lib/rate-limiter';
 import { corsHeaders, handleOptionsRequest } from '@/lib/api-headers';
 
 // Preflight CORS
@@ -12,9 +12,9 @@ let lastScrapeTime = 0;
 const CACHE_TTL = 50000; // 50 secondes (un peu moins que la minute de refresh client)
 
 export async function GET(req: Request) {
-  // AUDIT FIX: Rate limiting
-  const clientIP = req.headers.get('x-forwarded-for') || 'unknown';
-  const rateCheck = checkRateLimit(`market-live:${clientIP}`, 30, 60000);
+  // AUDIT FIX: Rate limiting distribué + extraction IP sécurisée
+  const clientIP = getClientIp(req);
+  const rateCheck = await checkRateLimitAsync(`market-live:${clientIP}`, 30, 60000);
   if (!rateCheck.allowed) {
     return NextResponse.json(
       { status: 'error', error: 'Trop de requêtes. Réessayez dans quelques secondes.' },
@@ -42,9 +42,10 @@ export async function GET(req: Request) {
     
     return corsHeaders(NextResponse.json(result));
   } catch (error: any) {
+    console.error('[API MarketLive] Error:', error);
     return corsHeaders(NextResponse.json({ 
       status: 'error', 
-      error: error.message,
+      error: 'Service de cotation en direct temporairement indisponible.',
       timestamp: new Date().toISOString() 
     }, { status: 500 }));
   }

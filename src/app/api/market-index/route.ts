@@ -1,10 +1,22 @@
 import { NextResponse } from 'next/server';
 import { IndexScraper } from '@/lib/scrapers/index-scraper';
 import { corsHeaders, handleOptionsRequest } from '@/lib/api-headers';
+import { checkRateLimitAsync, getClientIp } from '@/lib/rate-limiter';
 
 export function OPTIONS() { return handleOptionsRequest(); }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const clientIp = getClientIp(req);
+  const rateCheck = await checkRateLimitAsync(`market-index:${clientIp}`, 30, 60_000);
+  if (!rateCheck.allowed) {
+    return corsHeaders(
+      NextResponse.json(
+        { status: 'error', message: 'Trop de requêtes.' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(rateCheck.retryAfterMs / 1000)) } }
+      )
+    );
+  }
+
   try {
     const data = await IndexScraper.getMASI();
     
@@ -23,8 +35,9 @@ export async function GET() {
     }));
 
   } catch (error: any) {
+    console.error('[API/market-index] Error:', error);
     return corsHeaders(NextResponse.json(
-      { status: 'error', message: error.message },
+      { status: 'error', message: 'Erreur lors de la récupération de l\'indice.' },
       { status: 500 }
     ));
   }

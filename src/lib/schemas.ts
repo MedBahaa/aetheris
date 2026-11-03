@@ -206,11 +206,11 @@ export type Impact = z.infer<typeof ImpactSchema>;
 export const PortfolioTransactionSchema = z.object({
   id: z.string(),
   user_id: z.string(),
-  symbol: z.string(),
+  symbol: z.string().trim().min(1, "Symbole requis").max(30, "Symbole trop long").regex(/^[A-Za-zÀ-ÿ0-9.\-_&\s]+$/, "Caractères non autorisés dans le symbole"),
   type: z.enum(['BUY', 'SELL']).default('BUY'),
-  quantity: z.number(),
-  buy_price: z.number(),
-  buy_date: z.string(),
+  quantity: z.number().positive("La quantité doit être strictement positive").finite().max(1_000_000_000, "Quantité hors limites"),
+  buy_price: z.number().positive("Le prix doit être strictement positif").finite().max(1_000_000_000, "Prix hors limites"),
+  buy_date: z.string().min(4, "Date invalide").max(40, "Date invalide"),
   is_virtual: z.boolean().default(false),
   created_at: z.string(),
 });
@@ -223,9 +223,9 @@ export type PortfolioTransaction = z.infer<typeof PortfolioTransactionSchema>;
 export const DividendTransactionSchema = z.object({
   id: z.string(),
   user_id: z.string(),
-  symbol: z.string(),
-  amount_per_share: z.number(),
-  dividend_date: z.string(),
+  symbol: z.string().trim().min(1, "Symbole requis").max(30, "Symbole trop long").regex(/^[A-Za-zÀ-ÿ0-9.\-_&\s]+$/, "Caractères non autorisés dans le symbole"),
+  amount_per_share: z.number().positive("Le montant par action doit être strictement positif").finite().max(1_000_000, "Montant hors limites"),
+  dividend_date: z.string().min(4, "Date invalide").max(40, "Date invalide"),
   is_virtual: z.boolean().default(false),
   created_at: z.string(),
 });
@@ -237,13 +237,28 @@ export type DividendTransaction = z.infer<typeof DividendTransactionSchema>;
 export const PriceAlertSchema = z.object({
   id: z.string(),
   user_id: z.string(),
-  symbol: z.string(),
-  sl_price: z.number().nullable().optional(),
-  tp_price: z.number().nullable().optional(),
+  symbol: z.string().trim().min(1, "Symbole requis").max(30, "Symbole trop long").regex(/^[A-Za-zÀ-ÿ0-9.\-_&\s]+$/, "Caractères non autorisés dans le symbole"),
+  sl_price: z.number().positive("Le Stop-Loss doit être positif").finite().max(1_000_000_000).nullable().optional(),
+  tp_price: z.number().positive("Le Take-Profit doit être positif").finite().max(1_000_000_000).nullable().optional(),
   is_active: z.boolean().default(true),
   created_at: z.string(),
 });
 export type PriceAlert = z.infer<typeof PriceAlertSchema>;
+
+export const UpsertAlertInputSchema = z.object({
+  symbol: z.string().trim().min(1, "Symbole requis").max(30, "Symbole trop long").regex(/^[A-Za-zÀ-ÿ0-9.\-_&\s]+$/, "Caractères non autorisés dans le symbole"),
+  sl_price: z.number().positive("Le Stop-Loss doit être positif").finite().max(1_000_000_000).nullable().optional(),
+  tp_price: z.number().positive("Le Take-Profit doit être positif").finite().max(1_000_000_000).nullable().optional(),
+});
+
+export const UserProfileClientInputSchema = z.object({
+  initial_capital: z.number().min(0, "Le capital initial ne peut pas être négatif").finite().max(10_000_000_000, "Capital hors limites").optional(),
+  telegram_chat_id: z.string().trim().max(30, "Chat ID trop long").regex(/^-?[0-9]*$/, "Le Chat ID Telegram ne doit contenir que des chiffres").optional(),
+  whatsapp_phone: z.string().trim().max(25, "Numéro trop long").regex(/^[0-9+\s()-]*$/, "Format de numéro WhatsApp invalide").optional(),
+  alert_channel: z.enum(['EMAIL', 'TELEGRAM', 'WHATSAPP', 'ALL']).optional(),
+  notification_email: z.string().trim().max(120).email("Adresse email invalide").or(z.literal('')).optional(),
+  username: z.string().trim().max(40, "Pseudo trop long (max 40 caractères)").regex(/^[A-Za-zÀ-ÿ0-9_\-. ]*$/, "Caractères non autorisés dans le pseudo").optional(),
+});
 
 export interface PortfolioHolding {
   symbol: string;

@@ -1,16 +1,24 @@
 import { NextResponse } from 'next/server';
 import { MarketListScraper } from '@/lib/scrapers/market-list-scraper';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-server';
+import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
+function verifyCronSecret(request: Request): boolean {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    return process.env.NODE_ENV !== 'production';
+  }
+  const authHeader = request.headers.get('authorization') || '';
+  const expected = `Bearer ${cronSecret}`;
+  if (authHeader.length !== expected.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
+}
+
 export async function GET(request: Request) {
-  // Sécurité : Vérifier le token CRON_SECRET de Vercel (ou requêtes locales manuelles)
-  const authHeader = request.headers.get('authorization');
-  if (
-    process.env.NODE_ENV === 'production' &&
-    authHeader !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
+  // 🔒 Sécurité Fail-Closed : Vérifier le token CRON_SECRET
+  if (!verifyCronSecret(request)) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
 
