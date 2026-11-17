@@ -4,13 +4,14 @@ import {
   History, Search, BrainCircuit, Activity, 
   ShieldCheck, X, Globe, Zap, LayoutGrid, Scale,
   Landmark, Briefcase, ChevronDown, ChevronRight,
-  User, LogOut, Sparkles, XCircle
+  User, LogOut, LogIn, Sparkles, XCircle, Loader2
 } from 'lucide-react';
 import type { CompanyAnalysis, AgentType } from '@/lib/schemas';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { getUserProfileAction } from '@/lib/portfolio-actions';
+import { supabase, performCleanLogout } from '@/lib/supabase';
 import { useDevice } from '@/hooks/useDevice';
 
 interface SidebarProps {
@@ -38,31 +39,52 @@ export default function Sidebar({
   const [isIntelligenceOpen, setIsIntelligenceOpen] = useState(true);
   const [sidebarSearch, setSidebarSearch] = useState('');
   const [profile, setProfile] = useState<any>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [loggingOut, setLoggingOut] = useState<boolean>(false);
 
   const handleLogout = async () => {
-    try {
-      const { supabase, purgeClientSessionData } = await import('@/lib/supabase');
-      await supabase.auth.signOut();
-      purgeClientSessionData();
-      window.location.href = '/login';
-    } catch (err) {
-      console.error('Error logging out:', err);
-      window.location.href = '/login';
-    }
+    if (loggingOut) return;
+    setLoggingOut(true);
+    await performCleanLogout('/login');
   };
 
   useEffect(() => {
-    const fetchProfile = async () => {
+    let active = true;
+
+    const fetchAuthAndProfile = async () => {
       try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!active) return;
+
+        if (!session?.user) {
+          setIsAuthenticated(false);
+          setProfile(null);
+          return;
+        }
+
+        setIsAuthenticated(true);
         const res = await getUserProfileAction();
-        if (res && res.success && res.data) {
+        if (active && res && res.success && res.data) {
           setProfile(res.data);
         }
       } catch (err) {
         console.error('Failed to fetch profile in sidebar:', err);
       }
     };
-    fetchProfile();
+
+    fetchAuthAndProfile();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (active) {
+        setIsAuthenticated(!!session?.user);
+        if (!session?.user) setProfile(null);
+      }
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, [pathname]);
 
   const [marketIndex, setMarketIndex] = useState<{ price: string; variation: string; value: number }>({
@@ -357,13 +379,28 @@ export default function Sidebar({
 
         {/* Footer Area */}
         <div className="sidebar-footer-compact">
-          <button 
-            onClick={handleLogout}
-            className="logout-btn-minimal"
-          >
-            <LogOut size={14} />
-            <span>Déconnexion</span>
-          </button>
+          {isAuthenticated ? (
+            <button 
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="logout-btn-minimal"
+            >
+              {loggingOut ? <Loader2 size={14} className="animate-spin" /> : <LogOut size={14} />}
+              <span>{loggingOut ? 'Déconnexion...' : 'Déconnexion'}</span>
+            </button>
+          ) : (
+            <button 
+              onClick={() => {
+                if (!isDesktop) onClose();
+                router.push('/login');
+              }}
+              className="logout-btn-minimal"
+              style={{ color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.25)', background: 'rgba(16, 185, 129, 0.06)' }}
+            >
+              <LogIn size={14} />
+              <span>Se connecter</span>
+            </button>
+          )}
           <div className="footer-status-row">
             <span className="v-tag-minimal">AETHERIS OS v2.0</span>
             <span className="status-indicator-dot" title="Système Opérationnel" />

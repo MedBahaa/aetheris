@@ -105,6 +105,7 @@ export async function proxy(request: NextRequest) {
   // Routes publiques explicitement autorisées à invoquer une Server Action sans session (analyse démo / auth)
   const publicServerActionRoutes = ['/console', '/login']
   const publicApiPrefixes = [
+    '/api/auth/',
     '/api/market-live',
     '/api/market-index',
     '/api/macro',
@@ -143,14 +144,39 @@ export async function proxy(request: NextRequest) {
     }
 
     const url = request.nextUrl.clone()
+    const requestedPath = `${pathname}${request.nextUrl.search || ''}`
     url.pathname = '/login'
+    url.search = ''
+    if (requestedPath && requestedPath !== '/' && !requestedPath.startsWith('/login')) {
+      url.searchParams.set('next', requestedPath)
+    }
     return applySecurityHeaders(NextResponse.redirect(url), cspHeaderValue)
   }
 
-  // Redirection vers / si authentifié et qu'il visite /login
+  // Si l'utilisateur visite /login alors qu'il est déjà authentifié :
+  // - S'il arrive suite à une expiration (?reason=expired), purger les cookies résiduels et laisser afficher /login
+  // - Sinon, rediriger vers la destination demandée (?next=...) ou /portfolio
   if (user && pathname.startsWith('/login')) {
+    const reason = request.nextUrl.searchParams.get('reason')
+    if (reason === 'expired') {
+      for (const cookie of request.cookies.getAll()) {
+        if (cookie.name.startsWith('sb-')) {
+          response.cookies.delete(cookie.name)
+          response.cookies.set(cookie.name, '', { maxAge: 0, path: '/' })
+        }
+      }
+      return response
+    }
+
+    const rawNext = request.nextUrl.searchParams.get('next') ?? '/portfolio'
+    const safeNext =
+      rawNext.startsWith('/') && !rawNext.startsWith('//') && !rawNext.startsWith('/\\') && !rawNext.startsWith('/login')
+        ? rawNext
+        : '/portfolio'
+
     const url = request.nextUrl.clone()
-    url.pathname = '/'
+    url.pathname = safeNext
+    url.search = ''
     return applySecurityHeaders(NextResponse.redirect(url), cspHeaderValue)
   }
 

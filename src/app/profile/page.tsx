@@ -620,10 +620,8 @@ export default function ProfilePage() {
                       <button 
                         type="button" 
                         onClick={async () => {
-                          const { supabase, purgeClientSessionData } = await import('@/lib/supabase');
-                          await supabase.auth.signOut();
-                          purgeClientSessionData();
-                          window.location.href = '/login';
+                          const { performCleanLogout } = await import('@/lib/supabase');
+                          await performCleanLogout('/login');
                         }}
                         className="profile-logout-btn"
                       >

@@ -1,10 +1,22 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, resetSessionActivityTimer, purgeClientSessionData } from '@/lib/supabase';
 import { signInWithRateLimitAction, signUpWithPolicyAction } from '@/lib/auth-actions';
-import { useRouter } from 'next/navigation';
-import { ShieldCheck, Lock, Mail, Loader2, Zap, Wifi, Database, Activity } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, Loader2, Zap, Wifi, Database, Activity, Eye, EyeOff } from 'lucide-react';
+
+function resolveSafeNextUrl(rawNext: string | null): string {
+  if (
+    rawNext &&
+    rawNext.startsWith('/') &&
+    !rawNext.startsWith('//') &&
+    !rawNext.startsWith('/\\') &&
+    !rawNext.startsWith('/login')
+  ) {
+    return rawNext;
+  }
+  return '/portfolio';
+}
 
 /**
  * AETHERIS PREMIUM LOGIN GATEWAY
@@ -13,44 +25,69 @@ import { ShieldCheck, Lock, Mail, Loader2, Zap, Wifi, Database, Activity } from 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
-  const router = useRouter();
+  const [nextDestination, setNextDestination] = useState('/portfolio');
 
   // For nice hydration handling & automatic session check
   useEffect(() => {
     setMounted(true);
 
-    // Check if session expired from inactivity or signup mode requested
     const params = new URLSearchParams(window.location.search);
+    const targetNext = resolveSafeNextUrl(params.get('next'));
+    setNextDestination(targetNext);
+
     if (params.get('mode') === 'signup') {
       setMode('signup');
     }
-    if (params.get('reason') === 'expired') {
+
+    const reason = params.get('reason');
+    const callbackError = params.get('error');
+
+    if (reason === 'expired') {
       setError("SESSION EXPIRÉE : Votre session s'est fermée automatiquement après une période d'inactivité pour votre sécurité.");
-    } else {
-      // Auto-redirect if already authenticated
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session) {
-          window.location.href = '/portfolio';
-        }
-      });
+      // S'assurer qu'aucun jeton résiduel ne subsiste côté client
+      purgeClientSessionData();
+      supabase.auth.signOut().catch(() => {});
+      return;
     }
 
+    if (callbackError === 'auth_callback_failed') {
+      setError("LIEN DE VALIDATION EXPIRÉ OU INVALIDE : Veuillez vous connecter ou demander un nouveau lien.");
+    }
+
+    // Auto-redirect uniquement si une session réellement valide existe côté serveur/client
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        resetSessionActivityTimer();
+        window.location.replace(targetNext);
+      }
+    }).catch(() => {});
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && params.get('reason') !== 'expired') {
-        window.location.href = '/portfolio';
+      if (session && event === 'SIGNED_IN') {
+        resetSessionActivityTimer();
+        window.location.replace(targetNext);
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
+  const handleToggleMode = () => {
+    setMode((prev) => (prev === 'login' ? 'signup' : 'login'));
+    setError(null);
+    setSuccess(null);
+  };
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
+
     setLoading(true);
     setError(null);
     setSuccess(null);
@@ -64,41 +101,49 @@ export default function LoginPage() {
       return;
     }
 
-    if (mode === 'signup') {
-      // 🔒 SÉCURITÉ : Politique de mot de passe fort à l'inscription (NIST / OWASP)
-      const hasMinLength = rawPassword.length >= 10;
-      const hasUpper = /[A-Z]/.test(rawPassword);
-      const hasLower = /[a-z]/.test(rawPassword);
-      const hasDigitOrSymbol = /[0-9!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(rawPassword);
+    try {
+      if (mode === 'signup') {
+        // 🔒 SÉCURITÉ : Politique de mot de passe fort à l'inscription (NIST / OWASP)
+        const hasMinLength = rawPassword.length >= 10;
+        const hasUpper = /[A-Z]/.test(rawPassword);
+        const hasLower = /[a-z]/.test(rawPassword);
+        const hasDigitOrSymbol = /[0-9!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(rawPassword);
 
-      if (!hasMinLength || !hasUpper || !hasLower || !hasDigitOrSymbol) {
-        setError(
-          "MOT DE PASSE TROP FAIBLE : Minimum 10 caractères incluant majuscule, minuscule et chiffre ou symbole."
-        );
-        setLoading(false);
-        return;
-      }
+        if (!hasMinLength || !hasUpper || !hasLower || !hasDigitOrSymbol) {
+          setError(
+            "MOT DE PASSE TROP FAIBLE : Minimum 10 caractères incluant majuscule, minuscule et chiffre ou symbole."
+          );
+          setLoading(false);
+          return;
+        }
 
-      const res = await signUpWithPolicyAction(cleanEmail, rawPassword);
+        const res = await signUpWithPolicyAction(cleanEmail, rawPassword);
 
-      if (!res.success) {
-        setError(res.error || "ÉCHEC DE L'INSCRIPTION.");
-        setLoading(false);
+        if (!res.success) {
+          setError(res.error || "ÉCHEC DE L'INSCRIPTION.");
+          setLoading(false);
+        } else {
+          setSuccess("ACCÈS RÉSERVÉ. Vérifiez votre boîte mail (uplink) pour valider votre compte.");
+          setPassword('');
+          setLoading(false);
+        }
       } else {
-        setSuccess("ACCÈS RÉSERVÉ. Vérifiez votre boîte mail (uplink) pour valider votre compte.");
-        setLoading(false);
-      }
-    } else {
-      const res = await signInWithRateLimitAction(cleanEmail, rawPassword);
+        const res = await signInWithRateLimitAction(cleanEmail, rawPassword);
 
-      if (!res.success) {
-        setError(res.error || "IDENTIFIANTS INVALIDES. VÉRIFIEZ VOTRE EMAIL ET MOT DE PASSE.");
-        setLoading(false);
-      } else {
-        setSuccess("LIAISON ÉTABLIE. REDIRECTION...");
-        // Redirection ferme compatible mobile
-        window.location.href = '/portfolio';
+        if (!res.success) {
+          setError(res.error || "IDENTIFIANTS INVALIDES. VÉRIFIEZ VOTRE EMAIL ET MOT DE PASSE.");
+          setLoading(false);
+        } else {
+          // Réinitialiser immédiatement le compteur d'activité pour éviter toute fausse expiration SessionGuard
+          resetSessionActivityTimer();
+          setSuccess("LIAISON ÉTABLIE. REDIRECTION...");
+          // Redirection propre sans boucle d'historique
+          window.location.replace(nextDestination);
+        }
       }
+    } catch {
+      setError("ERREUR RÉSEAU : Impossible de joindre le serveur d'authentification.");
+      setLoading(false);
     }
   };
 
@@ -158,6 +203,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="NOM UTILISATEUR@AETHERIS.SEC"
+                  autoComplete="email"
                   autoCapitalize="none"
                   autoCorrect="off"
                   spellCheck={false}
@@ -169,20 +215,43 @@ export default function LoginPage() {
             <div className="input-field">
               <label className="mono-label">
                 <Lock size={12} className="text-dim" />
-                CLÉ D'ACCÈS
+                CLÉ D&apos;ACCÈS
               </label>
               <div className="input-wrapper">
                 <div className="active-indicator"></div>
                 <input 
-                  type="password" 
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••"
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                   autoCapitalize="none"
                   autoCorrect="off"
                   spellCheck={false}
+                  style={{ paddingRight: '2.75rem' }}
                   required 
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                  style={{
+                    position: 'absolute',
+                    right: '0.85rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#64748b',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '4px',
+                  }}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
               </div>
             </div>
 
@@ -213,7 +282,7 @@ export default function LoginPage() {
             <div className="toggle-info mono-label">
               {mode === 'login' ? "ID NOT FOUND?" : "RECORD EXISTS?"}
             </div>
-            <button onClick={() => setMode(mode === 'login' ? 'signup' : 'login')} className="toggle-action">
+            <button type="button" onClick={handleToggleMode} className="toggle-action">
               {mode === 'login' ? "CRÉER NOUVEAU PROFIL" : "RETOUR LOGIN"}
             </button>
           </div>

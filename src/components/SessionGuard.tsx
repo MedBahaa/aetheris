@@ -1,56 +1,83 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { supabase, purgeClientSessionData } from '@/lib/supabase';
+import { usePathname } from 'next/navigation';
+import {
+  supabase,
+  LAST_ACTIVITY_KEY,
+  resetSessionActivityTimer,
+  performCleanLogout,
+} from '@/lib/supabase';
 
 // Durée maximale d'inactivité avant déconnexion automatique de sécurité (4 heures = 14 400 000 ms)
 const MAX_INACTIVITY_MS = 4 * 60 * 60 * 1000;
-const LAST_ACTIVITY_KEY = 'aetheris_last_activity_time';
 
 export default function SessionGuard() {
-  const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
+    // Dès qu'une connexion est établie, réinitialiser le compteur d'activité pour éviter toute fausse expiration
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        resetSessionActivityTimer();
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
     // Ne pas exécuter le guard d'expiration sur les pages publiques
-    const publicPages = ['/', '/login', '/marche-live', '/offline'];
-    if (publicPages.includes(pathname)) return;
+    const publicPages = ['/', '/login', '/marche-live', '/offline', '/console'];
+    if (publicPages.includes(pathname) || pathname?.startsWith('/auth')) return;
 
-    // 1. Vérifier si l'inactivité maximale est dépassée
+    let isUnmounted = false;
+
+    // 1. Vérifier si l'inactivité maximale est dépassée (uniquement si une session est active)
     const checkInactivity = async () => {
-      const lastActivity = localStorage.getItem(LAST_ACTIVITY_KEY);
-      const now = Date.now();
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (isUnmounted) return;
 
-      if (lastActivity) {
-        const inactiveTime = now - parseInt(lastActivity, 10);
-        if (inactiveTime > MAX_INACTIVITY_MS) {
-          console.warn('[SessionGuard] Session expirée après inactivité de', Math.round(inactiveTime / 60000), 'minutes.');
-          
-          try {
-            await supabase.auth.signOut();
-          } catch (err) {
-            console.error('[SessionGuard] Erreur signOut:', err);
-          }
-          
-          purgeClientSessionData();
-          
-          window.location.href = '/login?reason=expired';
+        // Si pas de session active, ne pas déclencher de fausse expiration
+        if (!session) {
           return;
         }
-      }
 
-      localStorage.setItem(LAST_ACTIVITY_KEY, now.toString());
+        const lastActivity = localStorage.getItem(LAST_ACTIVITY_KEY);
+        const now = Date.now();
+
+        if (lastActivity) {
+          const parsedLast = parseInt(lastActivity, 10);
+          if (Number.isFinite(parsedLast) && now - parsedLast > MAX_INACTIVITY_MS) {
+            console.warn(
+              '[SessionGuard] Session expirée après inactivité de',
+              Math.round((now - parsedLast) / 60000),
+              'minutes.'
+            );
+            await performCleanLogout('/login?reason=expired');
+            return;
+          }
+        }
+
+        localStorage.setItem(LAST_ACTIVITY_KEY, now.toString());
+      } catch (err) {
+        console.error('[SessionGuard] Erreur lors de la vérification de session:', err);
+      }
     };
 
     checkInactivity();
 
     const updateActivity = () => {
-      localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
+      try {
+        localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
+      } catch {
+        // Ignorer
+      }
     };
 
     const events = ['mousedown', 'mousemove', 'keydown', 'touchstart', 'scroll', 'click'];
-    
+
     let throttleTimeout: NodeJS.Timeout | null = null;
     const handleUserActivity = () => {
       if (!throttleTimeout) {
@@ -61,7 +88,7 @@ export default function SessionGuard() {
       }
     };
 
-    events.forEach(evt => window.addEventListener(evt, handleUserActivity, { passive: true }));
+    events.forEach((evt) => window.addEventListener(evt, handleUserActivity, { passive: true }));
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -71,11 +98,12 @@ export default function SessionGuard() {
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      events.forEach(evt => window.removeEventListener(evt, handleUserActivity));
+      isUnmounted = true;
+      events.forEach((evt) => window.removeEventListener(evt, handleUserActivity));
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (throttleTimeout) clearTimeout(throttleTimeout);
     };
-  }, [pathname, router]);
+  }, [pathname]);
 
   return null;
 }

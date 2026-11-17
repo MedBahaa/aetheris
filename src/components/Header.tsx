@@ -1,9 +1,9 @@
 'use client';
 
-import { Menu, Zap, LogIn, UserPlus, User, LogOut } from 'lucide-react';
+import { Menu, Zap, LogIn, UserPlus, User, LogOut, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, performCleanLogout } from '@/lib/supabase';
 import MacroWidget from './MacroWidget';
 
 interface HeaderProps {
@@ -12,25 +12,48 @@ interface HeaderProps {
 
 export default function Header({ onOpenSidebar }: HeaderProps) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
+    let active = true;
+
     const checkUser = async () => {
       try {
+        // 1. Lecture instantanée de la session locale pour éviter le clignotement d'UI
+        const { data: { session } } = await supabase.auth.getSession();
+        if (active && session?.user) {
+          setIsAuthenticated(true);
+        }
+
+        // 2. Validation serveur en arrière-plan
         const { data: { user } } = await supabase.auth.getUser();
-        setIsAuthenticated(!!user);
-      } catch (err) {
-        setIsAuthenticated(false);
+        if (active) {
+          setIsAuthenticated(!!user);
+        }
+      } catch {
+        if (active) setIsAuthenticated(false);
       }
     };
 
     checkUser();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsAuthenticated(!!session?.user);
+      if (active) {
+        setIsAuthenticated(!!session?.user);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, []);
+
+  const handleHeaderLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    await performCleanLogout('/login');
+  };
 
   return (
     <header className="fixed-header glass-heavy">
@@ -80,14 +103,10 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
                 className="user-logout-btn touch-target"
                 title="Se déconnecter"
                 aria-label="Déconnexion"
-                onClick={async () => {
-                  const { supabase, purgeClientSessionData } = await import('@/lib/supabase');
-                  await supabase.auth.signOut();
-                  purgeClientSessionData();
-                  window.location.href = '/login';
-                }}
+                disabled={loggingOut}
+                onClick={handleHeaderLogout}
               >
-                <LogOut size={16} />
+                {loggingOut ? <Loader2 size={16} className="animate-spin" /> : <LogOut size={16} />}
               </button>
               
               <button 

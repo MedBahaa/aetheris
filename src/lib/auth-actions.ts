@@ -1,6 +1,6 @@
 'use server';
 
-import { headers } from 'next/headers';
+import { headers, cookies } from 'next/headers';
 import { z } from 'zod';
 import { createServerSupabase } from './supabase-server';
 import { checkRateLimitAsync, getClientIpFromHeaders } from './rate-limiter';
@@ -108,7 +108,38 @@ export async function signUpWithPolicyAction(
   });
 
   if (error) {
+    const rawMsg = error.message || '';
+    if (rawMsg.toLowerCase().includes('already registered')) {
+      return { success: false, error: 'CE COMPTE EXISTE DÉJÀ. VEUILLEZ VOUS CONNECTER.' };
+    }
     return { success: false, error: "ÉCHEC DE L'INSCRIPTION. VÉRIFIEZ VOS INFORMATIONS OU RÉESSAYEZ PLUS TARD." };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Déconnexion côté serveur : invalide la session Supabase ET purge tous les cookies `sb-*` côté serveur
+ * afin d'éviter toute session fantôme ou boucle de redirection dans le proxy.
+ */
+export async function signOutAction(): Promise<{ success: boolean }> {
+  try {
+    const supabase = await createServerSupabase();
+    await supabase.auth.signOut();
+  } catch {
+    // Continuer vers la purge explicite des cookies même si l'appel réseau échoue
+  }
+
+  try {
+    const cookieStore = await cookies();
+    const allCookies = cookieStore.getAll();
+    for (const c of allCookies) {
+      if (c.name.startsWith('sb-')) {
+        cookieStore.delete(c.name);
+      }
+    }
+  } catch {
+    // Ignorer si les en-têtes sont déjà envoyés
   }
 
   return { success: true };
