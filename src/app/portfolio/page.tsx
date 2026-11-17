@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
-  Briefcase, Plus, Download, Upload, Gift, BarChart2, RefreshCw, Sparkles, Zap, Trophy, Bell, Award, DollarSign, PieChart, AlertTriangle
+  Briefcase, Plus, Download, Upload, Gift, BarChart2, RefreshCw, Sparkles, Zap, Trophy, Bell, Award, DollarSign, PieChart, AlertTriangle, History
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
@@ -30,6 +30,7 @@ import { SectorAllocationDonut } from '@/components/portfolio/SectorAllocationDo
 import { PortfolioEvolutionChart } from '@/components/portfolio/PortfolioEvolutionChart';
 import { PortfolioTable } from '@/components/portfolio/PortfolioTable';
 import { DividendTable } from '@/components/portfolio/DividendTable';
+import { SalesHistoryTable } from '@/components/portfolio/SalesHistoryTable';
 import { AddTransactionModal } from '@/components/portfolio/AddTransactionModal';
 import { AddDividendModal } from '@/components/portfolio/AddDividendModal';
 import { PremiumPaywallModal } from '@/components/portfolio/PremiumPaywallModal';
@@ -53,7 +54,7 @@ export default function PortfolioPage() {
   const [masiBenchmark, setMasiBenchmark] = useState<any>(null);
   const [macroData, setMacroData] = useState<any>(null);
 
-  const [activeTab, setActiveTab] = useState<'positions' | 'dividends' | 'leaderboard' | 'alerts_settings'>('positions');
+  const [activeTab, setActiveTab] = useState<'positions' | 'history' | 'dividends' | 'leaderboard' | 'alerts_settings'>('positions');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDivModal, setShowDivModal] = useState(false);
   const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
@@ -438,6 +439,7 @@ export default function PortfolioPage() {
   const totalMarketValue = holdingsStats.reduce((s, h) => s + h.valuation, 0);
   const totalPvNette = holdingsStats.reduce((s, h) => s + h.pvNette, 0);
   const realizedPnL = PortfolioService.calculateRealizedPnL(transactions);
+  const salesHistory = PortfolioService.calculateSalesHistory(transactions);
   const dividendIncome = PortfolioService.calculateDividendIncome(dividends, holdings, transactions);
   const totalDividends = Object.values(dividendIncome).reduce((s, v) => s + v, 0);
 
@@ -574,6 +576,7 @@ export default function PortfolioPage() {
             setCapitalInput={setCapitalInput}
             setShowCapitalInput={setShowCapitalInput}
             handleSaveCapital={handleSaveCapital}
+            onOpenSalesHistory={() => setActiveTab('history')}
           />
 
           {showRoboPanel && subscriptionTier === 'premium' && (
@@ -599,10 +602,13 @@ export default function PortfolioPage() {
 
           <div className="tab-strip">
             <button className={`tab-btn ${activeTab === 'positions' ? 'active' : ''}`} onClick={() => setActiveTab('positions')}>
-              <Briefcase size={13} /> Positions
+              <Briefcase size={13} /> Positions ({holdings.length})
+            </button>
+            <button className={`tab-btn ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>
+              <History size={13} /> Historique &amp; Ventes ({salesHistory.length})
             </button>
             <button className={`tab-btn ${activeTab === 'dividends' ? 'active' : ''}`} onClick={() => setActiveTab('dividends')}>
-              <Gift size={13} /> Dividendes
+              <Gift size={13} /> Dividendes ({dividends.length})
             </button>
             <button className={`tab-btn ${activeTab === 'leaderboard' ? 'active' : ''}`} onClick={() => setActiveTab('leaderboard')}>
               <Trophy size={13} /> Classement (Paper)
@@ -637,6 +643,15 @@ export default function PortfolioPage() {
                 onNavigateToStock={(symbol) => router.push(`/?q=${symbol}`)}
               />
             </>
+          )}
+
+          {activeTab === 'history' && (
+            <SalesHistoryTable
+              salesHistory={salesHistory}
+              transactions={transactions}
+              setShowAddModal={setShowAddModal}
+              onDeleteTransaction={(id) => deletePortfolioTransactionAction(id).then(loadData)}
+            />
           )}
 
           {activeTab === 'dividends' && (

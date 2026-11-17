@@ -7,6 +7,24 @@ import { InputSanitizer } from './input-sanitizer';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_BULK_IMPORT_ROWS = 500;
 
+export interface RealizedSaleEvent {
+  id: string;
+  symbol: string;
+  sellDate: string;
+  quantity: number;
+  sellPrice: number;
+  pmpAtSale: number;
+  costBasis: number;
+  grossProceeds: number;
+  sellFee: number;
+  grossPnL: number;
+  tpvTax: number;
+  netPnL: number;
+  netPnLPct: number;
+  remainingQuantity: number;
+  status: 'CLÔTURÉE' | 'PARTIELLE';
+}
+
 /**
  * Hachage cryptographique HMAC-SHA256 (Web Crypto API compatible Node.js, Edge & Navigateur)
  * avec secret serveur pour empêcher toute désanonymisation par force brute des UUIDs sur le Leaderboard.
@@ -68,8 +86,17 @@ export class PortfolioService {
   }
 
   /**
+   * Retourne l'historique détaillé de toutes les cessions (ventes) réalisées,
+   * avec PMP au moment de la vente, frais de courtage (0.99%), TPV (15%) et PV Nette.
+   */
+  static calculateSalesHistory(transactions: PortfolioTransaction[]): RealizedSaleEvent[] {
+    const { salesHistory } = this._processTransactions(transactions);
+    return [...salesHistory].reverse();
+  }
+
+  /**
    * Méthode interne partagée : traite toutes les transactions et retourne
-   * la map complète des positions avec PMP, PnL réalisé, etc.
+   * la map complète des positions avec PMP, PnL réalisé, ainsi que le journal détaillé des cessions.
    * AUDIT FIX: Point unique de calcul (DRY)
    */
   private static _processTransactions(transactions: PortfolioTransaction[]) {
@@ -77,6 +104,7 @@ export class PortfolioService {
       currentPmp: number;
       realizedPnL: number;
     }>();
+    const salesHistory: RealizedSaleEvent[] = [];
 
     // Sort by date ascending to process in order
     const sorted = [...transactions].sort((a, b) => 
@@ -112,21 +140,45 @@ export class PortfolioService {
         }
       } else if (txType === 'SELL' && existing) {
         // PV Brute sur cession = (Cours vente × (1 - frais)) - (PMP × Qté vendue)
-        const sellValue = tx.quantity * tx.buy_price * (1 - BROKERAGE_FEE);
-        const costBasis = existing.currentPmp * tx.quantity;
+        const pmpAtSale = existing.currentPmp;
+        const grossProceeds = tx.quantity * tx.buy_price;
+        const sellFee = grossProceeds * BROKERAGE_FEE;
+        const sellValue = grossProceeds - sellFee;
+        const costBasis = pmpAtSale * tx.quantity;
         const grossPnL = sellValue - costBasis;
         // TVP 15% sur les profits uniquement
+        const tpvTax = grossPnL > 0 ? grossPnL * TAX_ON_PROFIT : 0;
         const netPnL = grossPnL > 0 ? grossPnL * (1 - TAX_ON_PROFIT) : grossPnL;
+        const netPnLPct = costBasis > 0 ? (netPnL / costBasis) * 100 : 0;
+        const remainingQuantity = Math.max(0, existing.totalQuantity - tx.quantity);
 
         existing.realizedPnL = (existing.realizedPnL || 0) + netPnL;
-        existing.totalQuantity = Math.max(0, existing.totalQuantity - tx.quantity);
+        existing.totalQuantity = remainingQuantity;
         existing.totalCost = existing.currentPmp * existing.totalQuantity;
         existing.totalSold = (existing.totalSold || 0) + tx.quantity;
         existing.transactions.push(tx);
+
+        salesHistory.push({
+          id: tx.id,
+          symbol: tx.symbol,
+          sellDate: tx.buy_date,
+          quantity: tx.quantity,
+          sellPrice: tx.buy_price,
+          pmpAtSale,
+          costBasis,
+          grossProceeds,
+          sellFee,
+          grossPnL,
+          tpvTax,
+          netPnL,
+          netPnLPct,
+          remainingQuantity,
+          status: remainingQuantity === 0 ? 'CLÔTURÉE' : 'PARTIELLE',
+        });
       }
     });
 
-    return { holdingsMap };
+    return { holdingsMap, salesHistory };
   }
 
   /**

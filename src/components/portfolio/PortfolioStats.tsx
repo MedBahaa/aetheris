@@ -100,9 +100,10 @@ const tooltips = {
   pvRealisee: (
     <>
       <strong>Plus-Value Réalisée (Nette)</strong>
-      <p>Gain définitivement encaissé sur les positions clôturées (ventes), net de frais et TVP 15%.</p>
-      <code>PV = (Prix vente × (1−0.6%)) − (PMP × Qté)</code>
+      <p>Gain définitivement encaissé sur les positions clôturées ou allégées (ventes), net de frais (0,99%) et TPV 15%.</p>
+      <code>PV = (Prix vente × (1−0,99%)) − (PMP × Qté)</code>
       <code>Net = PV × (1 − 15%) si profit</code>
+      <p className="tt-note">💡 Cliquez sur la carte pour consulter l&apos;historique détaillé des ventes.</p>
     </>
   ),
   performance: (
@@ -179,6 +180,7 @@ interface PortfolioStatsProps {
   setCapitalInput: (val: string) => void;
   setShowCapitalInput: (val: boolean) => void;
   handleSaveCapital: () => void;
+  onOpenSalesHistory?: () => void;
 }
 
 export const PortfolioStats: React.FC<PortfolioStatsProps> = ({
@@ -199,7 +201,8 @@ export const PortfolioStats: React.FC<PortfolioStatsProps> = ({
   capitalInput,
   setCapitalInput,
   setShowCapitalInput,
-  handleSaveCapital
+  handleSaveCapital,
+  onOpenSalesHistory,
 }) => {
   const realReturn = totalPerformance - inflationRate;
   const alpha = totalPerformance - masiReturn;
@@ -241,11 +244,18 @@ export const PortfolioStats: React.FC<PortfolioStatsProps> = ({
         </div>
       </div>
 
-      <div className={`stat-card glass-heavy ${realizedPnL >= 0 ? 'bull' : 'bear'}`}>
+      <div
+        className={`stat-card glass-heavy ${realizedPnL >= 0 ? 'bull' : 'bear'} ${onOpenSalesHistory ? 'clickable' : ''}`}
+        onClick={onOpenSalesHistory}
+        role={onOpenSalesHistory ? 'button' : undefined}
+        tabIndex={onOpenSalesHistory ? 0 : undefined}
+        title="Voir l'historique détaillé des ventes et cessions"
+      >
         <div className="stat-icon-box"><ShieldCheck size={18} /></div>
         <div className="stat-info">
           <span className="stat-label mono"><span className="stat-label-text">PV RÉALISÉE (NET)</span> <KpiTooltip content={tooltips.pvRealisee} /></span>
           <div className="stat-value">{renderVal(<>{realizedPnL >= 0 ? '+' : ''}{realizedPnL.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}</>)}</div>
+          {onOpenSalesHistory && <span className="m-sub" style={{ cursor: 'pointer' }}>Voir l&apos;historique →</span>}
         </div>
       </div>
 

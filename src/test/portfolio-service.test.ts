@@ -188,6 +188,61 @@ describe('PortfolioService', () => {
       // PMP = (100*100*1.0099 + 100*120*1.0099) / 200 = 111.089
       expect(holdings[0].weightedAveragePrice).toBeCloseTo(111.089, 2);
     });
+
+    it('tracks detailed sales history (partial and closed positions) matching realized PnL', () => {
+      const transactions: PortfolioTransaction[] = [
+        {
+          id: 'tx-buy-1',
+          symbol: 'IAM',
+          quantity: 100,
+          buy_price: 100,
+          buy_date: '2026-01-10',
+          type: 'BUY',
+          is_virtual: false,
+          user_id: 'u1',
+          created_at: ''
+        },
+        {
+          id: 'tx-sell-1',
+          symbol: 'IAM',
+          quantity: 40,
+          buy_price: 120,
+          buy_date: '2026-02-15',
+          type: 'SELL',
+          is_virtual: false,
+          user_id: 'u1',
+          created_at: ''
+        },
+        {
+          id: 'tx-sell-2',
+          symbol: 'IAM',
+          quantity: 60,
+          buy_price: 130,
+          buy_date: '2026-03-20',
+          type: 'SELL',
+          is_virtual: false,
+          user_id: 'u1',
+          created_at: ''
+        }
+      ];
+
+      const sales = PortfolioService.calculateSalesHistory(transactions);
+      const totalRealized = PortfolioService.calculateRealizedPnL(transactions);
+
+      expect(sales).toHaveLength(2);
+      // Most recent sale first
+      expect(sales[0].id).toBe('tx-sell-2');
+      expect(sales[0].status).toBe('CLÔTURÉE');
+      expect(sales[0].remainingQuantity).toBe(0);
+
+      expect(sales[1].id).toBe('tx-sell-1');
+      expect(sales[1].status).toBe('PARTIELLE');
+      expect(sales[1].remainingQuantity).toBe(60);
+
+      // Sum of individual netPnL in salesHistory must equal calculateRealizedPnL
+      const sumNetPnL = sales.reduce((acc, s) => acc + s.netPnL, 0);
+      expect(sumNetPnL).toBeCloseTo(totalRealized, 4);
+    });
   });
 
   describe('IPO & Dynamic Symbol Resolution', () => {
