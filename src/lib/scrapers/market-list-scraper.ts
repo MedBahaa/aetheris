@@ -571,13 +571,19 @@ export class MarketListScraper {
   /**
    * Synchronise automatiquement les sociétés et nouvelles introductions (IPO) avec la table `companies` de Supabase.
    * Exécuté 1 fois par jour le matin à 10h00 (heure de Casablanca) ou sur demande explicite (`force = true`).
+   * Le client `supabaseAdmin` est injecté depuis les routes serveur pour éviter tout couplage `server-only` côté client Turbopack.
    */
   static async syncCompaniesWithMarket(
+    supabaseAdmin: any,
     stocksInput?: LiveStockData[],
     force: boolean = false
   ): Promise<{ added: string[]; updated: string[]; total: number }> {
     const { dateKey } = this.getCasablancaTimeParts();
     if (!force && (this.isDbSyncRunning || !this.shouldRunDaily10AmIpoCheck())) {
+      return { added: [], updated: [], total: 0 };
+    }
+
+    if (!supabaseAdmin) {
       return { added: [], updated: [], total: 0 };
     }
 
@@ -587,11 +593,6 @@ export class MarketListScraper {
     const updated: string[] = [];
 
     try {
-      const { supabaseAdmin } = await import('../supabase-server');
-      if (!supabaseAdmin) {
-        return { added: [], updated: [], total: 0 };
-      }
-
       let stocks = stocksInput;
       if (!stocks || stocks.length === 0) {
         const res = await this.scrapeAll({ forceDiscovery: true });
@@ -732,11 +733,11 @@ export class MarketListScraper {
   /**
    * Déclenche la vérification quotidienne en arrière-plan uniquement à 10h00 (1 fois par jour)
    */
-  static triggerBackgroundDiscoverySync(stocks: LiveStockData[]): void {
-    if (this.isDbSyncRunning || !this.shouldRunDaily10AmIpoCheck()) {
+  static triggerBackgroundDiscoverySync(supabaseAdmin: any, stocks: LiveStockData[]): void {
+    if (!supabaseAdmin || this.isDbSyncRunning || !this.shouldRunDaily10AmIpoCheck()) {
       return;
     }
-    this.syncCompaniesWithMarket(stocks, true).catch((err) => {
+    this.syncCompaniesWithMarket(supabaseAdmin, stocks, true).catch((err) => {
       console.warn('[IPO Discovery 10h00] Erreur non-bloquante:', err?.message);
     });
   }
@@ -775,9 +776,6 @@ export class MarketListScraper {
 
       this.cache = result;
       this.lastFetchTime = Date.now();
-
-      // Auto-indexation en base uniquement 1 fois par jour à 10h00
-      this.triggerBackgroundDiscoverySync(merged);
 
       return result;
     } catch (bmceError: any) {

@@ -29,7 +29,7 @@ export async function GET(request: Request) {
 
     // 2. Auto-indexation des nouvelles introductions (IPO) uniquement à 10h00 (1 fois / jour)
     const ipoSync = shouldCheckIpos
-      ? await MarketListScraper.syncCompaniesWithMarket(result.stocks, true)
+      ? await MarketListScraper.syncCompaniesWithMarket(supabaseAdmin, result.stocks, true)
       : { added: [], updated: [], total: result.stocks.length };
 
     // 3. Récupérer toutes les compagnies connues en base

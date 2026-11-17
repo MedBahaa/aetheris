@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { MarketListScraper } from '@/lib/scrapers/market-list-scraper';
+import { supabaseAdmin } from '@/lib/supabase-server';
 import { checkRateLimitAsync, getClientIp } from '@/lib/rate-limiter';
 import { corsHeaders, handleOptionsRequest } from '@/lib/api-headers';
 
@@ -43,12 +44,15 @@ export async function GET(req: Request) {
 
       if (forceDiscover) {
         // Synchroniser immédiatement les nouvelles introductions (IPO) avec Supabase
-        const syncSummary = await MarketListScraper.syncCompaniesWithMarket(result.stocks, true);
+        const syncSummary = await MarketListScraper.syncCompaniesWithMarket(supabaseAdmin, result.stocks, true);
         return corsHeaders(NextResponse.json({
           ...result,
           ipoSync: syncSummary,
         }));
       }
+
+      // Vérification quotidienne unique à 10h00 en arrière-plan
+      MarketListScraper.triggerBackgroundDiscoverySync(supabaseAdmin, result.stocks);
     }
     
     return corsHeaders(NextResponse.json(result));
