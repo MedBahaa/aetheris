@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { MarketListScraper } from '@/lib/scrapers/market-list-scraper';
+import { SymbolMapper } from '@/lib/symbol-mapper';
 import { checkRateLimitAsync } from '@/lib/rate-limiter';
 import { verifyCronSecret } from '@/lib/cron-auth';
 
@@ -21,7 +22,24 @@ export async function GET(req: Request) {
   console.log('--- CRON TRIGGERED VIA API (GLOBAL SYNC) ---');
   
   try {
-    // 1. Récupérer toutes les compagnies connues en base
+    const url = new URL(req.url);
+    // Vérification IPO uniquement 1 fois par jour le matin à 10h00 (ou si ?discover=1 est forcé)
+    const shouldCheckIpos =
+      url.searchParams.get('discover') === '1' || MarketListScraper.shouldRunDaily10AmIpoCheck();
+
+    // 1. Scraper la liste globale
+    const result = await MarketListScraper.scrapeAll({ forceDiscovery: shouldCheckIpos });
+    
+    if (result.status === 'error' || result.stocks.length === 0) {
+      throw new Error(result.error || 'Aucune donnée récupérée');
+    }
+
+    // 2. Auto-découverte IPO uniquement à 10h00 (1 fois / jour)
+    const ipoSync = shouldCheckIpos
+      ? await MarketListScraper.syncCompaniesWithMarket(result.stocks, true)
+      : { added: [], updated: [], total: result.stocks.length };
+
+    // 3. Récupérer toutes les compagnies connues en base
     const { data: companies, error: dbError } = await supabaseAdmin
       .from('companies')
       .select('id, symbol, name');
@@ -29,23 +47,26 @@ export async function GET(req: Request) {
     if (dbError) throw dbError;
     if (!companies) return NextResponse.json({ status: 'no_companies' });
 
-    // 2. Scraper la liste globale (un seul appel HTTP ultra-rapide)
-    const result = await MarketListScraper.scrapeAll();
-    
-    if (result.status === 'error' || result.stocks.length === 0) {
-      throw new Error(result.error || 'Aucune donnée récupérée');
-    }
-
     const historyEntries = [];
     const results = [];
 
-    // 3. Matcher et préparer le bulk insert
+    // 4. Matcher et préparer le bulk insert
     for (const stock of result.stocks) {
-      const company = companies.find((c: { id: string; symbol: string; name: string }) => 
-        c.symbol.toLowerCase() === stock.symbol.toLowerCase() ||
-        c.name.toLowerCase().includes(stock.symbol.toLowerCase()) ||
-        stock.symbol.toLowerCase().includes(c.name.toLowerCase())
-      );
+      const resolvedStockTicker = (stock.ticker || SymbolMapper.resolve(stock.symbol) || stock.symbol).toLowerCase();
+      const stockSymLower = stock.symbol.toLowerCase();
+
+      const company = companies.find((c: { id: string; symbol: string; name: string }) => {
+        const cSymLower = c.symbol.toLowerCase();
+        const cResLower = SymbolMapper.resolve(c.symbol).toLowerCase();
+        const cNameLower = c.name.toLowerCase();
+        return (
+          cSymLower === stockSymLower ||
+          cSymLower === resolvedStockTicker ||
+          cResLower === resolvedStockTicker ||
+          cNameLower.includes(stockSymLower) ||
+          stockSymLower.includes(cNameLower)
+        );
+      });
 
       if (company) {
         const price = parseFloat(stock.price.replace(',', '.').replace(/\s/g, '')) || 0;
@@ -66,7 +87,7 @@ export async function GET(req: Request) {
       }
     }
 
-    // 4. Bulk Insert dans market_history
+    // 5. Bulk Insert dans market_history
     if (historyEntries.length > 0) {
       const { error: insertError } = await supabaseAdmin
         .from('market_history')
@@ -82,6 +103,9 @@ export async function GET(req: Request) {
     return NextResponse.json({ 
       timestamp: new Date().toISOString(),
       updatedCount: historyEntries.length,
+      ipoCheckExecuted: shouldCheckIpos,
+      newIposAdded: ipoSync.added,
+      companiesUpdated: ipoSync.updated,
       results 
     });
 

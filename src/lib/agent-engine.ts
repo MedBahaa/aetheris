@@ -1,4 +1,4 @@
-import 'server-only';
+﻿import 'server-only';
 import { NewsWorker, MarketWorker, StrategyWorker, FundamentalWorker } from './agents/worker-agents';
 import { GeminiService } from './gemini';
 import { supabaseAdmin } from './supabase-server';
@@ -16,6 +16,9 @@ import {
   DataQuality 
 } from './schemas';
 import { MacroScraper } from './scrapers/macro-scraper';
+import { SymbolMapper } from './symbol-mapper';
+import { BMCEBourseScraper } from './scrapers/bmce-scraper';
+import { MarketListScraper } from './scrapers/market-list-scraper';
 
 // On exporte les types depuis ici aussi pour la compatibilité
 export type { CompanyAnalysis, AgentType, OrchestratorResult, Action, Sentiment, Confidence, Opportunity };
@@ -70,8 +73,6 @@ export class AetherisOrchestrator {
     }
     companyName = InputSanitizer.sanitizeCompanyName(companyName);
 
-
-
     // 0. Smart Ticker Resolution (Ex: 'IAM' -> 'MAROC TELECOM')
     const queryTerm = companyName.toUpperCase().trim();
     let symbol = queryTerm;
@@ -81,44 +82,69 @@ export class AetherisOrchestrator {
     let tickerUnverified = false;
 
     try {
-      // 🕵️ PRIORITÉ : Recherche en Base de Données (Plus fiable et rapide)
+      // 🕵️ PRIORITÉ 1 : Recherche en Base de Données (Plus fiable et rapide)
       const dbQueryTerm = InputSanitizer.sanitizePostgrestFilter(queryTerm);
-      const { data: dbCompany } = await supabaseAdmin
+      const resolvedAlias = InputSanitizer.sanitizePostgrestFilter(SymbolMapper.resolve(queryTerm));
+      const orFilter =
+        resolvedAlias && resolvedAlias !== dbQueryTerm
+          ? `symbol.eq.${dbQueryTerm},symbol.eq.${resolvedAlias},name.ilike.%${dbQueryTerm}%`
+          : `symbol.eq.${dbQueryTerm},name.ilike.%${dbQueryTerm}%`;
+
+      const { data: dbCompanies } = await supabaseAdmin
         .from('companies')
         .select('id, name, symbol, sector')
-        .or(`symbol.eq.${dbQueryTerm},name.ilike.%${dbQueryTerm}%`)
-        .maybeSingle();
+        .or(orFilter)
+        .limit(1);
+
+      const dbCompany = dbCompanies?.[0];
 
       if (dbCompany) {
         companyDbId = dbCompany.id; // Capture de l'ID pour l'historisation
         symbol = dbCompany.symbol;
         resolvedName = dbCompany.name;
-        sector = dbCompany.sector || undefined;
+        sector = dbCompany.sector || SymbolMapper.getSector(dbCompany.symbol, dbCompany.name);
         console.log(`[Orchestrator] 🏛️ Résolution DB: ${symbol} (${resolvedName}) [${sector}]`);
       } else {
-        // FALLBACK : IA (Gemini)
-        console.log(`[Orchestrator] 🤖 Résolution IA pour "${companyName}"...`);
-        const aiResolved = await GeminiService.resolveTicker(companyName);
-        symbol = aiResolved.symbol;
-        resolvedName = aiResolved.companyName;
+        // PRIORITÉ 2 : Découverte en direct via le flux Marché Live / BMCE (Capte automatiquement les nouvelles IPO)
+        const liveResolved = await BMCEBourseScraper.resolveStock(queryTerm);
+        const liveQuote = !liveResolved ? await MarketListScraper.getLiveStock(queryTerm) : null;
 
-        // AUDIT FIX: Validate AI-resolved ticker against the companies table
-        const { data: aiValidation } = await supabaseAdmin
-          .from('companies')
-          .select('id, name, symbol, sector')
-          .eq('symbol', aiResolved.symbol.toUpperCase())
-          .maybeSingle();
-
-        if (aiValidation) {
-          // AI ticker confirmed in DB
-          companyDbId = aiValidation.id;
-          symbol = aiValidation.symbol;
-          resolvedName = aiValidation.name;
-          sector = aiValidation.sector || undefined;
-          console.log(`[Orchestrator] ✅ Ticker IA validé contre le référentiel: ${symbol} (${resolvedName})`);
+        if (liveResolved) {
+          companyDbId = liveResolved.uuid || undefined;
+          symbol = liveResolved.symbol;
+          resolvedName = liveResolved.name;
+          sector = SymbolMapper.getSector(symbol, resolvedName);
+          console.log(`[Orchestrator] 🆕 Résolution Marché Live / IPO: ${symbol} (${resolvedName}) [${sector}]`);
+        } else if (liveQuote) {
+          symbol = liveQuote.ticker || SymbolMapper.resolve(liveQuote.symbol) || liveQuote.symbol;
+          resolvedName = liveQuote.name || SymbolMapper.getCanonicalName(symbol) || liveQuote.symbol;
+          sector = liveQuote.sector || SymbolMapper.getSector(symbol, resolvedName);
+          console.log(`[Orchestrator] 📈 Résolution Flux Direct: ${symbol} (${resolvedName}) [${sector}]`);
         } else {
-          console.warn(`[Orchestrator] ⚠️ Ticker IA "${aiResolved.symbol}" NON TROUVÉ dans le référentiel CSE. Utilisation avec prudence.`);
-          tickerUnverified = true;
+          // PRIORITÉ 3 (FALLBACK) : IA (Gemini)
+          console.log(`[Orchestrator] 🤖 Résolution IA pour "${companyName}"...`);
+          const aiResolved = await GeminiService.resolveTicker(companyName);
+          symbol = aiResolved.symbol;
+          resolvedName = aiResolved.companyName;
+
+          // AUDIT FIX: Validate AI-resolved ticker against the companies table
+          const { data: aiValidation } = await supabaseAdmin
+            .from('companies')
+            .select('id, name, symbol, sector')
+            .eq('symbol', aiResolved.symbol.toUpperCase())
+            .maybeSingle();
+
+          if (aiValidation) {
+            // AI ticker confirmed in DB
+            companyDbId = aiValidation.id;
+            symbol = aiValidation.symbol;
+            resolvedName = aiValidation.name;
+            sector = aiValidation.sector || undefined;
+            console.log(`[Orchestrator] ✅ Ticker IA validé contre le référentiel: ${symbol} (${resolvedName})`);
+          } else {
+            console.warn(`[Orchestrator] ⚠️ Ticker IA "${aiResolved.symbol}" NON TROUVÉ dans le référentiel CSE. Utilisation avec prudence.`);
+            tickerUnverified = true;
+          }
         }
       }
     } catch (e) {

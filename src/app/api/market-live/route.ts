@@ -22,22 +22,33 @@ export async function GET(req: Request) {
     );
   }
 
+  const url = new URL(req.url);
+  const forceDiscover = url.searchParams.get('discover') === '1' || url.searchParams.get('refresh') === '1';
   const now = Date.now();
   
-  // Utiliser le cache si encore valide
-  if (cachedData && (now - lastScrapeTime < CACHE_TTL)) {
+  // Utiliser le cache si encore valide (sauf si vérification IPO forcée)
+  if (!forceDiscover && cachedData && (now - lastScrapeTime < CACHE_TTL)) {
     console.log('[API MarketLive] Returning cached data');
     return corsHeaders(NextResponse.json(cachedData));
   }
 
-  console.log('[API MarketLive] Triggering fresh scrape...');
+  console.log(`[API MarketLive] Triggering fresh scrape (forceDiscover=${forceDiscover})...`);
   
   try {
-    const result = await MarketListScraper.scrapeAll();
+    const result = await MarketListScraper.scrapeAll({ forceDiscovery: forceDiscover });
     
     if (result.status === 'success') {
       cachedData = result;
       lastScrapeTime = now;
+
+      if (forceDiscover) {
+        // Synchroniser immédiatement les nouvelles introductions (IPO) avec Supabase
+        const syncSummary = await MarketListScraper.syncCompaniesWithMarket(result.stocks, true);
+        return corsHeaders(NextResponse.json({
+          ...result,
+          ipoSync: syncSummary,
+        }));
+      }
     }
     
     return corsHeaders(NextResponse.json(result));

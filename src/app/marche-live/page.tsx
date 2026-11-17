@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import useSWR from 'swr';
-import { Activity, RefreshCw, Clock, Search, Zap, ChevronUp, ChevronDown, AlertCircle, Sparkles, BarChart3, Building2, Newspaper } from 'lucide-react';
+import { Activity, RefreshCw, Clock, Search, Zap, ChevronUp, ChevronDown, AlertCircle, Sparkles, BarChart3, Building2, Newspaper, CheckCircle2 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import { LiveStockData } from '@/lib/scrapers/market-list-scraper';
+import { SymbolMapper } from '@/lib/symbol-mapper';
 import { useDebounce } from '@/hooks/useDebounce';
 import './marche-live.css';
 
@@ -47,6 +48,8 @@ export default function MarcheLive() {
   const [lastUpdate, setLastUpdate] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>({ key: 'variationValue', direction: 'desc' });
   const [openMenuSymbol, setOpenMenuSymbol] = useState<string | null>(null);
+  const [isCheckingIpo, setIsCheckingIpo] = useState(false);
+  const [ipoCheckStatus, setIpoCheckStatus] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Fermer le menu contextuel si on clique en dehors
@@ -65,18 +68,23 @@ export default function MarcheLive() {
     window.location.href = `/console?q=${encodeURIComponent(symbol)}&agent=${agentType}`;
   }, []);
 
+  const enrichStocks = (rawStocks: LiveStockData[]) => {
+    return rawStocks.map((s: LiveStockData) => ({
+      ...s,
+      ticker: s.ticker || SymbolMapper.resolve(s.symbol),
+      name: s.name || SymbolMapper.getCanonicalName(s.symbol),
+      sector: s.sector || SymbolMapper.getSector(s.ticker || s.symbol, s.symbol),
+      _parsedPrice: typeof s.price === 'string' ? parseFloat(s.price.replace(',', '.').replace(/\s/g, '')) : s.price,
+      _parsedVariationValue: s.variationValue,
+    }));
+  };
+
   const fetcher = async (url: string) => {
     const res = await fetch(url);
     if (!res.ok) throw new Error('Fetch failed');
     const data = await res.json();
     if (data.status !== 'success') throw new Error('API Error');
-    
-    // Amélioration 2 : Pré-parsing des données pour alléger le tri
-    return data.stocks.map((s: LiveStockData) => ({
-      ...s,
-      _parsedPrice: typeof s.price === 'string' ? parseFloat(s.price.replace(',', '.').replace(/\s/g, '')) : s.price,
-      _parsedVariationValue: s.variationValue,
-    }));
+    return enrichStocks(data.stocks);
   };
 
   // Amélioration 1 : Utilisation de SWR pour la gestion des requêtes, du cache et de l'état asynchrone
@@ -85,9 +93,39 @@ export default function MarcheLive() {
     revalidateOnFocus: true,
   });
 
+  // Vérification forcée des nouvelles introductions (IPO) multi-sources
+  const handleForceIpoCheck = async () => {
+    if (isCheckingIpo) return;
+    setIsCheckingIpo(true);
+    setIpoCheckStatus(null);
+    try {
+      const res = await fetch('/api/market-live?discover=1');
+      if (!res.ok) throw new Error('Discovery failed');
+      const data = await res.json();
+      if (data.status === 'success' && Array.isArray(data.stocks)) {
+        await mutate(enrichStocks(data.stocks), false);
+        setLastUpdate(new Date().toLocaleTimeString('fr-FR'));
+        setNextRefresh(60);
+        const addedCount = data.ipoSync?.added?.length || data.newIposDiscovered?.length || 0;
+        if (addedCount > 0) {
+          const names = (data.ipoSync?.added || data.newIposDiscovered || []).join(', ');
+          setIpoCheckStatus(`🆕 ${addedCount} nouvelle(s) introduction(s) détectée(s) : ${names}`);
+        } else {
+          setIpoCheckStatus(`✓ Marché à jour (${data.stocks.length} valeurs BVC vérifiées)`);
+        }
+        setTimeout(() => setIpoCheckStatus(null), 6000);
+      }
+    } catch {
+      setIpoCheckStatus('⚠️ Vérification momentanément indisponible');
+      setTimeout(() => setIpoCheckStatus(null), 4000);
+    } finally {
+      setIsCheckingIpo(false);
+    }
+  };
+
   const stocks = stocksData || [];
   const loading = !stocksData && !error;
-  const isRefreshing = isValidating && !!stocksData;
+  const isRefreshing = (isValidating && !!stocksData) || isCheckingIpo;
 
   useEffect(() => {
     if (stocksData) {
@@ -125,8 +163,8 @@ export default function MarcheLive() {
     return [...stocks].sort((a, b) => {
       if (!sortConfig) return 0;
       
-      let aValue: any = a[sortConfig.key];
-      let bValue: any = b[sortConfig.key];
+      let aValue: any = (a as any)[sortConfig.key];
+      let bValue: any = (b as any)[sortConfig.key];
 
       if (sortConfig.key === 'price') {
          aValue = a._parsedPrice;
@@ -142,13 +180,25 @@ export default function MarcheLive() {
     });
   }, [stocks, sortConfig]);
 
-  // Amélioration 2 : Mémoïsation du filtrage
+  // Amélioration 2 : Mémoïsation du filtrage (supporte Nom, Ticker officiel, Alias et Secteur)
   const filteredStocks = useMemo(() => {
     if (!debouncedSearchTerm) return sortedStocks;
-    const lowerSearch = debouncedSearchTerm.toLowerCase();
-    return sortedStocks.filter(s => 
-      s.symbol.toLowerCase().includes(lowerSearch)
-    );
+    const lowerSearch = debouncedSearchTerm.toLowerCase().trim();
+    const resolvedSearch = SymbolMapper.resolve(debouncedSearchTerm).toLowerCase();
+
+    return sortedStocks.filter(s => {
+      const symLower = s.symbol.toLowerCase();
+      const tickerLower = (s.ticker || SymbolMapper.resolve(s.symbol)).toLowerCase();
+      const nameLower = (s.name || SymbolMapper.getCanonicalName(s.symbol)).toLowerCase();
+      const sectorLower = (s.sector || '').toLowerCase();
+      return (
+        symLower.includes(lowerSearch) ||
+        tickerLower.includes(lowerSearch) ||
+        nameLower.includes(lowerSearch) ||
+        sectorLower.includes(lowerSearch) ||
+        (resolvedSearch.length > 0 && tickerLower === resolvedSearch)
+      );
+    });
   }, [sortedStocks, debouncedSearchTerm]);
 
   return (
@@ -177,7 +227,9 @@ export default function MarcheLive() {
               </div>
               <div className="title-row">
                 <h1 className="title-h1">Marché Live</h1>
-                <div className="market-badge opacity-70">BOURSE DE CASABLANCA (LIVE)</div>
+                <div className="market-badge opacity-70">
+                  BOURSE DE CASABLANCA ({stocks.length > 0 ? `${stocks.length} VALEURS` : 'LIVE'})
+                </div>
               </div>
             </div>
 
@@ -190,15 +242,61 @@ export default function MarcheLive() {
                 <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
                 <span className="mono-small">{isRefreshing ? 'ACQUISITION DES DONNÉES...' : `PROCHAIN FLUX : ${nextRefresh}s`}</span>
               </div>
+              <button
+                type="button"
+                onClick={handleForceIpoCheck}
+                disabled={isCheckingIpo}
+                title="Scanner le marché et indexer automatiquement les nouvelles introductions en bourse (IPO)"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  background: 'rgba(16, 185, 129, 0.1)',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  color: '#10b981',
+                  fontSize: '11px',
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontWeight: 700,
+                  cursor: isCheckingIpo ? 'wait' : 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <RefreshCw size={12} className={isCheckingIpo ? 'animate-spin' : ''} />
+                <span>{isCheckingIpo ? 'SCAN IPO...' : 'VÉRIFIER IPO'}</span>
+              </button>
             </div>
           </header>
+
+          {ipoCheckStatus && (
+            <div
+              className="glass-heavy animate-fade-in"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 16px',
+                marginBottom: '12px',
+                borderRadius: '10px',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                background: 'rgba(16, 185, 129, 0.08)',
+                color: '#10b981',
+                fontSize: '12px',
+                fontFamily: 'JetBrains Mono, monospace',
+              }}
+            >
+              <CheckCircle2 size={15} />
+              <span>{ipoCheckStatus}</span>
+            </div>
+          )}
 
           <div className="controls-bar glass-heavy animate-fade-in" style={{ animationDelay: '0.1s' }}>
             <div className="search-box">
               <Search size={18} className="opacity-40" />
               <input 
                 type="text" 
-                placeholder="RECHERCHER UN SYMBOLE OU ISIN..." 
+                placeholder="RECHERCHER PAR NOM, TICKER (EX: IAM, GTM, VCN, CAP) OU SECTEUR..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -235,6 +333,7 @@ export default function MarcheLive() {
                 <div className="mobile-only-container gap-3 p-3">
                   {filteredStocks.map((stock) => {
                     const isPositive = stock.variationValue >= 0;
+                    const displayTicker = stock.ticker && stock.ticker !== stock.symbol.toUpperCase() ? stock.ticker : null;
 
                     return (
                       <div key={stock.symbol} className="live-market-mobile-card">
@@ -242,11 +341,23 @@ export default function MarcheLive() {
                         <div className="card-top-row">
                           <div className="card-identity" onClick={() => handleAnalyze(stock.symbol, 'STRATEGY')} role="button" tabIndex={0}>
                             <div className="stock-avatar-badge">
-                              {stock.symbol.substring(0, 3)}
+                              {(stock.ticker || stock.symbol).substring(0, 3)}
                             </div>
                             <div className="stock-titles">
-                              <span className="stock-symbol-title">{stock.symbol}</span>
-                              <span className="stock-sector-pill">CASABLANCA LIVE</span>
+                              <span className="stock-symbol-title">
+                                {stock.symbol}
+                                {displayTicker && (
+                                  <span className="mono" style={{ marginLeft: '6px', fontSize: '10px', opacity: 0.6 }}>
+                                    [{displayTicker}]
+                                  </span>
+                                )}
+                                {stock.isIpo && (
+                                  <span className="mono" style={{ marginLeft: '6px', fontSize: '9px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.35)' }}>
+                                    IPO
+                                  </span>
+                                )}
+                              </span>
+                              <span className="stock-sector-pill">{stock.sector || 'CASABLANCA LIVE'}</span>
                             </div>
                           </div>
 
@@ -320,61 +431,96 @@ export default function MarcheLive() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredStocks.map((stock, i) => (
-                        <tr key={i} className="inst-row">
-                          <td data-label="VALEUR">
-                            <div className="symbol-cell">
-                              <div className="s-status"></div>
-                              <span className="s-name">{stock.symbol}</span>
-                            </div>
-                          </td>
-                          <td className="price-cell-inst" data-label="DERNIER COURS">
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-                               <span className="p-val mono">{stock.price}</span>
-                               <span className="p-cur">MAD</span>
-                            </div>
-                          </td>
-                          <td data-label="MOMENTUM">
-                            <div className={`momentum-box ${stock.variationValue >= 0 ? 'bull' : 'bear'}`}>
-                              <div className="m-main">
-                                 <span className="m-abs mono">{stock.variationAbs}</span>
-                                 <span className="m-pct mono">{stock.variation}</span>
+                      {filteredStocks.map((stock, i) => {
+                        const displayTicker = stock.ticker && stock.ticker !== stock.symbol.toUpperCase() ? stock.ticker : null;
+                        return (
+                          <tr key={i} className="inst-row">
+                            <td data-label="VALEUR">
+                              <div className="symbol-cell">
+                                <div className="s-status"></div>
+                                <span className="s-name">{stock.symbol}</span>
+                                {displayTicker && (
+                                  <span
+                                    className="mono"
+                                    style={{
+                                      fontSize: '10px',
+                                      padding: '1px 6px',
+                                      borderRadius: '4px',
+                                      background: 'rgba(255,255,255,0.05)',
+                                      color: '#94a3b8',
+                                      marginLeft: '6px',
+                                    }}
+                                  >
+                                    {displayTicker}
+                                  </span>
+                                )}
+                                {stock.isIpo && (
+                                  <span
+                                    className="mono"
+                                    style={{
+                                      fontSize: '9px',
+                                      padding: '1px 6px',
+                                      borderRadius: '4px',
+                                      background: 'rgba(16, 185, 129, 0.15)',
+                                      color: '#10b981',
+                                      border: '1px solid rgba(16, 185, 129, 0.35)',
+                                      marginLeft: '6px',
+                                      fontWeight: 800,
+                                    }}
+                                  >
+                                    IPO
+                                  </span>
+                                )}
                               </div>
-                              <div className="m-bar">
-                                 <div className="m-fill" style={{ width: `${Math.min(Math.abs(stock.variationValue) * 15, 100)}%` }}></div>
+                            </td>
+                            <td className="price-cell-inst" data-label="DERNIER COURS">
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                                 <span className="p-val mono">{stock.price}</span>
+                                 <span className="p-cur">MAD</span>
                               </div>
-                            </div>
-                          </td>
-                          <td className="data-cell mono" data-label="OUVERTURE">{stock.opening}</td>
-                          <td className="data-cell high mono" data-label="PLUS HAUT">{stock.high}</td>
-                          <td className="data-cell low mono" data-label="PLUS BAS">{stock.low}</td>
-                          <td style={{ textAlign: 'right' }}>
-                            <div className="action-dropdown-container" ref={openMenuSymbol === stock.symbol ? menuRef : undefined}>
-                              <button 
-                                className="terminal-btn-sm glass"
-                                onClick={() => setOpenMenuSymbol(prev => prev === stock.symbol ? null : stock.symbol)}
-                              >
-                                <Zap size={12} />
-                                <span>ANALYSER</span>
-                              </button>
-                              {openMenuSymbol === stock.symbol && (
-                                <div className="action-dropdown-menu">
-                                  {ANALYSIS_OPTIONS.map(opt => (
-                                    <button
-                                      key={opt.key}
-                                      className={`dropdown-item ${opt.className}`}
-                                      onClick={() => handleAnalyze(stock.symbol, opt.key)}
-                                    >
-                                      <opt.icon size={14} />
-                                      <span>{opt.label}</span>
-                                    </button>
-                                  ))}
+                            </td>
+                            <td data-label="MOMENTUM">
+                              <div className={`momentum-box ${stock.variationValue >= 0 ? 'bull' : 'bear'}`}>
+                                <div className="m-main">
+                                   <span className="m-abs mono">{stock.variationAbs}</span>
+                                   <span className="m-pct mono">{stock.variation}</span>
                                 </div>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                                <div className="m-bar">
+                                   <div className="m-fill" style={{ width: `${Math.min(Math.abs(stock.variationValue) * 15, 100)}%` }}></div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="data-cell mono" data-label="OUVERTURE">{stock.opening}</td>
+                            <td className="data-cell high mono" data-label="PLUS HAUT">{stock.high}</td>
+                            <td className="data-cell low mono" data-label="PLUS BAS">{stock.low}</td>
+                            <td style={{ textAlign: 'right' }}>
+                              <div className="action-dropdown-container" ref={openMenuSymbol === stock.symbol ? menuRef : undefined}>
+                                <button 
+                                  className="terminal-btn-sm glass"
+                                  onClick={() => setOpenMenuSymbol(prev => prev === stock.symbol ? null : stock.symbol)}
+                                >
+                                  <Zap size={12} />
+                                  <span>ANALYSER</span>
+                                </button>
+                                {openMenuSymbol === stock.symbol && (
+                                  <div className="action-dropdown-menu">
+                                    {ANALYSIS_OPTIONS.map(opt => (
+                                      <button
+                                        key={opt.key}
+                                        className={`dropdown-item ${opt.className}`}
+                                        onClick={() => handleAnalyze(stock.symbol, opt.key)}
+                                      >
+                                        <opt.icon size={14} />
+                                        <span>{opt.label}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

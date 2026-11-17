@@ -1,6 +1,8 @@
 import * as cheerio from 'cheerio';
 import { supabaseAdmin } from '../supabase-server';
 import { InputSanitizer } from '../input-sanitizer';
+import { SymbolMapper } from '../symbol-mapper';
+import { MarketListScraper } from './market-list-scraper';
 
 export interface ScrapedStockData {
   price: string;
@@ -41,37 +43,110 @@ const HTTP_HEADERS = {
 export class BMCEBourseScraper {
 
   /**
-   * Résout une société via Supabase (utilise le client admin pour bypasser RLS)
+   * Résout une société via Supabase + fallback dynamique (SymbolMapper & MarketListScraper pour les nouvelles IPO)
    */
   public static async resolveStock(input: string): Promise<{ id: string, name: string, uuid: string, symbol: string } | null> {
     const query = InputSanitizer.sanitizePostgrestFilter(input);
     if (!query) return null;
 
+    const resolvedSym = InputSanitizer.sanitizePostgrestFilter(SymbolMapper.resolve(input));
+    const canonicalName = InputSanitizer.sanitizePostgrestFilter(SymbolMapper.getCanonicalName(input));
+
     try {
-      // Recherche par symbole exact OU par nom (partiel)
+      const orClauses = new Set<string>([
+        `symbol.eq.${query}`,
+        `name.ilike.%${query}%`,
+        `symbol.ilike.%${query}%`,
+      ]);
+      if (resolvedSym && resolvedSym !== query) {
+        orClauses.add(`symbol.eq.${resolvedSym}`);
+        orClauses.add(`name.ilike.%${resolvedSym}%`);
+      }
+      if (canonicalName && canonicalName !== query) {
+        orClauses.add(`name.ilike.%${canonicalName}%`);
+      }
+
+      // 1. Recherche dans la table `companies`
       const { data: companies, error } = await supabaseAdmin
         .from('companies')
         .select('id, name, symbol, bmce_id')
-        .or(`symbol.eq.${query},name.ilike.%${query}%,symbol.ilike.%${query}%`);
+        .or(Array.from(orClauses).join(','));
 
       if (error) {
         console.error('[resolveStock] Supabase error:', error.message);
-        return null;
       }
 
       // Trouver la meilleure correspondance avec un bmce_id valide
       const match = companies?.find((c: { bmce_id: string | null }) => c.bmce_id && !c.bmce_id.includes(','));
       const fallback = companies?.find((c: { bmce_id: string | null }) => c.bmce_id);
+      const companyWithId = match || fallback;
 
-      const company = match || fallback;
-
-      if (company && company.bmce_id) {
-        // Nettoyer le bmce_id : retirer le suffixe ',102,608' s'il est déjà inclus
-        const cleanId = company.bmce_id.split(',')[0];
-        console.log(`[resolveStock] Résolu: "${input}" → ${company.name} (ID: ${cleanId}, Symbol: ${company.symbol})`);
-        return { id: cleanId, name: company.name, uuid: company.id, symbol: company.symbol };
+      if (companyWithId && companyWithId.bmce_id) {
+        const cleanId = companyWithId.bmce_id.split(',')[0].trim();
+        console.log(`[resolveStock] Résolu: "${input}" → ${companyWithId.name} (ID: ${cleanId}, Symbol: ${companyWithId.symbol})`);
+        return { id: cleanId, name: companyWithId.name, uuid: companyWithId.id, symbol: companyWithId.symbol };
       }
 
+      // 2. Fallback IPO / bmce_id manquant : résoudre via SymbolMapper ou MarketListScraper en direct
+      let discoveredBmceId = SymbolMapper.getBmceId(input);
+      let liveMatch = null;
+
+      if (!discoveredBmceId) {
+        liveMatch = await MarketListScraper.getLiveStock(input);
+        if (liveMatch) {
+          discoveredBmceId = liveMatch.bmceId || SymbolMapper.getBmceId(liveMatch.symbol) || null;
+        }
+      }
+
+      const existingWithoutBmceId = companies?.[0];
+
+      if (discoveredBmceId) {
+        const cleanId = discoveredBmceId.split(',')[0].trim();
+
+        // Cas 2A : La société existe déjà dans `companies` mais n'avait pas encore son `bmce_id` (ex: SGTM)
+        if (existingWithoutBmceId) {
+          await supabaseAdmin
+            .from('companies')
+            .update({ bmce_id: cleanId, updated_at: new Date().toISOString() })
+            .eq('id', existingWithoutBmceId.id);
+
+          console.log(`[resolveStock] 🔄 bmce_id auto-complété pour ${existingWithoutBmceId.symbol}: ${cleanId}`);
+          return {
+            id: cleanId,
+            name: existingWithoutBmceId.name,
+            uuid: existingWithoutBmceId.id,
+            symbol: existingWithoutBmceId.symbol,
+          };
+        }
+
+        // Cas 2B : Nouvelle introduction (IPO) pas encore enregistrée dans `companies`
+        const newSymbol = (resolvedSym || liveMatch?.ticker || query).toUpperCase();
+        const newName = (liveMatch?.name || canonicalName || liveMatch?.symbol || query).toUpperCase();
+        const newSector = SymbolMapper.getSector(newSymbol, newName);
+
+        const { data: inserted } = await supabaseAdmin
+          .from('companies')
+          .upsert(
+            {
+              symbol: newSymbol,
+              name: newName,
+              bmce_id: cleanId,
+              sector: newSector,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'symbol' }
+          )
+          .select('id, name, symbol')
+          .maybeSingle();
+
+        console.log(`[resolveStock] 🆕 Nouvelle valeur / IPO auto-enregistrée: ${newSymbol} (${newName}, ID: ${cleanId})`);
+        return {
+          id: cleanId,
+          name: inserted?.name || newName,
+          uuid: inserted?.id || '',
+          symbol: inserted?.symbol || newSymbol,
+        };
+      }
 
       console.warn(`[resolveStock] Aucune correspondance pour "${input}"`);
       return null;

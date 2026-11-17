@@ -3,6 +3,8 @@ import { PortfolioService } from '../lib/portfolio-service';
 import { PortfolioTransaction, DividendTransaction, PortfolioTransactionSchema, UserProfileClientInputSchema } from '../lib/schemas';
 import { InputSanitizer } from '../lib/input-sanitizer';
 import { DIVIDEND_NET_RATIO } from '../lib/portfolio-constants';
+import { SymbolMapper } from '../lib/symbol-mapper';
+import { MarketListScraper } from '../lib/scrapers/market-list-scraper';
 
 describe('PortfolioService', () => {
   describe('calculateDividendIncome', () => {
@@ -185,6 +187,44 @@ describe('PortfolioService', () => {
       expect(holdings[0].totalQuantity).toBe(200);
       // PMP = (100*100*1.0099 + 100*120*1.0099) / 200 = 111.089
       expect(holdings[0].weightedAveragePrice).toBeCloseTo(111.089, 2);
+    });
+  });
+
+  describe('IPO & Dynamic Symbol Resolution', () => {
+    it('resolves recent BVC IPOs (Cash Plus, Vicenne, SGTM, T2S, CMGP) and their BMCE IDs', () => {
+      expect(SymbolMapper.resolve('Cash Plus')).toBe('CAP');
+      expect(SymbolMapper.getBmceId('Cash Plus')).toBe('150349775');
+      expect(SymbolMapper.resolve('Vicenne')).toBe('VCN');
+      expect(SymbolMapper.getBmceId('VCN')).toBe('146374042');
+      expect(SymbolMapper.resolve('SGTM')).toBe('GTM');
+      expect(SymbolMapper.getBmceId('SGTM')).toBe('150904121');
+      expect(SymbolMapper.resolve('T2S Gro Holding')).toBe('T2S');
+      expect(SymbolMapper.resolve('CMGP GROUP')).toBe('CMG');
+      expect(SymbolMapper.getBmceId('CMG')).toBe('140242147');
+    });
+
+    it('dynamically registers future IPO companies at runtime', () => {
+      SymbolMapper.registerDynamicCompany({
+        symbol: 'NIPO',
+        name: 'NOUVELLE INTRO MAROC SA',
+        bmceId: '999888777,102,608',
+        sector: 'Technologies',
+      });
+
+      expect(SymbolMapper.resolve('Nouvelle Intro Maroc SA')).toBe('NIPO');
+      expect(SymbolMapper.getCanonicalName('NIPO')).toBe('NOUVELLE INTRO MAROC SA');
+      expect(SymbolMapper.getBmceId('Nouvelle Intro Maroc SA')).toBe('999888777');
+      expect(SymbolMapper.getSector('NIPO')).toBe('Technologies');
+    });
+
+    it('runs automatic IPO check only in the 10:00 AM Casablanca window once per day', () => {
+      // 09:05 UTC = 10:05 Casablanca (UTC+1) -> true
+      const tenAmCasa = new Date('2026-11-17T09:05:00Z');
+      expect(MarketListScraper.shouldRunDaily10AmIpoCheck(tenAmCasa)).toBe(true);
+
+      // 13:30 UTC = 14:30 Casablanca -> false (outside 10:00 AM window)
+      const twoPmCasa = new Date('2026-11-17T13:30:00Z');
+      expect(MarketListScraper.shouldRunDaily10AmIpoCheck(twoPmCasa)).toBe(false);
     });
   });
 });
