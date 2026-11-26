@@ -5,6 +5,7 @@ import StyledJsxRegistry from "@/lib/registry";
 import SessionGuard from "@/components/SessionGuard";
 import { DeviceProvider } from "@/hooks/useDevice";
 import PwaRegistry from "@/components/PwaRegistry";
+import BottomNav from "@/components/BottomNav";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://aetheris.vercel.app'),
@@ -82,6 +83,7 @@ export default async function RootLayout({
           <DeviceProvider>
             <SessionGuard />
             {children}
+            <BottomNav />
           </DeviceProvider>
         </StyledJsxRegistry>
       </body>

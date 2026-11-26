@@ -149,10 +149,19 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
         vertLine: { color: '#64748b', width: 1, style: 3 },
         horzLine: { color: '#64748b', width: 1, style: 3 },
       },
-      handleScroll: true,
-      handleScale: true,
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: false,
+      },
+      handleScale: {
+        axisPressedMouseMove: true,
+        mouseWheel: true,
+        pinch: true,
+      },
       width: chartContainerRef.current.clientWidth,
-      height: 300,
+      height: window.innerWidth <= 640 ? 230 : 300,
     });
 
     // Area Series for Portefeuille (% Return - Emerald Green)
@@ -231,13 +240,23 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
 
     const handleResize = () => {
       if (chartContainerRef.current && chart) {
-        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+        chart.applyOptions({
+          width: chartContainerRef.current.clientWidth,
+          height: window.innerWidth <= 640 ? 230 : 300,
+        });
       }
     };
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined' && chartContainerRef.current) {
+      resizeObserver = new ResizeObserver(() => handleResize());
+      resizeObserver.observe(chartContainerRef.current);
+    }
 
     window.addEventListener('resize', handleResize);
 
     return () => {
+      resizeObserver?.disconnect();
       window.removeEventListener('resize', handleResize);
       chart.remove();
     };
@@ -260,8 +279,8 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
       {/* HEADER ROW */}
       <div className="widget-header-row">
         <div className="widget-header">
-          <span className="mono-tiny text-emerald flex items-center gap-1.5 font-bold">
-            <TrendingUp size={13} /> COMPARATIF DE PERFORMANCE (%) VS BENCHMARK MASI
+          <span className="chart-eyebrow mono-tiny">
+            <TrendingUp size={13} /> COMPARATIF (%) VS BENCHMARK MASI
           </span>
           <h2 className="widget-title">ÉVOLUTION DU PORTEFEUILLE</h2>
         </div>
@@ -271,6 +290,7 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
           {(['1S', '1M', 'YTD', '1A', 'MAX'] as const).map((range) => (
             <button 
               key={range} 
+              type="button"
               className={`range-btn ${timeRange === range ? 'active' : ''}`}
               onClick={() => setTimeRange(range)}
             >
@@ -290,7 +310,7 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
                 <span className="dot emerald"></span> Portefeuille: <strong className="mono">{hoverData.portfolioVal.toLocaleString('fr-FR')} MAD</strong> ({hoverData.portfolioPct >= 0 ? '+' : ''}{hoverData.portfolioPct.toFixed(2)}%)
               </span>
               <span className="hud-metric masi">
-                <span className="dot purple"></span> Indice MASI: <strong className="mono text-purple-300">{hoverData.masiPts.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} pts</strong> ({hoverData.masiPct >= 0 ? '+' : ''}{hoverData.masiPct.toFixed(2)}%)
+                <span className="dot purple"></span> Indice MASI: <strong className="mono masi-pts-strong">{hoverData.masiPts.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} pts</strong> ({hoverData.masiPct >= 0 ? '+' : ''}{hoverData.masiPct.toFixed(2)}%)
               </span>
               <span className={`hud-badge ${hoverData.alpha >= 0 ? 'bull' : 'bear'}`}>
                 Alpha: {hoverData.alpha >= 0 ? '+' : ''}{hoverData.alpha.toFixed(2)}%
@@ -299,7 +319,7 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
           </div>
         ) : (
           <div className="hud-content idle">
-            <span className="mono-tiny text-slate-400">💡 Survolez le graphique pour voir la performance (%) et l'Indice MASI en points (pts)</span>
+            <span className="hud-idle-hint mono-tiny">💡 Touchez ou survolez la courbe pour comparer Portefeuille vs MASI (pts)</span>
           </div>
         )}
       </div>
@@ -311,11 +331,11 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
       <div className="chart-legend">
         <div className="legend-item">
           <div className="legend-line portfolio"></div>
-          <span className="mono-tiny font-bold text-slate-200">PORTEFEUILLE (PERF. %)</span>
+          <span className="legend-label-port mono-tiny">PORTEFEUILLE (PERF. %)</span>
         </div>
         <div className="legend-item">
           <div className="legend-line masi"></div>
-          <span className="mono-tiny font-bold text-purple-400">INDICE MASI (POINTS & VAR. %)</span>
+          <span className="legend-label-masi mono-tiny">INDICE MASI (POINTS &amp; VAR. %)</span>
         </div>
       </div>
 
@@ -343,6 +363,34 @@ export const PortfolioEvolutionChart: React.FC<PortfolioEvolutionChartProps> = (
           display: flex;
           flex-direction: column;
           gap: 0.35rem;
+        }
+
+        .chart-eyebrow {
+          color: #10b981;
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+          font-weight: 800;
+        }
+
+        .hud-idle-hint {
+          color: #94a3b8;
+          line-height: 1.4;
+          text-align: center;
+        }
+
+        .masi-pts-strong {
+          color: #d8b4fe;
+        }
+
+        .legend-label-port {
+          color: #e2e8f0;
+          font-weight: 800;
+        }
+
+        .legend-label-masi {
+          color: #c084fc;
+          font-weight: 800;
         }
 
         .widget-title {

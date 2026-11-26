@@ -3,7 +3,6 @@
 import React from 'react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
-import BottomNav from '@/components/BottomNav';
 import DashboardContent from './DashboardContent';
 import { DashboardProps } from '@/types/dashboard';
 
@@ -13,14 +12,12 @@ interface MobileDashboardProps extends DashboardProps {
 
 export default function MobileDashboard(props: MobileDashboardProps) {
   return (
-    <div className="app-container mobile-layout" style={{ display: 'block', paddingBottom: '70px' }}>
+    <div className="app-container mobile-layout">
       <Header onOpenSidebar={() => props.setIsSidebarOpen(true)} />
       
-      <main className="main-content mobile-content" style={{ padding: '1rem', paddingTop: 'calc(var(--header-height) + var(--sat) + 0.75rem)' }}>
+      <main className="main-content mobile-content">
         <DashboardContent {...props} />
       </main>
-      
-      <BottomNav />
       
       <Sidebar 
         history={props.history} 

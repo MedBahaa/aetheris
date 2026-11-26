@@ -12,10 +12,10 @@ interface TabletDashboardProps extends DashboardProps {
 
 export default function TabletDashboard(props: TabletDashboardProps) {
   return (
-    <div className="app-container tablet-layout" style={{ display: 'block' }}>
+    <div className="app-container tablet-layout">
       <Header onOpenSidebar={() => props.setIsSidebarOpen(true)} />
       
-      <main className="main-content tablet-content" style={{ padding: '2rem', paddingTop: 'calc(var(--header-height) + var(--sat) + 2rem)' }}>
+      <main className="main-content tablet-content">
         <div style={{ maxWidth: '900px', margin: '0 auto' }}>
           <DashboardContent {...props} />
         </div>

@@ -303,9 +303,10 @@ export const SectorAllocationDonut: React.FC<SectorAllocationDonutProps> = ({
           }
           .legend-item {
             background: rgba(255, 255, 255, 0.03) !important;
-            border: 1px solid rgba(255, 255, 255, 0.05) !important;
-            border-radius: 8px !important;
-            padding: 6px 8px !important;
+            border: 1px solid rgba(255, 255, 255, 0.06) !important;
+            border-radius: 10px !important;
+            padding: 8px 10px !important;
+            min-height: 40px !important;
           }
         }
       `}</style>

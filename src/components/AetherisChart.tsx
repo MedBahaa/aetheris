@@ -77,13 +77,11 @@ export default function AetherisChart({ company, companyId, isBullish = true }: 
   useEffect(() => {
     if (loading || !chartContainerRef.current || chartData.length === 0) return;
 
-    const handleResize = () => {
-      chartRef.current?.applyOptions({ width: chartContainerRef.current?.clientWidth });
-    };
-
+    const containerEl = chartContainerRef.current;
+    const isNarrow = containerEl.clientWidth > 0 && containerEl.clientWidth < 520;
     const color = isBullish ? '#10b981' : '#f43f5e';
     
-    const chart = createChart(chartContainerRef.current, {
+    const chart = createChart(containerEl, {
       layout: {
         background: { type: ColorType.Solid, color: 'transparent' },
         textColor: '#94a3b8',
@@ -92,8 +90,14 @@ export default function AetherisChart({ company, companyId, isBullish = true }: 
         vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
         horzLines: { color: 'rgba(255, 255, 255, 0.05)' },
       },
-      width: chartContainerRef.current.clientWidth,
-      height: 250,
+      width: containerEl.clientWidth,
+      height: containerEl.clientHeight || (isNarrow ? 210 : 250),
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: false,
+      },
       timeScale: {
         borderVisible: false,
         timeVisible: true,
@@ -108,7 +112,7 @@ export default function AetherisChart({ company, companyId, isBullish = true }: 
 
     const newSeries = chart.addSeries(AreaSeries, {
       lineColor: color,
-      topColor: color + '40', // 40 hex opacity
+      topColor: color + '40',
       bottomColor: color + '00',
       lineWidth: 2,
     });
@@ -118,54 +122,149 @@ export default function AetherisChart({ company, companyId, isBullish = true }: 
     newSeries.setData(chartData);
     chart.timeScale().fitContent();
 
-    window.addEventListener('resize', handleResize);
+    const applySize = () => {
+      if (!chartRef.current || !chartContainerRef.current) return;
+      chartRef.current.applyOptions({
+        width: chartContainerRef.current.clientWidth,
+        height: chartContainerRef.current.clientHeight || 220,
+      });
+    };
+
+    const observer = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(() => applySize())
+      : null;
+    observer?.observe(containerEl);
+    window.addEventListener('resize', applySize);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
+      observer?.disconnect();
+      window.removeEventListener('resize', applySize);
       chart.remove();
     };
   }, [chartData, loading, isBullish]);
 
   return (
-    <div className="w-full bg-white/[0.02] border border-white/5 rounded-2xl p-6 relative">
-      <div className="flex justify-between items-start mb-4">
-        <div className="space-y-1">
-          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Historique des Prix</span>
-          <h4 className="text-sm font-bold text-white flex items-center gap-2">
-            {isBullish ? <TrendingUp size={16} className="text-emerald-500" /> : <TrendingDown size={16} className="text-rose-500" />}
-            {company}
+    <div className="aetheris-chart-card">
+      <div className="chart-header">
+        <div className="chart-titles">
+          <span className="chart-eyebrow">Historique des Prix</span>
+          <h4 className="chart-company">
+            {isBullish
+              ? <TrendingUp size={16} className="chart-icon-bull" />
+              : <TrendingDown size={16} className="chart-icon-bear" />}
+            <span>{company}</span>
           </h4>
         </div>
-        <div className="px-3 py-1 bg-white/5 rounded-full text-[10px] font-bold text-slate-400">
-           MAD
-        </div>
+        <div className="chart-currency-badge mono">MAD</div>
       </div>
 
-      <div className="w-full h-[250px] relative">
+      <div className="chart-viewport">
         {loading ? (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Loader2 className="animate-spin text-slate-500" size={24} />
+          <div className="chart-loading">
+            <Loader2 className="animate-spin" size={24} style={{ color: '#64748b' }} />
           </div>
         ) : chartData.length > 0 ? (
-          <div ref={chartContainerRef} className="w-full h-full" />
+          <div ref={chartContainerRef} className="chart-canvas" />
         ) : (
-          <div style={{
-            height: '250px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(255,255,255,0.02)',
-            borderRadius: '10px',
-            border: '1px solid rgba(255,255,255,0.06)',
-            gap: '8px'
-          }}>
-            <span style={{ fontSize: '24px' }}>📊</span>
-            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.05em' }}>Historique de cours non disponible</span>
-            <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.25)' }}>L&apos;historique sera disponible après la prochaine synchronisation</span>
+          <div className="chart-empty">
+            <span className="chart-empty-emoji">📊</span>
+            <span className="chart-empty-title">Historique de cours non disponible</span>
+            <span className="chart-empty-sub">L&apos;historique sera disponible après la prochaine synchronisation</span>
           </div>
         )}
       </div>
+
+      <style jsx>{`
+        .aetheris-chart-card {
+          width: 100%;
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid rgba(255, 255, 255, 0.07);
+          border-radius: 1rem;
+          padding: 1.5rem;
+          position: relative;
+        }
+        .chart-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 0.75rem;
+          margin-bottom: 1rem;
+        }
+        .chart-titles {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .chart-eyebrow {
+          font-size: 10px;
+          font-weight: 900;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          font-family: 'JetBrains Mono', monospace;
+        }
+        .chart-company {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-size: 0.95rem;
+          font-weight: 800;
+          color: #fff;
+          margin: 0;
+        }
+        :global(.chart-icon-bull) { color: #10b981; flex-shrink: 0; }
+        :global(.chart-icon-bear) { color: #f43f5e; flex-shrink: 0; }
+        .chart-currency-badge {
+          padding: 0.25rem 0.7rem;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 999px;
+          font-size: 10px;
+          font-weight: 700;
+          color: #94a3b8;
+        }
+        .chart-viewport {
+          width: 100%;
+          height: 250px;
+          position: relative;
+        }
+        .chart-canvas {
+          width: 100%;
+          height: 100%;
+        }
+        .chart-loading {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .chart-empty {
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          padding: 1rem;
+          background: rgba(255, 255, 255, 0.02);
+          border-radius: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          gap: 8px;
+        }
+        .chart-empty-emoji { font-size: 24px; }
+        .chart-empty-title { font-size: 12px; color: rgba(255, 255, 255, 0.55); letter-spacing: 0.04em; font-weight: 600; }
+        .chart-empty-sub { font-size: 10px; color: rgba(255, 255, 255, 0.35); max-width: 280px; line-height: 1.4; }
+        @media (max-width: 640px) {
+          .aetheris-chart-card {
+            padding: 1rem;
+            border-radius: 0.9rem;
+          }
+          .chart-viewport {
+            height: 210px;
+          }
+        }
+      `}</style>
     </div>
   );
 }

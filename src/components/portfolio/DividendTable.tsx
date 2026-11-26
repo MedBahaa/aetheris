@@ -34,8 +34,34 @@ export const DividendTable: React.FC<DividendTableProps> = ({
         <div className="empty-state"><Gift size={40} className="opacity-20" /><p className="mono-small">AUCUN DIVIDENDE ENREGISTRÉ.</p></div>
       ) : (
         <>
+          {/* Mobile Summary Strip (< 1024px) */}
+          {(() => {
+            const totalGross = dividends.reduce((acc, div) => {
+              const h = holdings.find((item) => item.symbol === div.symbol);
+              return acc + ((h?.totalQuantity || 0) * div.amount_per_share);
+            }, 0);
+            const totalTax = totalGross * DIVIDEND_TOTAL_TAX_RATE;
+            const totalNet = totalGross * DIVIDEND_NET_RATIO;
+            return (
+              <div className="mobile-summary-strip">
+                <div className="mobile-summary-item">
+                  <span className="mobile-summary-label">Brut Total</span>
+                  <span className="mobile-summary-val">{totalGross.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD</span>
+                </div>
+                <div className="mobile-summary-item">
+                  <span className="mobile-summary-label">Retenues</span>
+                  <span className="mobile-summary-val text-rose">-{totalTax.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD</span>
+                </div>
+                <div className="mobile-summary-item">
+                  <span className="mobile-summary-label">Net Reçu</span>
+                  <span className="mobile-summary-val text-emerald">+{totalNet.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD</span>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Mobile Cards View (< 1024px) */}
-          <div className="mobile-only-container gap-2.5 p-3">
+          <div className="mobile-cards-list">
             {dividends.map((div, i) => {
               const holding = holdings.find((h: PortfolioHolding) => h.symbol === div.symbol);
               const qty = holding?.totalQuantity || 0;
@@ -44,33 +70,38 @@ export const DividendTable: React.FC<DividendTableProps> = ({
               const netRevenue = grossRevenue * DIVIDEND_NET_RATIO; // 86.55%
 
               return (
-                <div key={i} className="glass-heavy p-3.5 rounded-xl flex flex-col gap-2 border border-white/10">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="font-extrabold text-base text-white">{div.symbol}</span>
-                      <span className="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded font-mono">{new Date(div.dividend_date).toLocaleDateString('fr-FR')}</span>
+                <div key={div.id || i} className="history-mobile-card">
+                  <div className="history-card-head">
+                    <div className="history-card-badges">
+                      <span className="history-card-symbol">{div.symbol}</span>
+                      <span className="date-pill">{new Date(div.dividend_date).toLocaleDateString('fr-FR')}</span>
                     </div>
-                    <button className="text-red-400 p-1.5 hover:bg-red-500/10 rounded-lg touch-target" onClick={() => { if(confirm('Supprimer ?')) onDeleteDividend(div.id); }} aria-label="Supprimer le dividende">
-                      <Trash2 size={16} />
+                    <button
+                      type="button"
+                      className="mobile-icon-danger-btn"
+                      onClick={() => { if(confirm('Supprimer ?')) onDeleteDividend(div.id); }}
+                      aria-label="Supprimer le dividende"
+                    >
+                      <Trash2 size={15} />
                     </button>
                   </div>
 
-                  <div className="flex flex-col gap-1.5 text-xs bg-slate-950/70 p-2.5 rounded-lg border border-white/5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400 text-[11px]">Brut / Titre :</span>
-                      <span className="mono font-semibold text-slate-200">{div.amount_per_share.toFixed(2)} MAD</span>
+                  <div className="history-metrics-box">
+                    <div className="history-metric-row">
+                      <span className="label">Brut / Titre</span>
+                      <span className="val">{div.amount_per_share.toFixed(2)} MAD</span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400 text-[11px]">Quantité Détenue :</span>
-                      <span className="mono font-semibold text-slate-200">{qty} pcs</span>
+                    <div className="history-metric-row">
+                      <span className="label">Quantité Détenue</span>
+                      <span className="val">{qty} pcs</span>
                     </div>
-                    <div className="flex items-center justify-between text-rose-400 text-[11px]">
-                      <span>Retenue (13,45 % = 11,25% TPA + 2,20% Wafa) :</span>
-                      <span className="mono font-semibold">-{totalTax.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} MAD</span>
+                    <div className="history-metric-row">
+                      <span className="label text-rose">Retenue (13,45%)</span>
+                      <span className="val text-rose">-{totalTax.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} MAD</span>
                     </div>
-                    <div className="flex items-center justify-between border-t border-white/5 pt-1.5 mt-0.5">
-                      <span className="text-slate-100 text-[11px] font-bold">🟢 Revenu Net Encaissé (86,55 %) :</span>
-                      <span className="mono font-bold text-emerald-400">+{netRevenue.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD</span>
+                    <div className="history-total-row">
+                      <span>Net Encaissé (86,55%)</span>
+                      <span className="mono text-emerald">+{netRevenue.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD</span>
                     </div>
                   </div>
                 </div>

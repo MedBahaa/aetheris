@@ -95,9 +95,31 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
         </div>
       ) : (
         <>
+          {/* ────────────────── MOBILE SORT PILLS (< 1024px) ────────────────── */}
+          <div className="mobile-sort-bar">
+            {[
+              { key: 'valuation' as SortKey, label: 'Valeur' },
+              { key: 'pvNette' as SortKey, label: 'P&L' },
+              { key: 'symbol' as SortKey, label: 'Symbole' },
+              { key: 'yoc' as SortKey, label: 'YOC' },
+            ].map((col) => {
+              const active = sortKey === col.key;
+              return (
+                <button
+                  key={col.key}
+                  type="button"
+                  onClick={() => handleSort(col.key)}
+                  className={`mobile-sort-pill ${active ? 'active' : ''}`}
+                >
+                  <span>{col.label}</span>
+                  <SortIcon col={col.key} />
+                </button>
+              );
+            })}
+          </div>
+
           {/* ────────────────── MOBILE CARDS VIEW (< 1024px) ────────────────── */}
-          {/* ────────────────── MOBILE CARDS VIEW (< 1024px) ────────────────── */}
-          <div className="mobile-only-container gap-3 p-3">
+          <div className="mobile-cards-list">
             {sortedHoldings.map((s) => {
               const isExpanded = expandedSymbol === s.symbol;
               const isSettingAlert = alertSymbol === s.symbol;
@@ -112,7 +134,14 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
               return (
                 <div 
                   key={s.symbol} 
-                  className={`portfolio-mobile-card ${isSlTriggered ? 'border-red-500/60' : ''} ${isTpTriggered ? 'border-emerald-500/60' : ''}`}
+                  className="portfolio-mobile-card"
+                  style={
+                    isSlTriggered
+                      ? { borderColor: 'rgba(244, 63, 94, 0.6)' }
+                      : isTpTriggered
+                      ? { borderColor: 'rgba(16, 185, 129, 0.6)' }
+                      : undefined
+                  }
                 >
                   {/* CARD TOP HEADER: Avatar Badge + Symbol/Name + P&L Hero Pill */}
                   <div className="card-top-row">
@@ -147,12 +176,12 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
                     <div className="metric-box">
                       <span className="metric-label">COURS ACTUEL</span>
                       <span className="metric-primary-val">{(s.curPrice ?? 0).toFixed(2)} <span className="unit">MAD</span></span>
-                      <span className="metric-sub-val text-emerald-400">Temps réel</span>
+                      <span className="metric-sub-val text-emerald">Temps réel</span>
                     </div>
 
                     <div className="metric-box">
                       <span className="metric-label">VALEUR TOTALE</span>
-                      <span className="metric-primary-val text-emerald-400">{valuation.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} <span className="unit">MAD</span></span>
+                      <span className="metric-primary-val text-emerald">{valuation.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} <span className="unit">MAD</span></span>
                       <span className="metric-sub-val">Poids: {weightPct}%</span>
                     </div>
 
@@ -167,7 +196,7 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
                   <div className="card-footer-row">
                     <div className="alert-status-area">
                       {alert ? (
-                        <div className="flex gap-1.5 text-[10px]">
+                        <div className="flex gap-1">
                           {alert.sl_price && (
                             <span className={`alert-badge sl ${isSlTriggered ? 'triggered' : ''}`}>
                               SL: {alert.sl_price}
@@ -180,62 +209,85 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
                           )}
                         </div>
                       ) : (
-                        <span className="no-alert-label">Pas d'alerte</span>
+                        <span className="no-alert-label">Pas d&apos;alerte</span>
                       )}
                     </div>
 
                     <div className="card-actions-group">
                       <button 
+                        type="button"
                         onClick={() => { setAlertForm({ sl_price: alert?.sl_price?.toString() || '', tp_price: alert?.tp_price?.toString() || '' }); setAlertSymbol(isSettingAlert ? null : s.symbol); }} 
                         className={`action-btn-pill ${isSettingAlert ? 'active-alert' : ''}`}
                         aria-label="Alerte SL/TP"
                       >
-                        <Bell size={13} className="text-emerald-400" /> <span>Alerte</span>
+                        <Bell size={13} className="text-emerald" /> <span>Alerte</span>
                       </button>
 
                       <button 
+                        type="button"
                         onClick={() => setExpandedSymbol(isExpanded ? null : s.symbol)} 
                         className={`action-btn-pill ${isExpanded ? 'active-tx' : ''}`}
                         aria-label="Historique des transactions"
                       >
-                        <span>Tx</span> {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                        <span>Tx ({s.transactions.length})</span> {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                       </button>
                     </div>
                   </div>
 
                   {/* Alert form row for mobile */}
                   {isSettingAlert && (
-                    <div className="p-3.5 bg-slate-950/95 rounded-xl border border-emerald-500/40 flex flex-col gap-2 mt-1 shadow-xl">
-                      <span className="text-[10px] font-bold text-slate-200 tracking-wider">ALERTES PRIX {s.symbol}</span>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[9px] text-red-400 font-bold block mb-1">🔴 STOP-LOSS</label>
-                          <input type="number" step="0.01" value={alertForm.sl_price} onChange={e => setAlertForm(f => ({ ...f, sl_price: e.target.value }))} placeholder={`< ${(s.curPrice ?? 0).toFixed(2)}`} className="w-full bg-black/80 border border-white/15 text-white rounded-lg p-2 text-xs font-mono" />
+                    <div className="mobile-inline-drawer animate-slide-up">
+                      <span className="mobile-inline-title">ALERTES PRIX {s.symbol}</span>
+                      <div className="mobile-alert-grid">
+                        <div className="mobile-alert-field">
+                          <label className="sl">🔴 STOP-LOSS</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            inputMode="decimal"
+                            value={alertForm.sl_price}
+                            onChange={e => setAlertForm(f => ({ ...f, sl_price: e.target.value }))}
+                            placeholder={`< ${(s.curPrice ?? 0).toFixed(2)}`}
+                            className="mobile-alert-input"
+                          />
                         </div>
-                        <div>
-                          <label className="text-[9px] text-emerald-400 font-bold block mb-1">🟢 TAKE-PROFIT</label>
-                          <input type="number" step="0.01" value={alertForm.tp_price} onChange={e => setAlertForm(f => ({ ...f, tp_price: e.target.value }))} placeholder={`> ${(s.curPrice ?? 0).toFixed(2)}`} className="w-full bg-black/80 border border-white/15 text-white rounded-lg p-2 text-xs font-mono" />
+                        <div className="mobile-alert-field">
+                          <label className="tp">🟢 TAKE-PROFIT</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            inputMode="decimal"
+                            value={alertForm.tp_price}
+                            onChange={e => setAlertForm(f => ({ ...f, tp_price: e.target.value }))}
+                            placeholder={`> ${(s.curPrice ?? 0).toFixed(2)}`}
+                            className="mobile-alert-input"
+                          />
                         </div>
                       </div>
-                      <div className="flex justify-end gap-2 mt-1">
-                        <button onClick={() => setAlertSymbol(null)} className="px-3 py-1.5 text-xs text-slate-400 hover:text-white">Annuler</button>
-                        <button onClick={() => handleSaveAlert(s.symbol)} className="px-4 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold rounded-lg text-xs shadow-md">Sauvegarder</button>
+                      <div className="mobile-inline-actions">
+                        <button type="button" onClick={() => setAlertSymbol(null)} className="mobile-inline-cancel">Annuler</button>
+                        <button type="button" onClick={() => handleSaveAlert(s.symbol)} className="mobile-inline-save">Sauvegarder</button>
                       </div>
                     </div>
                   )}
 
                   {/* Expanded history for mobile */}
                   {isExpanded && (
-                    <div className="p-3.5 bg-slate-950/95 rounded-xl border border-white/15 flex flex-col gap-2 mt-1 shadow-xl">
-                      <span className="text-[10px] font-bold text-slate-200 tracking-wider">HISTORIQUE TRANSACTIONS</span>
-                      <div className="flex flex-col gap-1.5">
+                    <div className="mobile-inline-drawer neutral animate-slide-up">
+                      <span className="mobile-inline-title">HISTORIQUE TRANSACTIONS</span>
+                      <div className="mobile-tx-list">
                         {s.transactions.map((tx) => (
-                          <div key={tx.id} className="flex items-center justify-between text-xs bg-slate-900/80 p-2.5 rounded-lg border border-white/5">
-                            <div className="flex items-center gap-2">
-                              <span className={`px-2 py-0.5 text-[9px] rounded-full font-extrabold ${tx.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>{tx.type}</span>
-                              <span className="text-slate-200 font-mono">{tx.quantity} pcs @ {tx.buy_price.toFixed(2)} MAD</span>
+                          <div key={tx.id} className="mobile-tx-item">
+                            <div className="mobile-tx-meta">
+                              <span className={`mobile-tx-badge ${(tx.type || 'BUY') === 'BUY' ? 'buy' : 'sell'}`}>{tx.type || 'BUY'}</span>
+                              <span className="mobile-tx-detail">{tx.quantity} pcs @ {tx.buy_price.toFixed(2)} MAD</span>
                             </div>
-                            <button className="text-red-400 hover:bg-red-500/10 p-1.5 rounded-lg" onClick={() => { if (confirm('Supprimer ?')) deletePortfolioTransactionAction(tx.id).then(loadData); }} aria-label="Supprimer transaction">
+                            <button
+                              type="button"
+                              className="mobile-icon-danger-btn"
+                              onClick={() => { if (confirm('Supprimer ?')) deletePortfolioTransactionAction(tx.id).then(loadData); }}
+                              aria-label="Supprimer transaction"
+                            >
                               <Trash2 size={14} />
                             </button>
                           </div>

@@ -25,6 +25,32 @@ export default function DashboardContent(props: DashboardProps) {
 
   return (
     <div className="dashboard-container">
+      {/* AGENT SELECTOR STRIP */}
+      <div className="agent-switcher-strip animate-fade-in" role="tablist" aria-label="Sélectionner l'agent d'analyse IA">
+        {[
+          { id: 'STRATEGY' as const, label: 'Stratégie', icon: Sparkles },
+          { id: 'TECHNICAL' as const, label: 'Technique', icon: TrendingUp },
+          { id: 'FUNDAMENTAL' as const, label: 'Fondamentaux', icon: Landmark },
+          { id: 'SENTIMENT' as const, label: 'Sentiment', icon: Globe },
+        ].map((ag) => {
+          const Icon = ag.icon;
+          const isActive = activeAgent === ag.id;
+          return (
+            <button
+              key={ag.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => handleAgentChange ? handleAgentChange(ag.id) : setActiveAgent(ag.id)}
+              className={`agent-switch-pill ${ag.id.toLowerCase()} ${isActive ? 'active' : ''}`}
+            >
+              <Icon size={14} />
+              <span>{ag.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* INSTITUTIONAL SEARCH CONSOLE */}
       <div className="search-console-wrapper animate-fade-in" ref={searchRef}>
         <form onSubmit={(e) => handleSearch(e, undefined, false)} className="terminal-search-form glass-heavy">
@@ -202,16 +228,18 @@ export default function DashboardContent(props: DashboardProps) {
             </div>
           </div>
         ) : analysis ? (
-          <div className="report-root animate-fade-in" style={{ position: 'relative' }}>
-            <button 
-              className="global-refresh-btn glass"
-              onClick={() => executeSearch(analysis.companyName, true)}
-              title="Rafraîchir l'analyse (Bypasser le cache)"
-              style={{ color: '#f8fafc' }}
-            >
-              <RefreshCcw size={14} className="text-emerald" />
-              <span className="mono" style={{ color: '#f8fafc' }}>ACTUALISER</span>
-            </button>
+          <div className="report-root animate-fade-in">
+            <div className="report-toolbar">
+              <button 
+                type="button"
+                className="global-refresh-btn glass"
+                onClick={() => executeSearch(analysis.companyName, true)}
+                title="Rafraîchir l'analyse (Bypasser le cache)"
+              >
+                <RefreshCcw size={14} className="text-emerald" />
+                <span className="mono">ACTUALISER</span>
+              </button>
+            </div>
 
             {analysis.isPremiumSignal && (
               <div className="convergence-alert-box animate-pulse glass">
@@ -230,12 +258,32 @@ export default function DashboardContent(props: DashboardProps) {
             {analysis.type === 'STRATEGY' && <StrategyReport analysis={analysis} />}
           </div>
         ) : (
-          <div className="console-empty-state animate-fade-in glass-heavy" style={{ padding: '4rem 2rem', textAlign: 'center', borderRadius: '12px', marginTop: '2rem' }}>
-            <Activity size={32} className="text-emerald" style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
-            <h3 className="mono text-lg mb-2" style={{ color: '#fff' }}>CONSOLE D'ANALYSE PRÊTE</h3>
-            <p className="text-muted text-sm" style={{ maxWidth: '400px', margin: '0 auto' }}>
-              Entrez un symbole du MASI (ex: ATW, IAM) dans la barre de recherche ci-dessus pour lancer une analyse par l'agent IA.
+          <div className="console-empty-state animate-fade-in glass-heavy">
+            <Activity size={32} className="text-emerald empty-state-icon" />
+            <h3 className="mono empty-state-title">CONSOLE D&apos;ANALYSE PRÊTE</h3>
+            <p className="empty-state-desc">
+              Entrez un symbole du MASI ou choisissez une valeur populaire ci-dessous pour lancer l&apos;analyse IA.
             </p>
+            <div className="popular-masi-chips">
+              {[
+                { sym: 'ATW', name: 'Attijariwafa' },
+                { sym: 'IAM', name: 'Maroc Telecom' },
+                { sym: 'BCP', name: 'Banque Populaire' },
+                { sym: 'MSA', name: 'Marsa Maroc' },
+                { sym: 'LBV', name: 'Label Vie' },
+                { sym: 'MNG', name: 'Managem' },
+              ].map((item) => (
+                <button
+                  key={item.sym}
+                  type="button"
+                  onClick={() => executeSearch(item.sym)}
+                  className="popular-masi-pill"
+                >
+                  <span className="mono popular-sym">{item.sym}</span>
+                  <span className="popular-name">{item.name}</span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -245,6 +293,40 @@ export default function DashboardContent(props: DashboardProps) {
         .mono { font-family: 'JetBrains Mono', monospace; font-size: 10px; }
         .dashboard-container { width: 100%; max-width: var(--max-width); margin: 0 auto; }
 
+        /* Agent Switcher Strip */
+        .agent-switcher-strip {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          overflow-x: auto;
+          scrollbar-width: none;
+          -webkit-overflow-scrolling: touch;
+          margin-bottom: 0.85rem;
+          padding-bottom: 2px;
+        }
+        .agent-switcher-strip::-webkit-scrollbar { display: none; }
+        .agent-switch-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.45rem;
+          min-height: 40px;
+          padding: 0 0.95rem;
+          border-radius: 999px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: rgba(15, 23, 42, 0.65);
+          color: #94a3b8;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          white-space: nowrap;
+          flex-shrink: 0;
+          transition: all 0.2s ease;
+        }
+        .agent-switch-pill.active.strategy { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.35); color: #fff; }
+        .agent-switch-pill.active.technical { background: rgba(56, 189, 248, 0.16); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; }
+        .agent-switch-pill.active.fundamental { background: rgba(245, 158, 11, 0.16); border-color: rgba(245, 158, 11, 0.4); color: #fbbf24; }
+        .agent-switch-pill.active.sentiment { background: rgba(16, 185, 129, 0.16); border-color: rgba(16, 185, 129, 0.4); color: #34d399; }
+
         /* Search Console */
         .search-console-wrapper { margin-bottom: 2rem; position: relative; z-index: 50; }
         .terminal-search-form { display: flex; align-items: stretch; gap: 1rem; padding: 0.5rem; border-radius: 1rem; position: relative; z-index: 2; transition: all 0.4s var(--ease); }
@@ -252,12 +334,12 @@ export default function DashboardContent(props: DashboardProps) {
         
         .input-glow-bar { position: absolute; bottom: -1px; left: 10%; right: 10%; height: 1px; background: linear-gradient(to right, transparent, var(--accent-emerald), transparent); opacity: 0.3; filter: blur(2px); }
 
-        .input-terminal-group { display: flex; align-items: center; gap: 1rem; flex: 1; padding: 0 1.25rem; }
-        .search-symbol { color: #475569; }
-        .terminal-input { background: none; border: none; color: var(--text-main); width: 100%; outline: none; font-family: 'Inter', sans-serif; font-weight: 500; font-size: 0.95rem; padding: 0.75rem 0; letter-spacing: -0.01em; }
+        .input-terminal-group { display: flex; align-items: center; gap: 0.75rem; flex: 1; padding: 0 1rem; min-width: 0; }
+        .search-symbol { color: #475569; flex-shrink: 0; }
+        .terminal-input { background: none; border: none; color: var(--text-main); width: 100%; min-width: 0; outline: none; font-family: 'Inter', sans-serif; font-weight: 500; font-size: 0.95rem; padding: 0.75rem 0; letter-spacing: -0.01em; }
         .terminal-input::placeholder { color: #64748b; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; letter-spacing: 0.05rem; }
         
-        .clear-query-btn { background: transparent; border: none; color: #64748b; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 4px; transition: color 0.2s; }
+        .clear-query-btn { background: transparent; border: none; color: #64748b; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex-shrink: 0; transition: color 0.2s; }
         .clear-query-btn:hover { color: #ef4444; }
 
         .action-btn-terminal { display: flex; align-items: center; gap: 0.75rem; padding: 0 1.75rem; border-radius: 0.6rem; border: none; font-size: 10px; font-weight: 950; letter-spacing: 0.15rem; cursor: pointer; transition: all 0.3s var(--ease); font-family: 'JetBrains Mono', monospace; }
@@ -348,8 +430,37 @@ export default function DashboardContent(props: DashboardProps) {
         .error-content h4 { color: #fff; font-size: 1rem; font-weight: 800; margin-bottom: 0.5rem; font-family: 'Outfit', sans-serif; }
         .error-content p { color: #94a3b8; font-size: 0.85rem; line-height: 1.6; font-family: 'Inter', sans-serif; }
         
-        .global-refresh-btn { position: absolute; top: -1rem; right: 0; padding: 0.5rem 1rem; border-radius: 100px; border: 1px solid var(--border-glass); background: rgba(15, 23, 42, 0.4); display: flex; align-items: center; gap: 0.5rem; cursor: pointer; transition: all 0.3s var(--ease); z-index: 10;}
-        .global-refresh-btn:hover { background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3); transform: translateY(-2px); }
+        .report-root { position: relative; }
+        .report-toolbar { display: flex; justify-content: flex-end; margin-bottom: 0.5rem; }
+        .global-refresh-btn { position: absolute; top: -0.75rem; right: 0; padding: 0.5rem 1rem; min-height: 38px; border-radius: 100px; border: 1px solid var(--border-glass); background: rgba(15, 23, 42, 0.7); color: #f8fafc; display: flex; align-items: center; gap: 0.5rem; cursor: pointer; transition: all 0.3s var(--ease); z-index: 10; }
+        .global-refresh-btn:hover { background: rgba(16, 185, 129, 0.12); border-color: rgba(16, 185, 129, 0.35); transform: translateY(-2px); }
+
+        .console-empty-state {
+          padding: 3.5rem 2rem;
+          text-align: center;
+          border-radius: 1.25rem;
+          margin-top: 1.5rem;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .empty-state-icon { margin: 0 auto 1rem; opacity: 0.65; display: block; }
+        .empty-state-title { font-size: 1rem; font-weight: 800; color: #fff; margin-bottom: 0.5rem; letter-spacing: 0.06em; }
+        .empty-state-desc { max-width: 440px; margin: 0 auto 1.5rem; color: #94a3b8; font-size: 0.9rem; line-height: 1.55; }
+        .popular-masi-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.55rem; max-width: 560px; margin: 0 auto; }
+        .popular-masi-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.45rem;
+          min-height: 40px;
+          padding: 0 0.9rem;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.09);
+          cursor: pointer;
+          transition: all 0.18s ease;
+        }
+        .popular-masi-pill:hover { background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.35); }
+        .popular-sym { color: #34d399; font-weight: 900; font-size: 11px; }
+        .popular-name { color: #cbd5e1; font-size: 12px; font-weight: 600; }
 
         /* Terminal System Loader */
         .terminal-system-loader { width: 100%; max-width: 760px; margin: 4rem auto; border-radius: 0.75rem; overflow: hidden; border: 1px solid var(--border-glass); box-shadow: 0 30px 60px rgba(0,0,0,0.5); background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(10px); }
@@ -838,8 +949,21 @@ export default function DashboardContent(props: DashboardProps) {
           .services-grid { grid-template-columns: 1fr; }
           .agent-tabs-grid { grid-template-columns: 1fr; }
           .featured-grid { grid-template-columns: 1fr; }
-          .terminal-search-form { flex-direction: column; gap: 0.75rem; }
-          .action-btn-terminal { padding: 0.85rem; justify-content: center; width: 100%; }
+          .search-console-wrapper { margin-bottom: 1.25rem; }
+          .terminal-search-form { flex-direction: column; gap: 0.65rem; padding: 0.5rem; }
+          .input-terminal-group { padding: 0 0.75rem; }
+          .terminal-input { font-size: 16px; }
+          .action-btn-terminal { padding: 0.85rem; min-height: 46px; justify-content: center; width: 100%; }
+          .chip-btn { min-height: 38px; padding: 0.35rem 0.75rem; }
+          .suggestion-item { min-height: 48px; padding: 0.85rem 1rem; }
+          .report-toolbar { justify-content: flex-end; margin-bottom: 0.75rem; }
+          .global-refresh-btn { position: static; }
+          .terminal-system-loader { margin: 1.5rem auto; }
+          .terminal-content-grid { grid-template-columns: 1fr; }
+          .terminal-logs-column { border-right: none; border-bottom: 1px solid var(--border-glass); }
+          .terminal-body { height: 220px; padding: 1rem; }
+          .engine-stats-panel { padding: 1rem; }
+          .console-empty-state { padding: 2rem 1.15rem; margin-top: 1rem; }
         }
       `}</style>
     </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Sparkles, CheckCircle2, Zap, CreditCard, Lock, ShieldCheck, Check, Loader2 } from 'lucide-react';
 import { createCheckoutSessionAction } from '@/lib/stripe-actions';
 
@@ -22,10 +22,26 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
   const [name, setName] = useState('');
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
+    const value = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
     let formatted = '';
     for (let i = 0; i < value.length; i++) {
       if (i > 0 && i % 4 === 0) formatted += ' ';
@@ -45,7 +61,7 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
   };
 
   const handleCvvChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/[^0-9]/gi, '');
+    const value = e.target.value.replace(/[^0-9]/gi, '');
     setCvv(value.substring(0, 3));
     if (errors.cvv) setErrors(prev => ({ ...prev, cvv: '' }));
   };
@@ -81,7 +97,7 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
       setStep('success');
       setTimeout(() => {
         onUpgrade();
-        setStep('features'); // reset for next open
+        setStep('features');
         setCardNumber('');
         setExpiry('');
         setCvv('');
@@ -97,10 +113,8 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
       const res = await createCheckoutSessionAction(origin);
       if (res.success) {
         if (res.sandbox) {
-          // Sandbox Mode - display simulated virtual card
           setStep('checkout');
         } else if (res.url) {
-          // Production Mode - redirect to secure Stripe Checkout
           window.location.href = res.url;
         }
       } else {
@@ -113,7 +127,6 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
     }
   };
 
-  // Détecte le type de carte pour l'affichage visuel
   const getCardType = (num: string) => {
     const clean = num.replace(/\s/g, '');
     if (clean.startsWith('4')) return 'Visa';
@@ -122,29 +135,38 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
   };
 
   return (
-    <div className="modal-overlay glass-heavy animate-fade-in" onClick={onClose}>
+    <div
+      className="modal-overlay glass-heavy animate-fade-in"
+      onClick={onClose}
+      aria-modal="true"
+      role="dialog"
+      aria-label="Abonnement Aetheris Pro"
+    >
       <div className="modal-content glass-heavy premium-layout animate-slide-up" onClick={e => e.stopPropagation()}>
-        <div className="premium-glow-effect"></div>
-        
+        <div className="sheet-handle" aria-hidden="true" />
+        <div className="premium-glow-effect" aria-hidden="true" />
+
         <div className="modal-header-premium">
           <div className="premium-title-group">
             <Sparkles className="premium-icon animate-pulse" size={20} />
             <h2 className="mono premium-text">AETHERIS PRO</h2>
           </div>
-          <button onClick={onClose} className="close-modal"><X size={18} /></button>
+          <button type="button" onClick={onClose} className="close-modal touch-target" aria-label="Fermer la fenêtre">
+            <X size={20} />
+          </button>
         </div>
 
         {step === 'features' && (
           <div className="premium-body animate-fade-in">
             <p className="premium-subtitle">
-              Activez la puissance analytique quantique et de l'IA pour maximiser vos arbitrages sur la Bourse de Casablanca.
+              Activez la puissance analytique quantique et de l&apos;IA pour maximiser vos arbitrages sur la Bourse de Casablanca.
             </p>
 
             <div className="premium-features-list">
               <div className="feature-item">
                 <CheckCircle2 className="check-icon" size={16} />
                 <div className="feature-text">
-                  <strong>Robo-Advisor d'Allocation :</strong> Optimisation mathématique (Markowitz) et rééquilibrage de portefeuille en un clic.
+                  <strong>Robo-Advisor d&apos;Allocation :</strong> Optimisation mathématique (Markowitz) et rééquilibrage de portefeuille en un clic.
                 </div>
               </div>
               <div className="feature-item">
@@ -174,7 +196,7 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
 
             <div className="premium-actions">
               <button type="button" className="upgrade-btn mono" onClick={handleCheckout}>
-                <Zap size={14} /> SOUSCRIRE À L'OFFRE PRO
+                <Zap size={15} /> SOUSCRIRE À L&apos;OFFRE PRO
               </button>
               <button type="button" className="dismiss-btn mono" onClick={onClose}>PLUS TARD</button>
             </div>
@@ -183,15 +205,14 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
 
         {step === 'checkout' && (
           <div className="premium-body animate-fade-in">
-            {/* Visual Credit Card */}
             <div className="virtual-card glass">
               <div className="card-top">
                 <span className="card-brand-label mono">AETHERIS DEBIT</span>
                 <span className="card-logo mono">{getCardType(cardNumber)}</span>
               </div>
-              
+
               <div className="card-chip-container">
-                <div className="card-chip"></div>
+                <div className="card-chip" />
                 <div className="card-contactless">
                   <svg className="wifi-icon" viewBox="0 0 24 24" width="18" height="18">
                     <path fill="currentColor" d="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L4.35 19c-1.46-1.83-2.35-4.14-2.35-6.66 0-5.8 4.7-10.5 10.5-10.5h.01c2.14 0 4.14.64 5.8 1.74l-1.34 1.55c-1.3-.8-2.83-1.28-4.47-1.28z M12 6c-3.31 0-6 2.69-6 6 0 1.48.54 2.83 1.44 3.88l1.39-1.39c-.52-.66-.83-1.49-.83-2.49 0-2.21 1.79-4 4-4 1.34 0 2.53.66 3.26 1.67l1.45-1.45c-1.12-1.43-2.85-2.31-4.71-2.31z M12 9c-1.66 0-3 1.34-3 3 0 .76.28 1.45.75 1.99l1.43-1.43c-.11-.16-.18-.35-.18-.56 0-1.1.9-2 2-2 .21 0 .4.07.56.18l1.43-1.43c-.54-.47-1.23-.75-1.99-.75z" />
@@ -208,7 +229,7 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
               <div className="card-bottom">
                 <div className="card-holder-group">
                   <span className="c-label-mini mono">HOLDER</span>
-                  <span className="c-value mono truncate max-w-[180px]">{name || 'NOM DU TITULAIRE'}</span>
+                  <span className="c-value c-holder-truncate mono">{name || 'NOM DU TITULAIRE'}</span>
                 </div>
                 <div className="card-expiry-group">
                   <span className="c-label-mini mono">EXPIRES</span>
@@ -220,12 +241,13 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
             <form onSubmit={handlePaymentSubmit} className="payment-form">
               <div className="form-group">
                 <label className="mono-tiny">NOM SUR LA CARTE</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   className={`payment-input ${errors.name ? 'error' : ''}`}
                   value={name}
                   onChange={handleNameChange}
                   placeholder="EX. KHALID BENJELLOUN"
+                  autoComplete="cc-name"
                 />
                 {errors.name && <span className="input-err">{errors.name}</span>}
               </div>
@@ -233,9 +255,11 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
               <div className="form-group">
                 <label className="mono-tiny">NUMÉRO DE CARTE DE CRÉDIT</label>
                 <div className="input-with-icon">
-                  <CreditCard size={14} className="input-icon-left" />
-                  <input 
-                    type="text" 
+                  <CreditCard size={15} className="input-icon-left" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="cc-number"
                     className={`payment-input pad-left ${errors.cardNumber ? 'error' : ''}`}
                     value={cardNumber}
                     onChange={handleCardNumberChange}
@@ -246,10 +270,12 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
               </div>
 
               <div className="form-row">
-                <div className="form-group flex-1">
+                <div className="form-group form-col-flex">
                   <label className="mono-tiny">EXPIRATION (MM/AA)</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="cc-exp"
                     className={`payment-input ${errors.expiry ? 'error' : ''}`}
                     value={expiry}
                     onChange={handleExpiryChange}
@@ -257,10 +283,12 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
                   />
                   {errors.expiry && <span className="input-err">{errors.expiry}</span>}
                 </div>
-                <div className="form-group flex-1">
+                <div className="form-group form-col-flex">
                   <label className="mono-tiny">CODE CVV (CVC)</label>
-                  <input 
-                    type="password" 
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="cc-csc"
                     className={`payment-input ${errors.cvv ? 'error' : ''}`}
                     value={cvv}
                     onChange={handleCvvChange}
@@ -271,13 +299,13 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
               </div>
 
               <div className="security-note">
-                <Lock size={12} className="text-emerald" />
-                <span className="mono-tiny text-slate-500">PAIEMENT CRÉDITÉ 199.00 MAD VIA SYSTEM DE CRYPTAGE SSL SÉCURISÉ</span>
+                <Lock size={13} className="text-emerald" />
+                <span className="mono-tiny">PAIEMENT 199.00 MAD · CRYPTAGE SSL SÉCURISÉ</span>
               </div>
 
               <div className="premium-actions">
                 <button type="submit" className="upgrade-btn mono">
-                  <ShieldCheck size={14} /> CONFIRMER LE PAIEMENT
+                  <ShieldCheck size={15} /> CONFIRMER LE PAIEMENT
                 </button>
                 <button type="button" className="dismiss-btn mono" onClick={() => setStep('features')}>RETOUR</button>
               </div>
@@ -287,10 +315,10 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
 
         {step === 'processing' && (
           <div className="premium-body processing-view animate-fade-in">
-            <Loader2 className="animate-spin text-purple-500" size={48} />
-            <div className="text-center space-y-2">
-              <h3 className="mono font-bold text-white tracking-widest text-sm">SÉCURISATION DU CANAL SSL...</h3>
-              <p className="mono-tiny text-slate-500">AUTORISATION TRANSACTIONNELLE DE LA BANQUE EN COURS</p>
+            <Loader2 className="animate-spin proc-spinner" size={44} />
+            <div className="status-center">
+              <h3 className="status-title mono">SÉCURISATION DU CANAL SSL...</h3>
+              <p className="status-sub mono-tiny">AUTORISATION TRANSACTIONNELLE EN COURS</p>
             </div>
           </div>
         )}
@@ -300,9 +328,9 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
             <div className="success-badge-glow">
               <Check size={32} className="text-emerald" />
             </div>
-            <div className="text-center space-y-2">
-              <h3 className="mono font-bold text-emerald tracking-widest text-sm">PAIEMENT EFFECTUÉ AVEC SUCCÈS</h3>
-              <p className="mono-tiny text-slate-400">BIENVENUE DANS L'ÉNERGIE PRO AETHERIS CORE v3</p>
+            <div className="status-center">
+              <h3 className="status-title emerald mono">PAIEMENT EFFECTUÉ AVEC SUCCÈS</h3>
+              <p className="status-sub mono-tiny">BIENVENUE DANS AETHERIS PRO CORE v3</p>
             </div>
           </div>
         )}
@@ -310,17 +338,18 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
         <style jsx>{`
           .premium-layout {
             max-width: 480px;
-            overflow: hidden;
-            border: 1px solid rgba(168, 85, 247, 0.3) !important;
-            box-shadow: 0 0 40px rgba(168, 85, 247, 0.15) !important;
+            overflow-x: hidden;
+            overflow-y: auto;
+            border: 1px solid rgba(168, 85, 247, 0.32) !important;
+            box-shadow: 0 0 40px rgba(168, 85, 247, 0.16) !important;
           }
           .premium-glow-effect {
             position: absolute;
-            top: -150px;
+            top: -140px;
             left: 50%;
             transform: translateX(-50%);
-            width: 300px;
-            height: 300px;
+            width: 280px;
+            height: 280px;
             background: radial-gradient(circle, rgba(168, 85, 247, 0.25) 0%, transparent 70%);
             pointer-events: none;
             z-index: 0;
@@ -329,45 +358,45 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 1.5rem;
+            margin-bottom: 1.15rem;
             position: relative;
             z-index: 1;
           }
           .premium-title-group {
             display: flex;
             align-items: center;
-            gap: 0.75rem;
+            gap: 0.65rem;
           }
           .premium-icon {
             color: #a855f7;
           }
           .premium-text {
-            font-size: 1.25rem;
+            font-size: 1.2rem;
             font-weight: 900;
             background: linear-gradient(135deg, #fff 30%, #a855f7 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            letter-spacing: 0.15rem;
+            letter-spacing: 0.14rem;
           }
           .premium-body {
             position: relative;
             z-index: 1;
             display: flex;
             flex-direction: column;
-            gap: 1.5rem;
+            gap: 1.2rem;
           }
-          
+
           /* Visual card */
           .virtual-card {
-            padding: 1.5rem;
+            padding: 1.15rem 1.25rem;
             border-radius: 1rem;
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.015) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             display: flex;
             flex-direction: column;
-            gap: 1.5rem;
+            gap: 1rem;
             position: relative;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.35);
           }
           .card-top {
             display: flex;
@@ -375,9 +404,9 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
             align-items: center;
           }
           .card-brand-label {
-            font-size: 8px;
+            font-size: 9px;
             font-weight: 800;
-            color: #64748b;
+            color: #94a3b8;
             letter-spacing: 0.1rem;
           }
           .card-logo {
@@ -385,71 +414,75 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
             font-weight: 900;
             color: #fff;
             letter-spacing: 0.05rem;
-            background: rgba(255,255,255,0.05);
-            padding: 0.2rem 0.5rem;
+            background: rgba(255, 255, 255, 0.06);
+            padding: 0.2rem 0.55rem;
             border-radius: 4px;
           }
-          
           .card-chip-container {
             display: flex;
             justify-content: space-between;
             align-items: center;
           }
           .card-chip {
-            width: 32px;
-            height: 24px;
+            width: 30px;
+            height: 22px;
             background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
             border-radius: 4px;
           }
           .card-contactless {
-            color: #64748b;
+            color: #94a3b8;
           }
-          
           .card-number-display {
-            font-size: 1.35rem;
+            font-size: clamp(1rem, 4.4vw, 1.3rem);
             font-weight: 800;
             color: #fff;
-            letter-spacing: 0.15rem;
-            word-spacing: 0.25rem;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            letter-spacing: 0.12rem;
+            word-spacing: 0.2rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
           }
-          
           .card-bottom {
             display: flex;
             justify-content: space-between;
             align-items: flex-end;
+            gap: 0.75rem;
           }
           .card-holder-group, .card-expiry-group {
             display: flex;
             flex-direction: column;
             gap: 2px;
+            min-width: 0;
+          }
+          .c-holder-truncate {
+            max-width: 180px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
           }
           .c-label-mini {
-            font-size: 7px;
-            color: #475569;
+            font-size: 8px;
+            color: #64748b;
             font-weight: 850;
             letter-spacing: 0.05rem;
           }
           .c-value {
-            font-size: 10px;
+            font-size: 11px;
             font-weight: 800;
             color: #e2e8f0;
-            letter-spacing: 0.02rem;
           }
 
           .premium-subtitle {
-            color: #94a3b8;
+            color: #cbd5e1;
             font-size: 0.88rem;
             line-height: 1.5;
           }
           .premium-features-list {
             display: flex;
             flex-direction: column;
-            gap: 1rem;
+            gap: 0.85rem;
           }
           .feature-item {
             display: flex;
-            gap: 0.75rem;
+            gap: 0.7rem;
             align-items: flex-start;
           }
           .check-icon {
@@ -458,9 +491,9 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
             flex-shrink: 0;
           }
           .feature-text {
-            font-size: 0.8rem;
+            font-size: 0.82rem;
             color: #e2e8f0;
-            line-height: 1.4;
+            line-height: 1.42;
           }
           .feature-text strong {
             color: #fff;
@@ -469,33 +502,33 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 1.25rem;
+            padding: 1rem;
             border-radius: 1rem;
-            background: rgba(168, 85, 247, 0.05);
-            border: 1px solid rgba(168, 85, 247, 0.15);
-            margin: 0.5rem 0;
+            background: rgba(168, 85, 247, 0.06);
+            border: 1px solid rgba(168, 85, 247, 0.2);
           }
           .price-tag {
-            font-size: 1.8rem;
+            font-size: 1.7rem;
             font-weight: 900;
             color: #fff;
           }
           .price-tag .period {
-            font-size: 1rem;
+            font-size: 0.95rem;
             color: #a855f7;
           }
           .price-desc {
-            font-size: 8px;
-            color: #64748b;
-            letter-spacing: 0.1rem;
-            margin-top: 0.4rem;
+            font-size: 9px;
+            color: #94a3b8;
+            letter-spacing: 0.08rem;
+            margin-top: 0.35rem;
+            text-align: center;
           }
-          
+
           /* Checkout form */
           .payment-form {
             display: flex;
             flex-direction: column;
-            gap: 1.15rem;
+            gap: 0.95rem;
           }
           .form-group {
             display: flex;
@@ -503,30 +536,40 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
             gap: 6px;
           }
           .form-group label {
-            color: #64748b;
+            color: #94a3b8;
             font-weight: 900;
+            font-size: 10px;
             letter-spacing: 0.05rem;
           }
           .form-row {
             display: flex;
-            gap: 1.25rem;
+            gap: 0.85rem;
+          }
+          .form-col-flex {
+            flex: 1;
+            min-width: 0;
           }
           .payment-input {
             width: 100%;
-            background: rgba(255,255,255,0.02);
+            min-height: 46px;
+            background: rgba(255, 255, 255, 0.03);
             border: 1px solid var(--border-glass);
-            border-radius: 0.6rem;
-            padding: 0.75rem 1rem;
+            border-radius: 0.75rem;
+            padding: 0.75rem 0.95rem;
             color: #fff;
             font-family: 'JetBrains Mono', monospace;
-            font-size: 11px;
+            font-size: 14px;
             outline: none;
-            transition: all 0.3s;
+            transition: all 0.25s;
+          }
+          @media (max-width: 767px) {
+            .payment-input {
+              font-size: 16px;
+            }
           }
           .payment-input:focus {
-            border-color: rgba(168, 85, 247, 0.5);
-            background: rgba(168, 85, 247, 0.02);
-            box-shadow: 0 0 15px rgba(168, 85, 247, 0.05);
+            border-color: rgba(168, 85, 247, 0.6);
+            background: rgba(168, 85, 247, 0.04);
           }
           .payment-input.error {
             border-color: #f43f5e;
@@ -538,38 +581,37 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
           }
           .input-icon-left {
             position: absolute;
-            left: 1rem;
+            left: 0.9rem;
             color: #64748b;
             pointer-events: none;
           }
           .pad-left {
-            padding-left: 2.75rem;
+            padding-left: 2.6rem;
           }
           .input-err {
-            font-size: 8px;
-            font-weight: 850;
-            color: #f43f5e;
+            font-size: 10px;
+            font-weight: 700;
+            color: #fb7185;
             font-family: 'JetBrains Mono', monospace;
           }
-          
+
           .security-note {
             display: flex;
             align-items: center;
-            gap: 0.75rem;
-            background: rgba(16, 185, 129, 0.04);
-            border: 1px solid rgba(16, 185, 129, 0.1);
-            padding: 0.75rem 1rem;
-            border-radius: 6px;
-          }
-          .security-note span {
-            color: #64748b;
+            gap: 0.6rem;
+            background: rgba(16, 185, 129, 0.05);
+            border: 1px solid rgba(16, 185, 129, 0.15);
+            padding: 0.7rem 0.9rem;
+            border-radius: 10px;
+            color: #94a3b8;
+            font-size: 10px;
           }
 
           .premium-actions {
             display: flex;
             flex-direction: column;
-            gap: 0.75rem;
-            margin-top: 0.5rem;
+            gap: 0.65rem;
+            margin-top: 0.25rem;
           }
           .upgrade-btn {
             display: flex;
@@ -577,61 +619,79 @@ export const PremiumPaywallModal: React.FC<PremiumPaywallModalProps> = ({
             justify-content: center;
             gap: 0.5rem;
             width: 100%;
+            min-height: 48px;
             padding: 0.85rem;
-            border-radius: 0.75rem;
+            border-radius: 12px;
             border: none;
             background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
             color: #fff;
             font-weight: 800;
+            font-size: 12px;
             cursor: pointer;
-            box-shadow: 0 4px 20px rgba(168, 85, 247, 0.3);
+            box-shadow: 0 4px 20px rgba(168, 85, 247, 0.32);
             transition: all 0.2s;
           }
           .upgrade-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 24px rgba(168, 85, 247, 0.4);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 24px rgba(168, 85, 247, 0.42);
           }
           .dismiss-btn {
             background: transparent;
             border: 1px solid var(--border-glass);
+            min-height: 46px;
             padding: 0.75rem;
-            border-radius: 0.75rem;
-            color: #64748b;
+            border-radius: 12px;
+            color: #94a3b8;
             cursor: pointer;
-            font-weight: 600;
+            font-weight: 700;
             font-size: 11px;
             transition: all 0.2s;
             text-align: center;
           }
           .dismiss-btn:hover {
             color: #fff;
-            background: rgba(255,255,255,0.03);
+            background: rgba(255, 255, 255, 0.04);
           }
-          
-          /* Processing and success views */
+
           .processing-view, .success-view {
-            padding: 3rem 1.5rem;
+            padding: 2.5rem 1rem;
             align-items: center;
             justify-content: center;
-            gap: 1.75rem;
-            min-height: 280px;
+            gap: 1.5rem;
+            min-height: 240px;
+          }
+          :global(.proc-spinner) {
+            color: #a855f7;
+          }
+          .status-center {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+          }
+          .status-title {
+            font-weight: 800;
+            color: #fff;
+            letter-spacing: 0.1em;
+            font-size: 0.85rem;
+          }
+          .status-title.emerald {
+            color: #10b981;
+          }
+          .status-sub {
+            color: #94a3b8;
+            font-size: 10px;
           }
           .success-badge-glow {
             width: 60px;
             height: 60px;
             border-radius: 50%;
-            background: rgba(16, 185, 129, 0.1);
-            border: 1px solid rgba(16, 185, 129, 0.25);
+            background: rgba(16, 185, 129, 0.12);
+            border: 1px solid rgba(16, 185, 129, 0.3);
             display: flex;
             align-items: center;
             justify-content: center;
             box-shadow: 0 0 25px rgba(16, 185, 129, 0.25);
-            animation: pulse-glow 1.5s infinite;
-          }
-          
-          @keyframes pulse-glow {
-            0%, 100% { transform: scale(0.95); box-shadow: 0 0 20px rgba(16, 185, 129, 0.2); }
-            50% { transform: scale(1.05); box-shadow: 0 0 35px rgba(16, 185, 129, 0.35); }
           }
         `}</style>
       </div>

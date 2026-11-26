@@ -192,18 +192,18 @@ export default function TechnicalReport({ analysis }: TechnicalReportProps) {
 
               {/* AUDIT FIX: Affichage des retracements de Fibonacci */}
               {(analysis as any).fibonacci && (
-                <div style={{ marginTop: '20px', padding: '16px 20px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px' }}>
-                  <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(255,255,255,0.4)', marginBottom: '12px', fontWeight: 600 }}>Retracements de Fibonacci</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
+                <div className="fib-panel">
+                  <div className="fib-title mono">Retracements de Fibonacci</div>
+                  <div className="fib-grid">
                     {[
                       { label: '23.6%', value: (analysis as any).fibonacci.h23 },
                       { label: '38.2%', value: (analysis as any).fibonacci.h38 },
                       { label: '50.0%', value: (analysis as any).fibonacci.h50 },
                       { label: '61.8%', value: (analysis as any).fibonacci.h61 },
                     ].map(fib => (
-                      <div key={fib.label} style={{ textAlign: 'center', padding: '8px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px' }}>
-                        <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>{fib.label}</div>
-                        <div style={{ fontSize: '13px', fontFamily: 'JetBrains Mono, monospace', color: 'rgba(255,255,255,0.85)' }}>{fib.value} <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.3)' }}>MAD</span></div>
+                      <div key={fib.label} className="fib-item">
+                        <div className="fib-item-label">{fib.label}</div>
+                        <div className="fib-item-val mono">{fib.value} <span className="fib-cur">MAD</span></div>
                       </div>
                     ))}
                   </div>
@@ -486,10 +486,32 @@ export default function TechnicalReport({ analysis }: TechnicalReportProps) {
         .trend-neutral { background: rgba(255, 255, 255, 0.03); color: #f8fafc; border: 1px solid rgba(255, 255, 255, 0.1); }
         
         .mono { font-family: 'JetBrains Mono', monospace; }
+        .fib-panel { margin-top: 20px; padding: 16px 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; }
+        .fib-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: rgba(255,255,255,0.45); margin-bottom: 12px; font-weight: 700; }
+        .fib-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+        .fib-item { text-align: center; padding: 10px 8px; background: rgba(255,255,255,0.03); border-radius: 8px; }
+        .fib-item-label { font-size: 10px; color: rgba(255,255,255,0.45); margin-bottom: 4px; }
+        .fib-item-val { font-size: 13px; color: rgba(255,255,255,0.9); font-weight: 700; }
+        .fib-cur { font-size: 9px; color: rgba(255,255,255,0.35); }
 
         @media (max-width: 768px) {
+          .tech-analysis-root { gap: 1.75rem; padding-bottom: 2rem; }
+          .report-header-tech { padding-bottom: 1.5rem; margin-bottom: 0.25rem; }
+          .header-main { flex-direction: column; align-items: flex-start; gap: 1rem; }
+          .company-title { font-size: 2.1rem; line-height: 1.05; }
+          .live-price-box { width: 100%; justify-content: space-between; gap: 1rem; padding: 1rem 1.25rem; border-radius: 1rem; }
+          .p-val { font-size: 1.5rem; }
+          .data-quality-banner, .liquidity-alert { padding: 1rem 1.15rem; border-radius: 1rem; }
+          .tech-card { padding: 1.25rem; border-radius: 1.25rem; }
+          .card-top-header { margin-bottom: 1.5rem; }
+          .metrics-stack { gap: 2rem; }
           .levels-grid { grid-template-columns: 1fr; }
-          .header-main { flex-direction: column; align-items: flex-start; }
+          .fib-panel { padding: 12px; }
+          .fib-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .m-av-row, .macd-values { gap: 1rem; flex-wrap: wrap; }
+          .log-row { padding: 0.85rem 1rem; gap: 0.65rem; flex-wrap: wrap; }
+          .market-context-card { padding: 1.5rem 1.25rem; margin-top: 1.25rem; border-radius: 1.25rem; }
+          .context-body { font-size: 1.05rem; line-height: 1.55; }
         }
       `}</style>
     </div>

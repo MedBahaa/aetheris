@@ -601,7 +601,6 @@ export default function EnterpriseLandingPage() {
 
       {/* ════════════════════ INSTITUTIONAL FINTECH STYLES ════════════════════ */}
       <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
         .brand-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
         .logo-icon-box { background: #10b981; color: #000; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(16,185,129,0.2); }
         .brand-title-row { display: flex; align-items: center; gap: 8px; }
@@ -635,7 +634,10 @@ export default function EnterpriseLandingPage() {
 
         /* ── NAVBAR ── */
         .lp-nav {
-          position: fixed; top: 0; left: 0; right: 0; height: 64px; z-index: 200;
+          position: fixed; top: 0; left: 0; right: 0;
+          padding-top: env(safe-area-inset-top, 0px);
+          height: calc(64px + env(safe-area-inset-top, 0px));
+          z-index: 200;
           display: flex; align-items: center;
           background: rgba(3,5,8,0.85); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
           border-bottom: 1px solid rgba(255,255,255,0.06);
@@ -648,11 +650,11 @@ export default function EnterpriseLandingPage() {
         .nl:hover { color: #fff; } .nl:focus { color: #ffffff !important; background: rgba(255,255,255,0.06); }
 
         .nav-ctas { display: flex; align-items: center; gap: 0.75rem; }
-        .mobile-hamburger-btn { display: none; background: none; border: none; color: #fff; cursor: pointer; padding: 0.5rem; }
-        .mobile-drawer-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999; background: #030508; padding: 1.5rem; display: flex; flex-direction: column; }
+        .mobile-hamburger-btn { display: none; background: none; border: 1px solid rgba(255,255,255,0.1); color: #fff; width: 44px; height: 44px; border-radius: 8px; align-items: center; justify-content: center; cursor: pointer; }
+        .mobile-drawer-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999; background: #030508; padding: calc(1.25rem + env(safe-area-inset-top, 0px)) 1.25rem calc(1.5rem + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; overflow-y: auto; }
         
-        .mobile-drawer-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
-        .mobile-close-btn { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: #fff; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.2s; }
+        .mobile-drawer-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.75rem; }
+        .mobile-close-btn { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.2s; }
         
         .mobile-drawer-inner { display: flex; flex-direction: column; width: 100%; }
         .mobile-links-container { display: flex; flex-direction: column; gap: 0.75rem; }
@@ -680,8 +682,6 @@ export default function EnterpriseLandingPage() {
           cursor: pointer; transition: all 0.2s; font-family: 'Inter', sans-serif;
         }
         .btn-cta-sm:hover { background: #34d399; }
-
-        .mobile-hamburger-btn { display: flex; background: none; border: 1px solid rgba(255,255,255,0.1); color: #fff; width: 36px; height: 36px; border-radius: 6px; align-items: center; justify-content: center; cursor: pointer; }
 
         /* ── HERO ── */
         .lp-hero {
@@ -857,12 +857,35 @@ export default function EnterpriseLandingPage() {
         @media (max-width: 768px) {
           .nav-links, .nav-ctas { display: none; }
           .mobile-hamburger-btn { display: flex; }
+          .nav-inner { padding: 0 1rem; }
+          .lp-hero { padding: calc(96px + env(safe-area-inset-top, 0px)) 1rem 3.25rem; }
+          .hero-content { margin-bottom: 2.25rem; }
+          .lp-section { padding: 3.25rem 1rem; }
+          .section-head { margin-bottom: 2rem; }
           .pipeline-grid { grid-template-columns: 1fr; }
+          .outcomes-nav {
+            flex-direction: row;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: 6px;
+            scrollbar-width: none;
+          }
+          .outcomes-nav::-webkit-scrollbar { display: none; }
+          .outcome-tab-btn {
+            min-width: 240px;
+            flex-shrink: 0;
+            scroll-snap-align: start;
+          }
           .pricing-grid { grid-template-columns: 1fr; }
-          .footer-grid { grid-template-columns: 1fr; }
+          .pricing-card { padding: 1.5rem; }
+          .faq-question { padding: 1rem 1.15rem; }
+          .faq-answer { padding: 0 1.15rem 1rem; }
+          .lp-footer { padding: 2.5rem 1.25rem calc(2rem + env(safe-area-inset-bottom, 0px)); }
+          .footer-grid { grid-template-columns: 1fr; gap: 2rem; }
           .footer-bottom { flex-direction: column; gap: 0.5rem; text-align: center; }
           .hero-ctas { flex-direction: column; width: 100%; }
-          .btn-primary-lg, .btn-ghost-lg { width: 100%; justify-content: center; }
+          .btn-primary-lg, .btn-ghost-lg { width: 100%; justify-content: center; min-height: 48px; }
           .it-cards-row { grid-template-columns: 1fr; }
         }
       `}</style>

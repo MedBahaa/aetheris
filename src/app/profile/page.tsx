@@ -52,6 +52,20 @@ export default function ProfilePage() {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (!showCancelConfirmModal) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowCancelConfirmModal(false);
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKey);
+    };
+  }, [showCancelConfirmModal]);
+
   const loadProfile = useCallback(async (showSpinner: boolean = true) => {
     try {
       if (showSpinner) setLoading(true);
@@ -454,18 +468,17 @@ export default function ProfilePage() {
                           />
                         </div>
 
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', marginTop: '10px' }}>
-                          <span style={{ fontSize: '11px', fontWeight: 700, color: telegramVerified ? '#10b981' : '#f59e0b' }}>
+                        <div className="otp-verify-row">
+                          <span className={`otp-status-badge ${telegramVerified ? 'ok' : 'pending'}`}>
                             {telegramVerified ? '✅ CANAL VÉRIFIÉ' : '⚠️ VÉRIFICATION OTP REQUISE'}
                           </span>
                           {!telegramVerified && telegramChatId.trim() && (
-                            <>
+                            <div className="otp-controls">
                               <button
                                 type="button"
                                 onClick={() => handleRequestChannelOtp('TELEGRAM')}
                                 disabled={verifyingChannel !== null}
-                                className="integration-link purple"
-                                style={{ cursor: 'pointer', border: 'none' }}
+                                className="integration-link purple otp-action-btn"
                               >
                                 {verifyingChannel === 'TELEGRAM_REQ' ? 'ENVOI...' : 'ENVOYER CODE OTP'}
                               </button>
@@ -476,19 +489,17 @@ export default function ProfilePage() {
                                 value={telegramOtp}
                                 onChange={(e) => setTelegramOtp(e.target.value.replace(/[^0-9]/g, ''))}
                                 placeholder="Code 6 chiffres"
-                                className="terminal-input purple-focus"
-                                style={{ width: '130px', height: '32px', padding: '0 8px', fontSize: '12px' }}
+                                className="terminal-input purple-focus otp-code-input"
                               />
                               <button
                                 type="button"
                                 onClick={() => handleConfirmChannelOtp('TELEGRAM')}
                                 disabled={verifyingChannel !== null || telegramOtp.length !== 6}
-                                className="integration-link emerald"
-                                style={{ cursor: 'pointer', border: 'none' }}
+                                className="integration-link emerald otp-action-btn"
                               >
                                 {verifyingChannel === 'TELEGRAM_CONFIRM' ? '...' : 'VALIDER'}
                               </button>
-                            </>
+                            </div>
                           )}
                         </div>
 
@@ -529,18 +540,17 @@ export default function ProfilePage() {
                           />
                         </div>
 
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', marginTop: '10px' }}>
-                          <span style={{ fontSize: '11px', fontWeight: 700, color: whatsappVerified ? '#10b981' : '#f59e0b' }}>
+                        <div className="otp-verify-row">
+                          <span className={`otp-status-badge ${whatsappVerified ? 'ok' : 'pending'}`}>
                             {whatsappVerified ? '✅ NUMÉRO VÉRIFIÉ' : '⚠️ VÉRIFICATION OTP REQUISE'}
                           </span>
                           {!whatsappVerified && whatsappPhone.trim() && (
-                            <>
+                            <div className="otp-controls">
                               <button
                                 type="button"
                                 onClick={() => handleRequestChannelOtp('WHATSAPP')}
                                 disabled={verifyingChannel !== null}
-                                className="integration-link emerald"
-                                style={{ cursor: 'pointer', border: 'none' }}
+                                className="integration-link emerald otp-action-btn"
                               >
                                 {verifyingChannel === 'WHATSAPP_REQ' ? 'ENVOI...' : 'ENVOYER CODE OTP'}
                               </button>
@@ -551,19 +561,17 @@ export default function ProfilePage() {
                                 value={whatsappOtp}
                                 onChange={(e) => setWhatsappOtp(e.target.value.replace(/[^0-9]/g, ''))}
                                 placeholder="Code 6 chiffres"
-                                className="terminal-input emerald-focus"
-                                style={{ width: '130px', height: '32px', padding: '0 8px', fontSize: '12px' }}
+                                className="terminal-input emerald-focus otp-code-input"
                               />
                               <button
                                 type="button"
                                 onClick={() => handleConfirmChannelOtp('WHATSAPP')}
                                 disabled={verifyingChannel !== null || whatsappOtp.length !== 6}
-                                className="integration-link emerald"
-                                style={{ cursor: 'pointer', border: 'none' }}
+                                className="integration-link emerald otp-action-btn"
                               >
                                 {verifyingChannel === 'WHATSAPP_CONFIRM' ? '...' : 'VALIDER'}
                               </button>
-                            </>
+                            </div>
                           )}
                         </div>
 
@@ -751,44 +759,58 @@ export default function ProfilePage() {
 
       {showCancelConfirmModal && (
         <div className="modal-overlay glass-heavy animate-fade-in" onClick={() => setShowCancelConfirmModal(false)}>
-          <div className="modal-content glass-heavy cancel-modal-content animate-slide-up" onClick={e => e.stopPropagation()}>
-            <div className="modal-header-premium">
-              <div className="premium-title-group">
-                <AlertTriangle className="text-rose-500 animate-bounce" size={20} />
-                <h2 className="mono text-rose-500 font-bold tracking-widest text-sm">RÉSILIATION AETHERIS PRO</h2>
+          <div
+            className="modal-content glass-heavy cancel-modal-content animate-slide-up"
+            onClick={e => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Résiliation Aetheris Pro"
+          >
+            <div className="sheet-handle" />
+            <div className="cancel-header">
+              <div className="cancel-title-group">
+                <AlertTriangle className="cancel-icon" size={20} />
+                <h2 className="mono cancel-title">RÉSILIATION AETHERIS PRO</h2>
               </div>
-              <button onClick={() => setShowCancelConfirmModal(false)} className="close-modal"><X size={18} /></button>
+              <button
+                type="button"
+                onClick={() => setShowCancelConfirmModal(false)}
+                className="cancel-close-btn"
+                aria-label="Fermer"
+              >
+                <X size={18} />
+              </button>
             </div>
             
-            <div className="premium-body">
-              <p className="premium-subtitle">
-                Êtes-vous sûr de vouloir résilier votre abonnement <strong className="text-white">AETHERIS PRO</strong> ? 
-                En confirmant la résiliation, vous perdrez instantanément l'accès aux privilèges suivants :
+            <div className="cancel-body">
+              <p className="cancel-subtitle">
+                Êtes-vous sûr de vouloir résilier votre abonnement <strong className="cancel-strong">AETHERIS PRO</strong> ? 
+                En confirmant la résiliation, vous perdrez instantanément l&apos;accès aux privilèges suivants :
               </p>
               
-              <div className="premium-features-list">
-                <div className="feature-item">
-                  <span className="text-rose-500">✖</span>
-                  <div className="feature-text">
-                    <strong>Robo-Advisor d'Allocation :</strong> Plus d'optimisation automatisée de portefeuille.
+              <div className="cancel-features">
+                <div className="cancel-feature-item">
+                  <span className="cancel-x">✖</span>
+                  <div className="cancel-feature-text">
+                    <strong>Robo-Advisor d&apos;Allocation :</strong> Plus d&apos;optimisation automatisée de portefeuille.
                   </div>
                 </div>
-                <div className="feature-item">
-                  <span className="text-rose-500">✖</span>
-                  <div className="feature-text">
+                <div className="cancel-feature-item">
+                  <span className="cancel-x">✖</span>
+                  <div className="cancel-feature-text">
                     <strong>Synthèse Stratégique IA :</strong> Perte des rapports stratégiques et analyses multi-agents.
                   </div>
                 </div>
-                <div className="feature-item">
-                  <span className="text-rose-500">✖</span>
-                  <div className="feature-text">
-                    <strong>Alertes Prix Illimitées :</strong> Désactivation des alertes en temps réel sur WhatsApp & Telegram.
+                <div className="cancel-feature-item">
+                  <span className="cancel-x">✖</span>
+                  <div className="cancel-feature-text">
+                    <strong>Alertes Prix Illimitées :</strong> Désactivation des alertes en temps réel sur WhatsApp &amp; Telegram.
                   </div>
                 </div>
               </div>
             </div>
             
-            <div className="premium-actions" style={{ marginTop: '1rem' }}>
+            <div className="cancel-actions">
               <button 
                 type="button" 
                 onClick={confirmDowngrade} 
@@ -1136,7 +1158,41 @@ export default function ProfilePage() {
         .dynamic-box-header {
           display: flex;
           align-items: center;
+          flex-wrap: wrap;
           gap: 0.5rem;
+        }
+
+        .otp-verify-row {
+          display: flex;
+          flex-direction: column;
+          gap: 0.65rem;
+          margin-top: 0.5rem;
+        }
+        .otp-status-badge {
+          font-size: 11px;
+          font-weight: 800;
+        }
+        .otp-status-badge.ok { color: #10b981; }
+        .otp-status-badge.pending { color: #f59e0b; }
+        .otp-controls {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.5rem;
+        }
+        .otp-action-btn {
+          cursor: pointer;
+          border: none;
+          min-height: 40px;
+          padding: 0 0.85rem !important;
+        }
+        .otp-code-input {
+          width: 140px !important;
+          min-height: 40px !important;
+          padding: 0 0.75rem !important;
+          font-size: 14px !important;
+          text-align: center;
+          letter-spacing: 0.12em;
         }
 
         .dynamic-box.telegram .dynamic-box-header {
@@ -1407,9 +1463,81 @@ export default function ProfilePage() {
         }
 
         .cancel-modal-content {
-          max-width: 440px;
+          max-width: 460px;
+          width: 100%;
+          padding: 1.5rem;
+          border-radius: 1.25rem;
           border: 1px solid rgba(244, 63, 94, 0.3) !important;
           box-shadow: 0 0 40px rgba(244, 63, 94, 0.15) !important;
+        }
+        .cancel-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.75rem;
+          padding-bottom: 1rem;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          margin-bottom: 1rem;
+        }
+        .cancel-title-group {
+          display: flex;
+          align-items: center;
+          gap: 0.6rem;
+        }
+        :global(.cancel-icon) { color: #f43f5e; flex-shrink: 0; }
+        .cancel-title {
+          font-size: 0.85rem;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+          color: #f43f5e;
+          margin: 0;
+        }
+        .cancel-close-btn {
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: rgba(255, 255, 255, 0.05);
+          color: #94a3b8;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+        }
+        .cancel-body { display: flex; flex-direction: column; gap: 1rem; }
+        .cancel-subtitle { font-size: 0.88rem; color: #94a3b8; line-height: 1.55; margin: 0; }
+        .cancel-strong { color: #fff; }
+        .cancel-features { display: flex; flex-direction: column; gap: 0.65rem; }
+        .cancel-feature-item {
+          display: flex;
+          align-items: flex-start;
+          gap: 0.65rem;
+          padding: 0.75rem 0.9rem;
+          border-radius: 0.75rem;
+          background: rgba(244, 63, 94, 0.06);
+          border: 1px solid rgba(244, 63, 94, 0.15);
+        }
+        .cancel-x { color: #f43f5e; font-weight: 900; flex-shrink: 0; }
+        .cancel-feature-text { font-size: 0.8rem; color: #cbd5e1; line-height: 1.45; }
+        .cancel-feature-text strong { color: #fff; }
+        .cancel-actions {
+          display: flex;
+          flex-direction: column;
+          gap: 0.6rem;
+          margin-top: 1.25rem;
+        }
+        .dismiss-btn {
+          width: 100%;
+          min-height: 46px;
+          padding: 0.8rem 1rem;
+          border-radius: 0.75rem;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          background: rgba(255, 255, 255, 0.05);
+          color: #e2e8f0;
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 0.05em;
+          cursor: pointer;
         }
 
         .btn-danger-new {
@@ -1618,6 +1746,46 @@ export default function ProfilePage() {
 
         .animate-slide-down {
           animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @media (max-width: 1024px) {
+          .main-content {
+            padding-bottom: calc(var(--bottom-nav-height) + var(--sab) + 32px);
+          }
+        }
+
+        @media (max-width: 768px) {
+          .max-container { padding: 0 0.75rem; }
+          .terminal-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
+          }
+          .back-btn {
+            min-height: 42px;
+          }
+          .terminal-input, .otp-code-input {
+            font-size: 16px !important;
+          }
+          .otp-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+          }
+          .otp-controls .otp-code-input {
+            grid-column: span 2;
+            width: 100% !important;
+            order: -1;
+          }
+          .btn-danger-new, .dismiss-btn, .activate-pro-btn, .cancel-pro-btn {
+            min-height: 48px;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .cancel-modal-content {
+            max-width: none !important;
+            border-radius: 20px 20px 0 0 !important;
+          }
         }
       `}</style>
 

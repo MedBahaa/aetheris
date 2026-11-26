@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
-import { Activity, RefreshCw, Clock, Search, Zap, ChevronUp, ChevronDown, AlertCircle, Sparkles, BarChart3, Building2, Newspaper, CheckCircle2 } from 'lucide-react';
+import { Activity, RefreshCw, Clock, Search, Zap, ChevronUp, ChevronDown, AlertCircle, Sparkles, BarChart3, Building2, Newspaper, CheckCircle2, X } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import { LiveStockData } from '@/lib/scrapers/market-list-scraper';
@@ -41,12 +42,14 @@ const ANALYSIS_OPTIONS = [
 ] as const;
 
 export default function MarcheLive() {
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [nextRefresh, setNextRefresh] = useState(60);
   const [lastUpdate, setLastUpdate] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>({ key: 'variationValue', direction: 'desc' });
+  const [trendFilter, setTrendFilter] = useState<'ALL' | 'UP' | 'DOWN'>('ALL');
   const [openMenuSymbol, setOpenMenuSymbol] = useState<string | null>(null);
   const [isCheckingIpo, setIsCheckingIpo] = useState(false);
   const [ipoCheckStatus, setIpoCheckStatus] = useState<string | null>(null);
@@ -65,8 +68,8 @@ export default function MarcheLive() {
 
   const handleAnalyze = useCallback((symbol: string, agentType: string) => {
     setOpenMenuSymbol(null);
-    window.location.href = `/console?q=${encodeURIComponent(symbol)}&agent=${agentType}`;
-  }, []);
+    router.push(`/console?q=${encodeURIComponent(symbol)}&agent=${encodeURIComponent(agentType)}`);
+  }, [router]);
 
   const enrichStocks = (rawStocks: LiveStockData[]) => {
     return rawStocks.map((s: LiveStockData) => ({
@@ -180,13 +183,28 @@ export default function MarcheLive() {
     });
   }, [stocks, sortConfig]);
 
-  // Amélioration 2 : Mémoïsation du filtrage (supporte Nom, Ticker officiel, Alias et Secteur)
+  // Compteurs hausse / baisse pour filtres rapides
+  const marketCounts = useMemo(() => {
+    let up = 0;
+    let down = 0;
+    for (const s of stocks) {
+      if (s.variationValue >= 0) up++;
+      else down++;
+    }
+    return { all: stocks.length, up, down };
+  }, [stocks]);
+
+  // Amélioration 2 : Mémoïsation du filtrage (supporte Nom, Ticker officiel, Alias, Secteur et Tendance)
   const filteredStocks = useMemo(() => {
-    if (!debouncedSearchTerm) return sortedStocks;
+    const baseList = trendFilter === 'ALL'
+      ? sortedStocks
+      : sortedStocks.filter(s => trendFilter === 'UP' ? s.variationValue >= 0 : s.variationValue < 0);
+
+    if (!debouncedSearchTerm) return baseList;
     const lowerSearch = debouncedSearchTerm.toLowerCase().trim();
     const resolvedSearch = SymbolMapper.resolve(debouncedSearchTerm).toLowerCase();
 
-    return sortedStocks.filter(s => {
+    return baseList.filter(s => {
       const symLower = s.symbol.toLowerCase();
       const tickerLower = (s.ticker || SymbolMapper.resolve(s.symbol)).toLowerCase();
       const nameLower = (s.name || SymbolMapper.getCanonicalName(s.symbol)).toLowerCase();
@@ -199,7 +217,7 @@ export default function MarcheLive() {
         (resolvedSearch.length > 0 && tickerLower === resolvedSearch)
       );
     });
-  }, [sortedStocks, debouncedSearchTerm]);
+  }, [sortedStocks, debouncedSearchTerm, trendFilter]);
 
   return (
     <div className="app-container">
@@ -246,22 +264,8 @@ export default function MarcheLive() {
                 type="button"
                 onClick={handleForceIpoCheck}
                 disabled={isCheckingIpo}
+                className="ipo-scan-btn"
                 title="Scanner le marché et indexer automatiquement les nouvelles introductions en bourse (IPO)"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '6px 12px',
-                  borderRadius: '8px',
-                  background: 'rgba(16, 185, 129, 0.1)',
-                  border: '1px solid rgba(16, 185, 129, 0.3)',
-                  color: '#10b981',
-                  fontSize: '11px',
-                  fontFamily: 'JetBrains Mono, monospace',
-                  fontWeight: 700,
-                  cursor: isCheckingIpo ? 'wait' : 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
               >
                 <RefreshCw size={12} className={isCheckingIpo ? 'animate-spin' : ''} />
                 <span>{isCheckingIpo ? 'SCAN IPO...' : 'VÉRIFIER IPO'}</span>
@@ -270,22 +274,7 @@ export default function MarcheLive() {
           </header>
 
           {ipoCheckStatus && (
-            <div
-              className="glass-heavy animate-fade-in"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 16px',
-                marginBottom: '12px',
-                borderRadius: '10px',
-                border: '1px solid rgba(16, 185, 129, 0.3)',
-                background: 'rgba(16, 185, 129, 0.08)',
-                color: '#10b981',
-                fontSize: '12px',
-                fontFamily: 'JetBrains Mono, monospace',
-              }}
-            >
+            <div className="glass-heavy animate-fade-in ipo-status-banner">
               <CheckCircle2 size={15} />
               <span>{ipoCheckStatus}</span>
             </div>
@@ -296,10 +285,73 @@ export default function MarcheLive() {
               <Search size={18} className="opacity-40" />
               <input 
                 type="text" 
-                placeholder="RECHERCHER PAR NOM, TICKER (EX: IAM, GTM, VCN, CAP) OU SECTEUR..." 
+                placeholder="Rechercher par nom, ticker (IAM, ATW) ou secteur..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                aria-label="Rechercher une valeur boursière"
               />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="search-clear-btn"
+                  aria-label="Effacer la recherche"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Barre filtres tendance + tri rapide */}
+          <div className="market-filter-bar" role="toolbar" aria-label="Filtrer et trier les actions">
+            <div className="filter-pills-group">
+              <button
+                type="button"
+                className={`filter-pill ${trendFilter === 'ALL' ? 'active' : ''}`}
+                onClick={() => setTrendFilter('ALL')}
+              >
+                Tous <span className="pill-count">{marketCounts.all}</span>
+              </button>
+              <button
+                type="button"
+                className={`filter-pill up ${trendFilter === 'UP' ? 'active' : ''}`}
+                onClick={() => setTrendFilter('UP')}
+              >
+                ▲ Hausses <span className="pill-count">{marketCounts.up}</span>
+              </button>
+              <button
+                type="button"
+                className={`filter-pill down ${trendFilter === 'DOWN' ? 'active' : ''}`}
+                onClick={() => setTrendFilter('DOWN')}
+              >
+                ▼ Baisses <span className="pill-count">{marketCounts.down}</span>
+              </button>
+            </div>
+
+            <div className="mobile-sort-group">
+              {[
+                { key: 'variationValue', label: 'Var.' },
+                { key: 'price', label: 'Cours' },
+                { key: 'symbol', label: 'Nom' },
+              ].map((opt) => {
+                const isActive = sortConfig?.key === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    className={`mobile-sort-pill ${isActive ? 'active' : ''}`}
+                    onClick={() => requestSort(opt.key)}
+                  >
+                    <span>{opt.label}</span>
+                    {isActive && (
+                      sortConfig?.direction === 'asc'
+                        ? <ChevronUp size={12} />
+                        : <ChevronDown size={12} />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -330,10 +382,20 @@ export default function MarcheLive() {
             ) : (
               <>
                 {/* ────────────────── MOBILE LIVE MARKET CARDS (< 1024px) ────────────────── */}
-                <div className="mobile-only-container gap-3 p-3">
-                  {filteredStocks.map((stock) => {
+                <div className="mobile-cards-list">
+                  {filteredStocks.length === 0 ? (
+                    <div className="empty-market-filter">
+                      Aucune valeur ne correspond aux filtres actuels.
+                    </div>
+                  ) : filteredStocks.map((stock) => {
                     const isPositive = stock.variationValue >= 0;
                     const displayTicker = stock.ticker && stock.ticker !== stock.symbol.toUpperCase() ? stock.ticker : null;
+                    const parseVal = (v: unknown) => parseFloat(String(v ?? '').replace(',', '.').replace(/[^\d.-]/g, ''));
+                    const lowNum = parseVal(stock.low);
+                    const highNum = parseVal(stock.high);
+                    const curNum = parseVal(stock.price);
+                    const hasRange = !Number.isNaN(lowNum) && !Number.isNaN(highNum) && !Number.isNaN(curNum) && highNum > lowNum;
+                    const rangePct = hasRange ? Math.max(0, Math.min(100, ((curNum - lowNum) / (highNum - lowNum)) * 100)) : 50;
 
                     return (
                       <div key={stock.symbol} className="live-market-mobile-card">
@@ -347,12 +409,12 @@ export default function MarcheLive() {
                               <span className="stock-symbol-title">
                                 {stock.symbol}
                                 {displayTicker && (
-                                  <span className="mono" style={{ marginLeft: '6px', fontSize: '10px', opacity: 0.6 }}>
+                                  <span className="mono ticker-tag">
                                     [{displayTicker}]
                                   </span>
                                 )}
                                 {stock.isIpo && (
-                                  <span className="mono" style={{ marginLeft: '6px', fontSize: '9px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.35)' }}>
+                                  <span className="mono ipo-tag">
                                     IPO
                                   </span>
                                 )}
@@ -381,34 +443,59 @@ export default function MarcheLive() {
 
                           <div className="metric-box">
                             <span className="metric-label">PLUS HAUT</span>
-                            <span className="metric-primary-val text-emerald-400">{stock.high} <span className="unit">MAD</span></span>
+                            <span className="metric-primary-val text-emerald">{stock.high} <span className="unit">MAD</span></span>
                           </div>
 
                           <div className="metric-box">
                             <span className="metric-label">PLUS BAS</span>
-                            <span className="metric-primary-val text-rose-400">{stock.low} <span className="unit">MAD</span></span>
+                            <span className="metric-primary-val text-rose">{stock.low} <span className="unit">MAD</span></span>
                           </div>
                         </div>
 
-                        {/* QUICK AGENT ACTION BAR */}
-                        <div className="market-card-actions">
+                        {/* BARRE DE PLAGE INTRADAY */}
+                        {hasRange && (
+                          <div className="intraday-range">
+                            <div className="range-labels mono">
+                              <span>BAS {stock.low}</span>
+                              <span className="range-title">PLAGE INTRADAY</span>
+                              <span>HAUT {stock.high}</span>
+                            </div>
+                            <div className="range-track">
+                              <div className={`range-fill ${isPositive ? 'bull' : 'bear'}`} style={{ width: `${rangePct}%` }} />
+                              <div className={`range-thumb ${isPositive ? 'bull' : 'bear'}`} style={{ left: `${rangePct}%` }} />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* QUICK AGENT ACTION BAR (2x2) */}
+                        <div className="market-card-actions grid-2x2">
                           <button 
+                            type="button"
                             className="card-action-chip strategy"
                             onClick={() => handleAnalyze(stock.symbol, 'STRATEGY')}
                           >
                             <Sparkles size={13} /> <span>Stratégie</span>
                           </button>
                           <button 
+                            type="button"
                             className="card-action-chip technical"
                             onClick={() => handleAnalyze(stock.symbol, 'TECHNICAL')}
                           >
                             <BarChart3 size={13} /> <span>Technique</span>
                           </button>
                           <button 
+                            type="button"
                             className="card-action-chip fundamental"
                             onClick={() => handleAnalyze(stock.symbol, 'FUNDAMENTAL')}
                           >
                             <Building2 size={13} /> <span>Fondamentaux</span>
+                          </button>
+                          <button 
+                            type="button"
+                            className="card-action-chip sentiment"
+                            onClick={() => handleAnalyze(stock.symbol, 'SENTIMENT')}
+                          >
+                            <Newspaper size={13} /> <span>Veille</span>
                           </button>
                         </div>
                       </div>

@@ -512,7 +512,7 @@ export default function PortfolioPage() {
                 <div className="market-badge opacity-70">{isVirtualMode ? 'COMPTE DE PAPER TRADING' : 'VALEUR RÉELLE & PMP'}</div>
               </div>
             </div>
-             {/* ── Actions Desktop (cachées sur mobile) ─── */}
+             {/* ── Actions Desktop (cachées sur tablette/mobile) ─── */}
              <div className="header-actions-row desktop-actions">
                <button 
                  onClick={() => setIsVirtualMode(!isVirtualMode)}
@@ -556,6 +556,58 @@ export default function PortfolioPage() {
                <button onClick={() => setShowAddModal(true)} className="action-chip white"><Plus size={12} /> <span className="mono-tiny">ORDRE</span></button>
              </div>
           </header>
+
+          {/* ── Barre d'actions scrollable Mobile / Tablette ── */}
+          <div className="mobile-portfolio-actions" role="toolbar" aria-label="Actions rapides portefeuille">
+            <button
+              type="button"
+              onClick={() => setIsVirtualMode(!isVirtualMode)}
+              className={`action-chip ${isVirtualMode ? 'paper-active' : ''}`}
+            >
+              <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+              <span className="mono-tiny">{isVirtualMode ? '🎮 PAPER' : '💰 RÉEL'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => subscriptionTier !== 'premium' ? setShowPaywallModal(true) : null}
+              className={`action-chip ${subscriptionTier === 'premium' ? 'premium-gold' : 'free-badge'}`}
+            >
+              <Sparkles size={12} />
+              <span className="mono-tiny">{subscriptionTier === 'premium' ? '👑 PRO' : '⭐ FREE'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => subscriptionTier !== 'premium' ? setShowPaywallModal(true) : setShowRoboPanel(!showRoboPanel)}
+              className={`action-chip purple ${showRoboPanel ? 'active' : ''}`}
+            >
+              <Zap size={12} />
+              <span className="mono-tiny">ROBO</span>
+            </button>
+
+            <button type="button" onClick={() => setShowDivModal(true)} className="action-chip emerald">
+              <Gift size={12} />
+              <span className="mono-tiny">+ DIVIDENDE</span>
+            </button>
+
+            <button type="button" onClick={() => fileInputRef.current?.click()} className="action-chip">
+              <Upload size={12} />
+              <span className="mono-tiny">IMPORT</span>
+            </button>
+
+            <button type="button" onClick={() => exportToCsv(transactions, dividends)} className="action-chip">
+              <Download size={12} />
+              <span className="mono-tiny">EXPORT</span>
+            </button>
+
+            {masiBenchmark && (
+              <div className={`benchmark-chip ${masiBenchmark.variationValue >= 0 ? 'bull' : 'bear'}`}>
+                <BarChart2 size={12} />
+                <span className="mono-tiny">MASI {masiBenchmark.variation}</span>
+              </div>
+            )}
+          </div>
 
           <PortfolioStats 
             loading={loading}
@@ -640,7 +692,7 @@ export default function PortfolioPage() {
                 deletePortfolioTransactionAction={deletePortfolioTransactionAction}
                 loadData={loadData}
                 setShowAddModal={setShowAddModal}
-                onNavigateToStock={(symbol) => router.push(`/?q=${symbol}`)}
+                onNavigateToStock={(symbol) => router.push(`/console?q=${encodeURIComponent(symbol)}`)}
               />
             </>
           )}
@@ -664,11 +716,11 @@ export default function PortfolioPage() {
           )}
 
           {activeTab === 'alerts_settings' && (
-            <div className="alerts-settings-panel glass-heavy animate-fade-in" style={{ padding: '2rem', borderRadius: '1rem', marginTop: '1rem', color: '#fff' }}>
-              <h3 className="mono font-bold text-lg mb-4" style={{ color: '#a855f7', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div className="alerts-settings-panel glass-heavy animate-fade-in">
+              <h3 className="mono alerts-panel-title">
                 <Sparkles size={16} /> CONFIGURATION DES ALERTES (TELEGRAM / WHATSAPP)
               </h3>
-              <p className="text-sm text-gray-400 mb-6" style={{ fontSize: '0.85rem', color: '#94a3b8', lineHeight: '1.5' }}>
+              <p className="alerts-panel-desc">
                 Recevez des notifications instantanées sur votre téléphone lorsque les cours de la Bourse de Casablanca atteignent vos seuils de Stop-Loss (SL) ou Take-Profit (TP).
               </p>
 
@@ -688,25 +740,25 @@ export default function PortfolioPage() {
                 } finally {
                   setLoading(false);
                 }
-              }} className="space-y-4" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              }} className="alerts-form">
                 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label className="mono text-xs text-purple font-semibold" style={{ fontSize: '11px', color: '#a855f7' }}>NOM D'UTILISATEUR (COMPÉTITION)</label>
+                <div className="alerts-field">
+                  <label className="mono alerts-label">NOM D'UTILISATEUR (COMPÉTITION)</label>
                   <input 
                     type="text" 
                     value={username} 
                     onChange={e => setUsername(e.target.value)} 
                     placeholder="Saisissez un pseudo pour le classement" 
-                    style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '0.6rem', color: '#fff', fontSize: '13px' }}
+                    className="alerts-input"
                   />
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label className="mono text-xs text-purple font-semibold" style={{ fontSize: '11px', color: '#a855f7' }}>CANAL DE NOTIFICATION</label>
+                <div className="alerts-field">
+                  <label className="mono alerts-label">CANAL DE NOTIFICATION</label>
                   <select 
                     value={alertChannel} 
                     onChange={e => setAlertChannel(e.target.value)}
-                    style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '0.6rem', color: '#fff', fontSize: '13px' }}
+                    className="alerts-input"
                   >
                     <option value="EMAIL">📧 Email uniquement</option>
                     <option value="TELEGRAM">✈️ Telegram uniquement</option>
@@ -715,9 +767,9 @@ export default function PortfolioPage() {
                   </select>
                 </div>
 
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <h4 className="mono font-bold text-sm" style={{ fontSize: '13px', color: '#3b82f6' }}>1. Configurer Telegram</h4>
-                  <p style={{ fontSize: '11px', color: '#64748b', lineHeight: '1.4' }}>
+                <div className="alerts-section">
+                  <h4 className="mono alerts-section-title blue">1. Configurer Telegram</h4>
+                  <p className="alerts-help">
                     1. Ouvrez l'application Telegram et cherchez le bot <b>@AetherisAlertBot</b> (ou le bot de votre entreprise).<br/>
                     2. Cliquez sur <b>Démarrer (/start)</b>.<br/>
                     3. Envoyez un message au bot <b>@userinfobot</b> ou <b>@getidsbot</b> pour récupérer votre <b>Chat ID</b> personnel.<br/>
@@ -728,40 +780,32 @@ export default function PortfolioPage() {
                     value={telegramChatId} 
                     onChange={e => setTelegramChatId(e.target.value)} 
                     placeholder="Votre Chat ID Telegram (ex: 123456789)" 
-                    style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '0.6rem', color: '#fff', fontSize: '13px' }}
+                    className="alerts-input"
                   />
                 </div>
 
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <h4 className="mono font-bold text-sm" style={{ fontSize: '13px', color: '#10b981' }}>2. Configurer WhatsApp (via CallMeBot)</h4>
-                  <p style={{ fontSize: '11px', color: '#64748b', lineHeight: '1.4' }}>
+                <div className="alerts-section">
+                  <h4 className="mono alerts-section-title emerald">2. Configurer WhatsApp (via CallMeBot)</h4>
+                  <p className="alerts-help">
                     1. Enregistrez le numéro de téléphone de CallMeBot dans vos contacts : <b>+34 644 97 50 14</b>.<br/>
                     2. Envoyez le message suivant par WhatsApp : <b>I allow callmebot to send me messages</b>.<br/>
                     3. Attendez de recevoir le message contenant votre clé d'API WhatsApp.<br/>
                     4. Renseignez votre numéro de téléphone (au format international, ex: 212600000000) ci-dessous.
                   </p>
                   <input 
-                    type="text" 
+                    type="tel"
+                    inputMode="tel"
                     value={whatsappPhone} 
                     onChange={e => setWhatsappPhone(e.target.value)} 
                     placeholder="Votre numéro de téléphone (ex: 212600000000)" 
-                    style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '0.6rem', color: '#fff', fontSize: '13px' }}
+                    className="alerts-input"
                   />
                 </div>
 
                 <button 
                   type="submit" 
                   disabled={loading}
-                  style={{
-                    background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '6px',
-                    padding: '0.75rem',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    marginTop: '1rem'
-                  }}
+                  className="alerts-submit-btn"
                 >
                   {loading ? 'Enregistrement en cours...' : 'ENREGISTRER LES CONFIGURATIONS'}
                 </button>
@@ -771,115 +815,133 @@ export default function PortfolioPage() {
           )}
 
           {activeTab === 'leaderboard' && (
-            <div className="leaderboard-panel glass-heavy animate-fade-in" style={{ padding: '2rem', borderRadius: '1rem', marginTop: '1rem', color: '#fff' }}>
-              <h3 className="mono font-bold text-lg mb-4" style={{ color: '#a855f7', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div className="leaderboard-panel glass-heavy animate-fade-in">
+              <h3 className="mono alerts-panel-title">
                 <Trophy size={16} /> CLASSEMENT DES COMPÉTITORS (PAPER TRADING)
               </h3>
-              <p className="text-sm text-gray-400 mb-6" style={{ fontSize: '0.85rem', color: '#94a3b8', lineHeight: '1.5' }}>
+              <p className="alerts-panel-desc">
                 Découvrez les investisseurs les plus performants de la Bourse de Casablanca sur la base de leur portefeuille virtuel (Paper Trading).
               </p>
 
               {leaderboard.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
+                <div className="leaderboard-empty">
                   Chargement du classement...
                 </div>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '1rem' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: '#64748b', fontSize: '11px', textTransform: 'uppercase', fontFamily: 'JetBrains Mono, monospace' }}>
-                      <th style={{ textAlign: 'left', padding: '0.75rem' }}>Rang</th>
-                      <th style={{ textAlign: 'left', padding: '0.75rem' }}>Trader</th>
-                      <th style={{ textAlign: 'right', padding: '0.75rem' }}>Valeur Portefeuille</th>
-                      <th style={{ textAlign: 'right', padding: '0.75rem' }}>Trésorerie</th>
-                      <th style={{ textAlign: 'right', padding: '0.75rem' }}>Actions</th>
-                      <th style={{ textAlign: 'right', padding: '0.75rem' }}>Performance (ROI)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <>
+                  {/* Vue Desktop */}
+                  <div className="desktop-only-container table-scroll">
+                    <table className="leaderboard-table">
+                      <thead>
+                        <tr>
+                          <th>Rang</th>
+                          <th>Trader</th>
+                          <th className="num">Valeur Portefeuille</th>
+                          <th className="num">Trésorerie</th>
+                          <th className="num">Actions</th>
+                          <th className="num">Performance (ROI)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {leaderboard.map((item, index) => {
+                          const isTop3 = index < 3;
+                          const badgeColor = index === 0 ? '#f59e0b' : index === 1 ? '#cbd5e1' : index === 2 ? '#b45309' : '';
+                          const isCurrentUser = Boolean(item.isCurrentUser);
+                          
+                          return (
+                            <tr 
+                              key={item.userId} 
+                              className={isCurrentUser ? 'is-me' : ''}
+                            >
+                              <td>
+                                {isTop3 ? (
+                                  <span className="rank-medal" style={{ background: badgeColor }}>
+                                    {index + 1}
+                                  </span>
+                                ) : (
+                                  <span className="mono rank-num">{index + 1}</span>
+                                )}
+                              </td>
+                              <td>
+                                <span className="trader-name">{item.username}</span>
+                                {isCurrentUser && <span className="mono-tiny you-badge">VOUS</span>}
+                              </td>
+                              <td className="num mono">
+                                {item.totalValue.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD
+                              </td>
+                              <td className="num mono muted">
+                                {item.virtualBalance.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD
+                              </td>
+                              <td className="num mono muted">
+                                {item.stockValuation.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD
+                              </td>
+                              <td className={`num mono ${item.roi >= 0 ? 'text-emerald' : 'text-rose'}`}>
+                                {item.roi >= 0 ? '▲' : '▼'} {Math.abs(item.roi).toFixed(2)} %
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Vue Cartes Mobile */}
+                  <div className="mobile-cards-list">
                     {leaderboard.map((item, index) => {
                       const isTop3 = index < 3;
                       const badgeColor = index === 0 ? '#f59e0b' : index === 1 ? '#cbd5e1' : index === 2 ? '#b45309' : '';
                       const isCurrentUser = Boolean(item.isCurrentUser);
-                      
+
                       return (
-                        <tr 
-                          key={item.userId} 
-                          style={{ 
-                            borderBottom: '1px solid rgba(255,255,255,0.03)', 
-                            fontSize: '13px', 
-                            background: isCurrentUser ? 'rgba(168, 85, 247, 0.05)' : 'transparent',
-                            fontWeight: isCurrentUser ? 'bold' : 'normal'
-                          }}
-                        >
-                          <td style={{ padding: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            {isTop3 ? (
-                              <span style={{ 
-                                display: 'inline-flex', 
-                                alignItems: 'center', 
-                                justifyContent: 'center', 
-                                width: '20px', 
-                                height: '20px', 
-                                borderRadius: '50%', 
-                                background: badgeColor, 
-                                color: '#000', 
-                                fontWeight: 'bold',
-                                fontSize: '11px' 
-                              }}>
-                                {index + 1}
-                              </span>
-                            ) : (
-                              <span className="mono" style={{ color: '#64748b', paddingLeft: '6px' }}>{index + 1}</span>
-                            )}
-                          </td>
-                          <td style={{ padding: '0.75rem' }}>
-                            {item.username} {isCurrentUser && <span className="mono-tiny" style={{ fontSize: '8px', padding: '2px 4px', background: 'rgba(168, 85, 247, 0.2)', color: '#c084fc', borderRadius: '4px', marginLeft: '4px' }}>VOUS</span>}
-                          </td>
-                          <td style={{ padding: '0.75rem', textAlign: 'right' }} className="mono">
-                            {item.totalValue.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD
-                          </td>
-                          <td style={{ padding: '0.75rem', textAlign: 'right', color: '#64748b' }} className="mono">
-                            {item.virtualBalance.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD
-                          </td>
-                          <td style={{ padding: '0.75rem', textAlign: 'right', color: '#64748b' }} className="mono">
-                            {item.stockValuation.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} MAD
-                          </td>
-                          <td style={{ padding: '0.75rem', textAlign: 'right', color: item.roi >= 0 ? '#10b981' : '#ef4444' }} className="mono">
-                            {item.roi >= 0 ? '▲' : '▼'} {Math.abs(item.roi).toFixed(2)} %
-                          </td>
-                        </tr>
+                        <div key={item.userId} className={`history-mobile-card lb-card ${isCurrentUser ? 'is-me' : ''}`}>
+                          <div className="lb-card-top">
+                            <div className="lb-card-user">
+                              {isTop3 ? (
+                                <span className="rank-medal" style={{ background: badgeColor }}>{index + 1}</span>
+                              ) : (
+                                <span className="mono rank-pill">#{index + 1}</span>
+                              )}
+                              <span className="trader-name">{item.username}</span>
+                              {isCurrentUser && <span className="mono-tiny you-badge">VOUS</span>}
+                            </div>
+                            <span className={`mono lb-roi-pill ${item.roi >= 0 ? 'bull' : 'bear'}`}>
+                              {item.roi >= 0 ? '▲' : '▼'} {Math.abs(item.roi).toFixed(2)} %
+                            </span>
+                          </div>
+                          <div className="lb-card-metrics">
+                            <div className="lb-metric">
+                              <span className="lb-m-label">VALEUR TOTALE</span>
+                              <span className="mono lb-m-val">{item.totalValue.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD</span>
+                            </div>
+                            <div className="lb-metric">
+                              <span className="lb-m-label">TRÉSORERIE</span>
+                              <span className="mono lb-m-sub">{item.virtualBalance.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD</span>
+                            </div>
+                            <div className="lb-metric">
+                              <span className="lb-m-label">ACTIONS</span>
+                              <span className="mono lb-m-sub">{item.stockValuation.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD</span>
+                            </div>
+                          </div>
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
+                  </div>
+                </>
               )}
             </div>
           )}
         </div>
       </main>
 
-      {/* ── Barre d'actions Mobile PWA (bottom safe area) ── */}
-      <div className="mobile-bottom-bar">
-        <button className="mob-btn" onClick={() => setIsVirtualMode(!isVirtualMode)} style={{ color: isVirtualMode ? '#a855f7' : '#64748b' }}>
-          <RefreshCw size={18} />
-          <span>{isVirtualMode ? 'PAPER' : 'RÉEL'}</span>
-        </button>
-        <button className="mob-btn" onClick={() => setShowDivModal(true)} style={{ color: '#10b981' }}>
-          <Gift size={18} />
-          <span>DIVIDENDE</span>
-        </button>
-        {/* FAB central */}
-        <button className="mob-fab" onClick={() => setShowAddModal(true)}>
-          <Plus size={22} />
-        </button>
-        <button className="mob-btn" onClick={() => subscriptionTier !== 'premium' ? setShowPaywallModal(true) : setShowRoboPanel(!showRoboPanel)} style={{ color: '#a855f7' }}>
-          <Zap size={18} />
-          <span>ROBO</span>
-        </button>
-        <button className="mob-btn" onClick={() => exportToCsv(transactions, dividends)} style={{ color: '#64748b' }}>
-          <Download size={18} />
-          <span>EXPORT</span>
-        </button>
-      </div>
+      {/* ── FAB flottant d'ajout d'ordre (Mobile / Tablette) ── */}
+      <button
+        type="button"
+        className="portfolio-mobile-fab"
+        onClick={() => setShowAddModal(true)}
+        aria-label="Ajouter un ordre"
+      >
+        <Plus size={24} />
+      </button>
 
       <AddTransactionModal 
         showAddModal={showAddModal}
@@ -923,23 +985,20 @@ export default function PortfolioPage() {
         .title-h1 { font-size: 1.65rem; font-weight: 900; letter-spacing: -0.04em; }
         .market-badge { background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 6px; font-size: 10px; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
 
-        /* ── Desktop Actions ── */
+        /* ── Actions Desktop & Barre Mobile Scrollable ── */
         .header-actions-row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
-        .action-chip { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-radius: 100px; border: 1px solid var(--border-glass); background: rgba(255,255,255,0.03); color: #64748b; cursor: pointer; transition: all 0.2s; font-size: 10px; font-family: 'JetBrains Mono', monospace; font-weight: 800; min-height: 36px; }
+        .mobile-portfolio-actions { display: none; }
+        .portfolio-mobile-fab { display: none; }
+        .action-chip { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.95rem; border-radius: 100px; border: 1px solid var(--border-glass); background: rgba(255,255,255,0.03); color: #94a3b8; cursor: pointer; transition: all 0.2s; font-size: 10px; font-family: 'JetBrains Mono', monospace; font-weight: 800; min-height: 38px; white-space: nowrap; flex-shrink: 0; }
         .action-chip:hover { color: #fff; background: rgba(255,255,255,0.07); }
         .action-chip:active { transform: scale(0.96); }
-        .action-chip.emerald { color: #10b981; border-color: rgba(16,185,129,0.2); }
+        .action-chip.paper-active { background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%); border-color: rgba(168,85,247,0.5); color: #fff; }
+        .action-chip.purple.active { background: rgba(168,85,247,0.18); border-color: rgba(168,85,247,0.45); color: #d8b4fe; }
+        .action-chip.emerald { color: #10b981; border-color: rgba(16,185,129,0.22); }
         .action-chip.white { color: #fff; background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); }
-        .benchmark-chip { display: flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.85rem; border-radius: 100px; border: 1px solid; font-size: 10px; font-family: 'JetBrains Mono', monospace; font-weight: 800; }
+        .benchmark-chip { display: flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.85rem; border-radius: 100px; border: 1px solid; font-size: 10px; font-family: 'JetBrains Mono', monospace; font-weight: 800; white-space: nowrap; flex-shrink: 0; min-height: 38px; }
         .benchmark-chip.bull { color: #10b981; border-color: rgba(16,185,129,0.2); background: rgba(16,185,129,0.05); }
         .benchmark-chip.bear { color: #ef4444; border-color: rgba(244,63,94,0.2); background: rgba(244,63,94,0.05); }
-
-        /* ── Content spacing ── */
-        .main-content {
-          padding-top: calc(var(--header-height) + 1.25rem);
-          padding-bottom: calc(90px + env(safe-area-inset-bottom, 20px));
-          min-height: 100vh;
-        }
 
         /* ── Swipeable Tabs ── */
         .tab-strip { 
@@ -980,88 +1039,162 @@ export default function PortfolioPage() {
           box-shadow: 0 0 15px rgba(255,255,255,0.05); 
         }
 
-        /* ── Mobile Bottom Bar PWA ── */
-        .mobile-bottom-bar {
-          display: none;
+        /* ── Panels Alertes & Leaderboard ── */
+        .alerts-settings-panel, .leaderboard-panel {
+          padding: 2rem;
+          border-radius: 1rem;
+          margin-top: 1rem;
+          color: #fff;
         }
-        @media (max-width: 768px) {
+        .alerts-panel-title {
+          color: #a855f7;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-size: 1rem;
+          font-weight: 800;
+          margin-bottom: 0.65rem;
+        }
+        .alerts-panel-desc {
+          font-size: 0.85rem;
+          color: #94a3b8;
+          line-height: 1.55;
+          margin-bottom: 1.5rem;
+        }
+        .alerts-form { display: flex; flex-direction: column; gap: 1.25rem; }
+        .alerts-field { display: flex; flex-direction: column; gap: 0.5rem; }
+        .alerts-label { font-size: 11px; color: #a855f7; font-weight: 700; letter-spacing: 0.04em; }
+        .alerts-input {
+          width: 100%;
+          min-height: 44px;
+          background: rgba(0, 0, 0, 0.45);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 0.65rem;
+          padding: 0.7rem 0.9rem;
+          color: #fff;
+          font-size: 14px;
+          outline: none;
+        }
+        .alerts-input:focus { border-color: rgba(168, 85, 247, 0.5); }
+        .alerts-section {
+          border-top: 1px solid rgba(255, 255, 255, 0.06);
+          padding-top: 1.25rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.6rem;
+        }
+        .alerts-section-title { font-size: 13px; font-weight: 800; }
+        .alerts-section-title.blue { color: #3b82f6; }
+        .alerts-section-title.emerald { color: #10b981; }
+        .alerts-help { font-size: 12px; color: #94a3b8; line-height: 1.5; }
+        .alerts-submit-btn {
+          width: 100%;
+          min-height: 48px;
+          background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
+          color: #fff;
+          border: none;
+          border-radius: 0.75rem;
+          padding: 0.85rem 1.25rem;
+          font-weight: 800;
+          font-size: 12px;
+          letter-spacing: 0.05em;
+          cursor: pointer;
+          margin-top: 0.5rem;
+        }
+
+        .leaderboard-empty { text-align: center; padding: 2.5rem 1rem; color: #64748b; }
+        .leaderboard-table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+        .leaderboard-table th {
+          text-align: left;
+          padding: 0.75rem;
+          border-bottom: 1px solid rgba(255,255,255,0.1);
+          color: #64748b;
+          font-size: 11px;
+          text-transform: uppercase;
+          font-family: 'JetBrains Mono', monospace;
+        }
+        .leaderboard-table th.num, .leaderboard-table td.num { text-align: right; }
+        .leaderboard-table td { padding: 0.85rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 13px; }
+        .leaderboard-table td.muted { color: #94a3b8; }
+        .leaderboard-table tr.is-me { background: rgba(168, 85, 247, 0.07); font-weight: 700; }
+        .rank-medal {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          color: #000;
+          font-weight: 900;
+          font-size: 11px;
+          flex-shrink: 0;
+        }
+        .rank-num { color: #64748b; padding-left: 6px; }
+        .rank-pill { color: #94a3b8; font-size: 12px; font-weight: 800; background: rgba(255,255,255,0.05); padding: 2px 7px; border-radius: 6px; }
+        .trader-name { color: #f8fafc; font-weight: 700; }
+        .you-badge { font-size: 9px; padding: 2px 6px; background: rgba(168, 85, 247, 0.22); color: #d8b4fe; border-radius: 4px; margin-left: 6px; }
+
+        .lb-card.is-me { border-color: rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.07); }
+        .lb-card-top { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.75rem; }
+        .lb-card-user { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+        .lb-roi-pill { font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+        .lb-roi-pill.bull { background: rgba(16, 185, 129, 0.14); color: #10b981; }
+        .lb-roi-pill.bear { background: rgba(244, 63, 94, 0.14); color: #fb7185; }
+        .lb-card-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 0.65rem; }
+        .lb-metric { display: flex; flex-direction: column; gap: 2px; }
+        .lb-m-label { font-size: 8.5px; color: #64748b; font-weight: 800; letter-spacing: 0.04em; }
+        .lb-m-val { font-size: 12px; color: #fff; font-weight: 800; }
+        .lb-m-sub { font-size: 11px; color: #94a3b8; }
+
+        @media (max-width: 1024px) {
           .desktop-actions { display: none !important; }
-          .title-h1 { font-size: 1.3rem; }
-          .mobile-bottom-bar {
+          .mobile-portfolio-actions {
             display: flex;
             align-items: center;
-            justify-content: space-around;
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            padding: 0.65rem 0.5rem;
-            padding-bottom: calc(0.65rem + env(safe-area-inset-bottom, 12px));
-            background: rgba(8, 10, 15, 0.97);
-            border-top: 1px solid rgba(255,255,255,0.07);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            z-index: 500;
-            gap: 0.25rem;
+            gap: 0.5rem;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            padding: 0 0 0.75rem;
+            margin-bottom: 0.25rem;
           }
-          .mob-btn {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 3px;
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            padding: 0.5rem 0.75rem;
-            border-radius: 0.75rem;
-            transition: all 0.15s;
-            -webkit-tap-highlight-color: transparent;
-            min-width: 52px;
-            font-family: 'JetBrains Mono', monospace;
-          }
-          .mob-btn span {
-            font-size: 8px;
-            font-weight: 800;
-            letter-spacing: 0.05em;
-          }
-          .mob-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.05); }
-          /* FAB central */
-          .mob-fab {
+          .mobile-portfolio-actions::-webkit-scrollbar { display: none; }
+          .portfolio-mobile-fab {
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 54px;
-            height: 54px;
+            position: fixed;
+            right: 16px;
+            bottom: calc(var(--bottom-nav-height) + var(--sab) + 16px);
+            width: 56px;
+            height: 56px;
             border-radius: 50%;
-            border: none;
-            background: linear-gradient(135deg, #a855f7, #7c3aed);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
             color: #fff;
             cursor: pointer;
-            box-shadow: 0 4px 20px rgba(168,85,247,0.45);
-            transition: all 0.2s;
+            box-shadow: 0 10px 28px rgba(124, 58, 237, 0.45);
+            z-index: var(--z-fab);
+            transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.16s ease;
             -webkit-tap-highlight-color: transparent;
-            margin-top: -20px;
           }
-          .mob-fab:active { transform: scale(0.92); box-shadow: 0 2px 10px rgba(168,85,247,0.3); }
-          /* Ajuster les charts pour mobile */
+          .portfolio-mobile-fab:active { transform: scale(0.92); box-shadow: 0 4px 14px rgba(124, 58, 237, 0.35); }
           .portfolio-charts-grid { grid-template-columns: 1fr !important; }
-          .max-container { padding: 0.75rem 0.5rem; }
+        }
+
+        @media (max-width: 768px) {
+          .title-h1 { font-size: 1.3rem; }
+          .max-container { padding: 0.5rem 0; }
+          .alerts-settings-panel, .leaderboard-panel { padding: 1.15rem; }
+          .alerts-input { font-size: 16px; }
         }
 
         /* ── Filtres & divers ── */
         .active-filter-bar { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1.25rem; border-radius: 0.75rem; background: rgba(59,130,246,0.05); border: 1px solid rgba(59,130,246,0.2); margin-bottom: 1rem; }
-        .clear-filter-btn { background: transparent; border: none; color: #3b82f6; cursor: pointer; font-weight: 800; font-family: 'JetBrains Mono', monospace; transition: color 0.2s; }
+        .clear-filter-btn { background: transparent; border: none; color: #3b82f6; cursor: pointer; font-weight: 800; font-family: 'JetBrains Mono', monospace; transition: color 0.2s; min-height: 36px; }
         .clear-filter-btn:hover { color: #fff; }
 
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @media (max-width: 1024px) { 
-          .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 1rem; } 
-        }
-        @media (max-width: 640px) { 
-          .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; } 
-          .stats-grid > .stat-card:nth-child(1),
-          .stats-grid > .stat-card:nth-child(2) { grid-column: span 2; }
-        }
       `}</style>
     </div>
   );

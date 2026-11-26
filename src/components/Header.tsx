@@ -1,9 +1,9 @@
 'use client';
 
-import { Menu, Zap, LogIn, UserPlus, User, LogOut, Loader2 } from 'lucide-react';
+import { Menu, Zap, LogIn, UserPlus, User } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { supabase, performCleanLogout } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import MacroWidget from './MacroWidget';
 
 interface HeaderProps {
@@ -12,7 +12,6 @@ interface HeaderProps {
 
 export default function Header({ onOpenSidebar }: HeaderProps) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -49,12 +48,6 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
     };
   }, []);
 
-  const handleHeaderLogout = async () => {
-    if (loggingOut) return;
-    setLoggingOut(true);
-    await performCleanLogout('/login');
-  };
-
   return (
     <header className="fixed-header glass-heavy">
       <div className="header-inner">
@@ -78,49 +71,38 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
           {isAuthenticated === false ? (
             <div className="auth-nav-buttons">
               <Link href="/login" style={{ textDecoration: 'none' }}>
-                <button className="auth-btn login-btn">
+                <button className="auth-btn login-btn" type="button">
                   <LogIn size={14} />
-                  <span>Se connecter</span>
+                  <span>Connexion</span>
                 </button>
               </Link>
-              <Link href="/login?mode=signup" style={{ textDecoration: 'none' }}>
-                <button className="auth-btn signup-btn">
+              <Link href="/login?mode=signup" className="signup-link-desktop" style={{ textDecoration: 'none' }}>
+                <button className="auth-btn signup-btn" type="button">
                   <UserPlus size={14} />
-                  <span>S'inscrire</span>
+                  <span>S&apos;inscrire</span>
                 </button>
               </Link>
             </div>
           ) : isAuthenticated === true ? (
-            <div className="user-nav-group">
-              <Link href="/profile" style={{ textDecoration: 'none' }}>
-                <button className="user-badge-btn" title="Mon Profil">
-                  <User size={14} />
-                  <span className="user-badge-label">Mon Espace</span>
-                </button>
-              </Link>
-
-              <button 
-                className="user-logout-btn touch-target"
-                title="Se déconnecter"
-                aria-label="Déconnexion"
-                disabled={loggingOut}
-                onClick={handleHeaderLogout}
-              >
-                {loggingOut ? <Loader2 size={16} className="animate-spin" /> : <LogOut size={16} />}
+            <Link href="/profile" style={{ textDecoration: 'none' }}>
+              <button className="user-badge-btn" title="Mon Profil" type="button" aria-label="Mon Profil">
+                <User size={15} />
+                <span className="user-badge-label">Mon Espace</span>
               </button>
-              
-              <button 
-                onClick={onOpenSidebar} 
-                className="menu-toggle-btn touch-target" 
-                aria-label="Ouvrir le menu principal"
-              >
-                <Menu size={20} />
-                <span className="menu-dot"></span>
-              </button>
-            </div>
+            </Link>
           ) : (
             <div className="auth-nav-placeholder" />
           )}
+
+          <button 
+            onClick={onOpenSidebar} 
+            className="menu-toggle-btn" 
+            type="button"
+            aria-label="Ouvrir le menu principal"
+          >
+            <Menu size={20} />
+            <span className="menu-dot"></span>
+          </button>
         </div>
       </div>
 
@@ -132,31 +114,29 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
           right: 0;
           height: calc(var(--header-height) + var(--sat));
           padding-top: var(--sat);
-          z-index: 900;
+          z-index: var(--z-header, 900);
           border-bottom: 1px solid var(--border-glass);
           display: flex;
           align-items: center;
-          background: rgba(9, 13, 22, 0.85);
+          background: rgba(9, 13, 22, 0.88);
           backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
         }
 
         .header-inner {
           width: 100%;
           max-width: var(--max-width);
           margin: 0 auto;
-          padding: 0 1rem;
+          padding: 0 0.85rem;
           display: flex;
           justify-content: space-between;
           align-items: center;
+          gap: 0.5rem;
         }
 
         @media (min-width: 1024px) {
           .header-inner {
             padding: 0 2rem;
-          }
-          
-          .user-logout-btn {
-            display: none;
           }
         }
 
@@ -174,6 +154,7 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
           gap: 0.5rem;
           cursor: pointer;
           transition: transform 0.3s var(--ease);
+          flex-shrink: 0;
         }
 
         .header-logo:hover {
@@ -195,7 +176,7 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
         .logo-text {
           font-family: 'Outfit', sans-serif;
           font-weight: 900;
-          font-size: 1.15rem;
+          font-size: 1.1rem;
           color: #fff;
           letter-spacing: -0.04em;
         }
@@ -204,37 +185,39 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
           display: flex;
           align-items: center;
           gap: 0.5rem;
+          flex-shrink: 0;
         }
 
         .auth-nav-buttons {
           display: flex;
           align-items: center;
-          gap: 0.5rem;
+          gap: 0.45rem;
         }
 
         .auth-btn {
           display: flex;
           align-items: center;
           gap: 0.4rem;
-          height: 36px;
-          padding: 0 0.85rem;
-          border-radius: 8px;
-          font-size: 11px;
+          height: 38px;
+          padding: 0 0.8rem;
+          border-radius: 10px;
+          font-size: 11.5px;
           font-weight: 700;
           cursor: pointer;
           transition: all 0.25s var(--ease);
           font-family: 'Inter', sans-serif;
+          white-space: nowrap;
         }
 
         .login-btn {
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          color: #cbd5e1;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          color: #e2e8f0;
         }
         .login-btn:hover {
-          background: rgba(255, 255, 255, 0.08);
+          background: rgba(255, 255, 255, 0.1);
           color: #ffffff;
-          border-color: rgba(255, 255, 255, 0.2);
+          border-color: rgba(255, 255, 255, 0.22);
         }
 
         .signup-btn {
@@ -249,21 +232,16 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
           box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
         }
 
-        .user-nav-group {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-        }
-
         .user-badge-btn {
           display: flex;
           align-items: center;
+          justify-content: center;
           gap: 0.4rem;
-          height: 36px;
+          height: 38px;
           padding: 0 0.75rem;
-          border-radius: 8px;
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.1);
           color: #10b981;
           font-size: 11px;
           font-weight: 700;
@@ -275,49 +253,34 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
           border-color: rgba(16, 185, 129, 0.3);
         }
 
-        .user-logout-btn {
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid var(--border-glass);
-          color: #ef4444;
-          width: 38px;
-          height: 38px;
-          border-radius: 8px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          transition: all 0.3s var(--ease);
-        }
-
-        .user-logout-btn:hover {
-          background: rgba(239, 68, 68, 0.1);
-          border-color: rgba(239, 68, 68, 0.3);
-        }
-
         .menu-toggle-btn {
-          background: rgba(255, 255, 255, 0.03);
+          background: rgba(255, 255, 255, 0.05);
           border: 1px solid var(--border-glass);
           color: #fff;
-          width: 38px;
-          height: 38px;
-          border-radius: 8px;
+          width: 40px;
+          height: 40px;
+          border-radius: 10px;
           display: flex;
           align-items: center;
           justify-content: center;
           cursor: pointer;
-          transition: all 0.3s var(--ease);
+          transition: all 0.25s var(--ease);
           position: relative;
         }
 
         .menu-toggle-btn:hover {
-          background: rgba(255, 255, 255, 0.08);
-          border-color: rgba(255, 255, 255, 0.2);
+          background: rgba(255, 255, 255, 0.1);
+          border-color: rgba(255, 255, 255, 0.22);
+        }
+
+        .menu-toggle-btn:active {
+          transform: scale(0.94);
         }
 
         .menu-dot {
           position: absolute;
-          top: 2px;
-          right: 2px;
+          top: 4px;
+          right: 4px;
           width: 6px;
           height: 6px;
           background: var(--accent-emerald);
@@ -326,14 +289,29 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
         }
 
         .auth-nav-placeholder {
-          width: 120px;
-          height: 36px;
+          width: 84px;
+          height: 38px;
+        }
+
+        @media (max-width: 768px) {
+          .header-macro-center {
+            display: none;
+          }
         }
 
         @media (max-width: 640px) {
           .user-badge-label { display: none; }
-          .auth-btn span { display: none; }
-          .auth-btn { padding: 0 0.6rem; }
+          .user-badge-btn {
+            width: 40px;
+            height: 40px;
+            padding: 0;
+          }
+          :global(.signup-link-desktop) { display: none; }
+          .auth-btn {
+            height: 38px;
+            padding: 0 0.7rem;
+            font-size: 11px;
+          }
         }
       `}</style>
     </header>

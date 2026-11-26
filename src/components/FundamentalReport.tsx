@@ -264,6 +264,19 @@ export default function FundamentalReport({ analysis }: FundamentalReportProps) 
         .m-cur { font-size: 10px; color: #334155; margin-left: 0.75rem; vertical-align: middle; }
         .text-emerald { color: var(--accent-emerald); }
         .text-dim { color: #334155 !important; }
+
+        @media (max-width: 768px) {
+          .fundamental-root { gap: 1.75rem; padding-bottom: 2rem; }
+          .report-header-fund { padding-bottom: 1.5rem; margin-bottom: 0.25rem; }
+          .header-main { flex-direction: column; align-items: flex-start; gap: 1rem; }
+          .company-title { font-size: 2.1rem; line-height: 1.05; }
+          .sector-badge { padding: 0.65rem 1rem; }
+          .fund-card { padding: 1.25rem; border-radius: 1.25rem; gap: 1.35rem; }
+          .growth-grid { grid-template-columns: 1fr; gap: 1rem; }
+          .m-val { font-size: 1.4rem; }
+          .fund-footer { padding: 1.25rem; border-radius: 1.25rem; gap: 1rem; flex-direction: column; align-items: flex-start; }
+          .footer-text { font-size: 0.95rem; }
+        }
       `}</style>
     </div>
   );

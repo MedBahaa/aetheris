@@ -334,6 +334,35 @@ export const RoboAdvisorPanel: React.FC<RoboAdvisorPanelProps> = ({ holdings, on
         .reset-optimizer-btn:hover {
           color: #fff;
         }
+
+        @media (max-width: 640px) {
+          .robo-advisor-container {
+            padding: 1.25rem;
+            border-radius: 1.25rem;
+            margin-bottom: 1.25rem;
+          }
+          .panel-header-robo {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.5rem;
+          }
+          .optimize-btn {
+            width: 100%;
+            min-height: 48px;
+            justify-content: center;
+          }
+          .order-row {
+            flex-wrap: wrap;
+            gap: 0.6rem;
+            padding: 0.75rem;
+          }
+          .order-details {
+            min-width: 140px;
+          }
+          .reset-optimizer-btn {
+            min-height: 40px;
+          }
+        }
       `}</style>
     </div>
   );

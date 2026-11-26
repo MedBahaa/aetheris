@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
 import { Search, FileText, X, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useDebounce } from '@/hooks/use-debounce';
@@ -66,31 +68,36 @@ export default function ShariaSearchBox({
   };
 
   return (
-    <>
-      <div className="flex bg-slate-900/60 rounded-xl p-1 mb-8">
-        <button 
+    <div className="sharia-box-root">
+      <div className="sharia-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'AI_SEARCH'}
           onClick={() => setActiveTab('AI_SEARCH')}
-          className={`flex-1 py-3 text-sm font-bold rounded-lg transition-colors ${activeTab === 'AI_SEARCH' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'}`}
+          className={`sharia-tab-btn ${activeTab === 'AI_SEARCH' ? 'active-ai' : ''}`}
         >
-          ANALYSE IA (AUTOMATIQUE)
+          ANALYSE IA (AUTO)
         </button>
-        <button 
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'MANUAL'}
           onClick={() => setActiveTab('MANUAL')}
-          className={`flex-1 py-3 text-sm font-bold rounded-lg transition-colors ${activeTab === 'MANUAL' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+          className={`sharia-tab-btn ${activeTab === 'MANUAL' ? 'active-manual' : ''}`}
         >
           SAISIE MANUELLE
         </button>
       </div>
 
       {activeTab === 'AI_SEARCH' && (
-        <form onSubmit={handleSubmit} className="animate-fade-in relative z-10">
-          <div className="search-container glass-heavy p-2 rounded-2xl flex items-center relative mb-4">
-            <Search className="text-emerald-400 ml-4 mr-2" />
-            <input 
-              type="text" 
-              placeholder="Rechercher une entreprise cotée (ex: Maroc Telecom, ATW...)"
-              className="terminal-input flex-1"
-              style={{ fontSize: '1.25rem', padding: '1rem', background: 'transparent', border: 'none', color: '#ffffff' }}
+        <form onSubmit={handleSubmit} className="sharia-form animate-fade-in">
+          <div className="sharia-search-box glass-heavy">
+            <Search size={18} className="sharia-search-icon" />
+            <input
+              type="text"
+              placeholder="Entreprise cotée (ex: Maroc Telecom, ATW...)"
+              className="sharia-search-input"
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
@@ -98,74 +105,86 @@ export default function ShariaSearchBox({
               }}
               onFocus={() => setShowSuggestions(true)}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+              aria-label="Rechercher une entreprise Sharia"
             />
             {query && (
-              <button type="button" onClick={() => setQuery('')} className="p-2 text-slate-400 hover:text-white mr-2">
-                <X size={20} />
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                className="sharia-clear-btn"
+                aria-label="Effacer"
+              >
+                <X size={18} />
               </button>
             )}
-            
-            {showSuggestions && (query.trim().length >= 2) && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-2xl z-50">
+
+            {showSuggestions && query.trim().length >= 2 && (
+              <div className="sharia-suggestions">
                 {isSearchingDebounce ? (
-                  <div className="p-4 text-center text-slate-500 text-sm">Recherche en cours...</div>
+                  <div className="sharia-sugg-status">Recherche en cours...</div>
                 ) : suggestions.length > 0 ? (
                   suggestions.map((s, i) => (
-                    <div 
+                    <div
                       key={i}
-                      className="p-4 hover:bg-slate-800 border-b border-slate-800 cursor-pointer flex justify-between items-center transition-colors"
+                      className="sharia-sugg-item"
                       onClick={() => handleSuggestionClick(s.symbol)}
                     >
-                      <span className="font-bold text-white">{s.name}</span>
-                      <span className="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded">{s.symbol}</span>
+                      <span className="sharia-sugg-name">{s.name}</span>
+                      <span className="sharia-sugg-sym mono">{s.symbol}</span>
                     </div>
                   ))
                 ) : (
-                  <div className="p-4 text-center text-slate-500 text-sm">Aucune entreprise marocaine trouvée pour "{query}"</div>
+                  <div className="sharia-sugg-status">
+                    Aucune entreprise marocaine trouvée pour &laquo; {query} &raquo;
+                  </div>
                 )}
               </div>
             )}
           </div>
-          
-          <div className="glass-heavy p-4 rounded-xl border border-white/5 mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-bold text-white flex items-center gap-2">
-                <FileText size={16} className="text-emerald-400" />
-                Rapport Financier PDF (Optionnel)
+
+          <div className="pdf-upload-card glass-heavy">
+            <div className="pdf-info">
+              <p className="pdf-title">
+                <FileText size={16} className="pdf-icon" />
+                <span>Rapport Financier PDF (Optionnel)</span>
               </p>
-              <p className="text-xs text-slate-400">Si fourni, l'IA extraira les chiffres de ce document certifié au lieu du web.</p>
+              <p className="pdf-desc">
+                Si fourni, l&apos;IA extraira les chiffres de ce document certifié au lieu du web.
+              </p>
             </div>
-            <div>
+            <div className="pdf-controls">
               <input
                 type="file"
                 accept="application/pdf"
                 id="pdf-upload"
-                className="hidden"
+                className="sr-only-input"
                 onChange={(e) => setPdfFile(e.target.files ? e.target.files[0] : null)}
               />
-              <label htmlFor="pdf-upload" className="action-btn-terminal strategy text-xs cursor-pointer inline-block" style={{ height: 'auto', padding: '8px 12px' }}>
+              <label htmlFor="pdf-upload" className="pdf-upload-btn">
                 {pdfFile ? pdfFile.name : 'Uploader PDF'}
               </label>
               {pdfFile && (
-                <button type="button" onClick={() => setPdfFile(null)} className="ml-2 text-rose-400 hover:text-rose-300 text-xs">Retirer</button>
+                <button type="button" onClick={() => setPdfFile(null)} className="pdf-remove-btn">
+                  Retirer
+                </button>
               )}
             </div>
           </div>
 
-          <button type="submit" disabled={loading || !query.trim()} className="action-btn-terminal emerald full-width">
-            {loading ? 'ANALYSE EN COURS...' : 'LANCER L\'ANALYSE SHARIA IA'}
+          <button type="submit" disabled={loading || !query.trim()} className="sharia-submit-btn">
+            {loading ? 'ANALYSE EN COURS...' : "LANCER L'ANALYSE SHARIA IA"}
           </button>
         </form>
       )}
 
-      {/* LOADING STATE ANIMATION */}
+      {/* LOADING STATE */}
       {loading && (
-        <div className="glass-heavy p-8 rounded-2xl text-center flex flex-col items-center justify-center gap-4 my-6 animate-pulse border border-emerald-500/20">
-          <RefreshCw className="animate-spin text-emerald-400" size={36} />
-          <div className="flex flex-col gap-1">
-            <h3 className="mono font-bold text-base text-white">RECHERCHE ET ANALYSE SHARIA EN COURS...</h3>
-            <p className="mono-tiny text-emerald-400">
-              {`🔍 Etape ${loadingStep}/4: ${loadingMessage}`}
+        <div className="sharia-loading-card glass-heavy animate-pulse">
+          <RefreshCw className="animate-spin sharia-spin-icon" size={32} />
+          <div className="sharia-loading-texts">
+            <h3 className="mono sharia-loading-title">RECHERCHE ET ANALYSE SHARIA EN COURS...</h3>
+            <p className="mono sharia-loading-step">
+              {`🔍 Étape ${loadingStep}/4 : ${loadingMessage}`}
             </p>
           </div>
         </div>
@@ -173,19 +192,236 @@ export default function ShariaSearchBox({
 
       {/* ERROR STATE */}
       {error && !loading && (
-        <div className="glass-heavy p-6 rounded-2xl my-6 border border-rose-500/40 bg-rose-950/20 text-rose-300 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <AlertTriangle size={28} className="text-rose-400 flex-shrink-0" />
+        <div className="sharia-error-card glass-heavy">
+          <div className="sharia-error-info">
+            <AlertTriangle size={24} className="sharia-error-icon" />
             <div>
-              <h4 className="font-bold text-white">Analyse automatique indisponible</h4>
-              <p className="text-xs text-rose-300/80">{error}</p>
+              <h4 className="sharia-error-title">Analyse automatique indisponible</h4>
+              <p className="sharia-error-msg">{error}</p>
             </div>
           </div>
-          <button onClick={() => setActiveTab('MANUAL')} className="action-btn-terminal strategy">
-            Saisir les chiffres manuellement
+          <button type="button" onClick={() => setActiveTab('MANUAL')} className="sharia-fallback-btn">
+            Saisir manuellement
           </button>
         </div>
       )}
-    </>
+
+      <style jsx>{`
+        .sharia-box-root { margin-bottom: 1.25rem; }
+        .sharia-tabs {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 6px;
+          background: rgba(15, 23, 42, 0.72);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 14px;
+          padding: 5px;
+          margin-bottom: 1.25rem;
+        }
+        .sharia-tab-btn {
+          min-height: 44px;
+          border: none;
+          border-radius: 10px;
+          background: transparent;
+          color: #94a3b8;
+          font-size: 12px;
+          font-weight: 800;
+          letter-spacing: 0.04em;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .sharia-tab-btn.active-ai {
+          background: linear-gradient(135deg, #10b981, #059669);
+          color: #022c22;
+        }
+        .sharia-tab-btn.active-manual {
+          background: rgba(255, 255, 255, 0.12);
+          color: #fff;
+        }
+
+        .sharia-form { position: relative; z-index: 20; display: flex; flex-direction: column; gap: 0.9rem; }
+        .sharia-search-box {
+          position: relative;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.45rem 0.75rem 0.45rem 1rem;
+          border-radius: 1rem;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        :global(.sharia-search-icon) { color: #34d399; flex-shrink: 0; }
+        .sharia-search-input {
+          flex: 1;
+          min-width: 0;
+          min-height: 44px;
+          background: transparent;
+          border: none;
+          outline: none;
+          color: #fff;
+          font-size: 1.05rem;
+          font-weight: 500;
+        }
+        .sharia-clear-btn {
+          width: 40px;
+          height: 40px;
+          border-radius: 999px;
+          border: none;
+          background: rgba(255, 255, 255, 0.06);
+          color: #94a3b8;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          flex-shrink: 0;
+        }
+
+        .sharia-suggestions {
+          position: absolute;
+          top: calc(100% + 8px);
+          left: 0;
+          right: 0;
+          background: rgba(11, 16, 27, 0.98);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 1rem;
+          overflow: hidden;
+          box-shadow: 0 24px 48px rgba(0, 0, 0, 0.75);
+          z-index: 60;
+          max-height: 300px;
+          overflow-y: auto;
+        }
+        .sharia-sugg-status { padding: 1rem; text-align: center; color: #64748b; font-size: 13px; }
+        .sharia-sugg-item {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.75rem;
+          min-height: 48px;
+          padding: 0.75rem 1rem;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          cursor: pointer;
+        }
+        .sharia-sugg-item:hover { background: rgba(16, 185, 129, 0.08); }
+        .sharia-sugg-name { font-weight: 700; color: #f8fafc; font-size: 14px; }
+        .sharia-sugg-sym {
+          font-size: 11px;
+          font-weight: 800;
+          background: rgba(255, 255, 255, 0.08);
+          color: #cbd5e1;
+          padding: 3px 8px;
+          border-radius: 6px;
+        }
+
+        .pdf-upload-card {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1rem;
+          padding: 1rem 1.15rem;
+          border-radius: 1rem;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .pdf-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+        .pdf-title { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; font-weight: 700; color: #fff; margin: 0; }
+        :global(.pdf-icon) { color: #34d399; flex-shrink: 0; }
+        .pdf-desc { font-size: 0.78rem; color: #94a3b8; margin: 0; line-height: 1.4; }
+        .pdf-controls { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+        .sr-only-input { display: none; }
+        .pdf-upload-btn {
+          display: inline-flex;
+          align-items: center;
+          min-height: 40px;
+          padding: 0 0.9rem;
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.08);
+          border: 1px solid rgba(255, 255, 255, 0.14);
+          color: #f8fafc;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          max-width: 190px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .pdf-remove-btn {
+          background: transparent;
+          border: none;
+          color: #fb7185;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          padding: 6px 8px;
+        }
+
+        .sharia-submit-btn {
+          width: 100%;
+          min-height: 50px;
+          border: none;
+          border-radius: 0.9rem;
+          background: linear-gradient(135deg, #10b981, #059669);
+          color: #022c22;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 12px;
+          font-weight: 900;
+          letter-spacing: 0.08em;
+          cursor: pointer;
+          transition: transform 0.15s ease, opacity 0.2s ease;
+        }
+        .sharia-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .sharia-submit-btn:active:not(:disabled) { transform: scale(0.985); }
+
+        .sharia-loading-card {
+          padding: 2rem 1.25rem;
+          border-radius: 1.25rem;
+          border: 1px solid rgba(16, 185, 129, 0.25);
+          margin: 1.25rem 0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+          gap: 1rem;
+        }
+        :global(.sharia-spin-icon) { color: #34d399; }
+        .sharia-loading-texts { display: flex; flex-direction: column; gap: 4px; }
+        .sharia-loading-title { font-size: 0.95rem; font-weight: 800; color: #fff; margin: 0; }
+        .sharia-loading-step { font-size: 11px; color: #34d399; margin: 0; }
+
+        .sharia-error-card {
+          padding: 1.15rem;
+          border-radius: 1.1rem;
+          border: 1px solid rgba(244, 63, 94, 0.38);
+          background: rgba(76, 5, 25, 0.35);
+          margin: 1.25rem 0;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1rem;
+          flex-wrap: wrap;
+        }
+        .sharia-error-info { display: flex; align-items: flex-start; gap: 0.75rem; flex: 1; min-width: 220px; }
+        :global(.sharia-error-icon) { color: #fb7185; flex-shrink: 0; margin-top: 2px; }
+        .sharia-error-title { font-size: 0.95rem; font-weight: 800; color: #fff; margin: 0 0 2px; }
+        .sharia-error-msg { font-size: 12px; color: #fda4af; margin: 0; line-height: 1.45; }
+        .sharia-fallback-btn {
+          min-height: 42px;
+          padding: 0 1rem;
+          border-radius: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.16);
+          background: rgba(255, 255, 255, 0.08);
+          color: #fff;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+
+        @media (max-width: 640px) {
+          .sharia-search-input { font-size: 16px; }
+          .pdf-upload-card { flex-direction: column; align-items: stretch; }
+          .pdf-controls { justify-content: space-between; }
+          .pdf-upload-btn { flex: 1; justify-content: center; max-width: none; }
+          .sharia-fallback-btn { width: 100%; }
+        }
+      `}</style>
+    </div>
   );
 }

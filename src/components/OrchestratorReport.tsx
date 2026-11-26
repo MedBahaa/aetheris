@@ -429,6 +429,48 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
         .emerald-icon { color: var(--accent-emerald); }
         
         .drill-section { width: 100%; }
+
+        @media (max-width: 768px) {
+          .report-container { gap: 1rem; padding-bottom: 2rem; }
+          .horizon-switcher { padding: 0.35rem; gap: 0.3rem; border-radius: 1rem; }
+          .horizon-btn {
+            flex-direction: column;
+            gap: 2px;
+            padding: 0.55rem 0.4rem;
+            min-height: 46px;
+            border-radius: 0.75rem;
+            font-size: 10px;
+          }
+          .horizon-btn .h-sub { font-size: 8.5px; }
+          .recommendation-card, .gauges-card, .tactical-board-new, .keys-card {
+            padding: 1.25rem;
+            border-radius: 1.15rem;
+          }
+          .badge-row { gap: 1rem; }
+          .action-badge-new { min-width: 0; justify-content: flex-start; }
+          .badge-main-text { font-size: 2.15rem; }
+          .badge-bg-text { font-size: 3.1rem; }
+          .tactical-badge { min-width: 0; width: 100%; padding: 0.9rem 1.1rem; }
+          .rationale-box { min-width: 0; width: 100%; }
+          .why-text { font-size: 0.98rem; }
+          .tactical-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+          .c-val { font-size: 1rem; }
+          .strategy-narrative { padding: 1.1rem; gap: 0.85rem; }
+          .narrative-text { font-size: 0.92rem; }
+          .board-header { flex-wrap: wrap; gap: 0.5rem; }
+          .horizon-badge { margin-left: 0; }
+          .key-item { padding: 1rem; gap: 0.85rem; }
+          .key-item p { font-size: 0.92rem; }
+          .alert-ribbon { padding: 1rem; gap: 0.85rem; font-size: 0.85rem; }
+          .expert-toggle-btn {
+            width: 100%;
+            justify-content: center;
+            padding: 0.9rem 1.25rem;
+            min-height: 48px;
+            letter-spacing: 0.12rem;
+          }
+          .drill-down-grid { gap: 2rem; padding-top: 2rem; }
+        }
       `}</style>
     </>
   );

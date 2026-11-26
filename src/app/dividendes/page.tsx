@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
-import { Trophy, RefreshCw, AlertCircle, Coins, Search, ArrowUpRight } from 'lucide-react';
+import { Trophy, RefreshCw, AlertCircle, Coins, Search, ArrowUpRight, X, Zap } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import { DividendYieldData } from '@/lib/scrapers/dividend-scraper';
@@ -11,8 +12,10 @@ import { useDebounce } from '@/hooks/useDebounce';
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 export default function DividendesPage() {
+  const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'rank' | 'yield' | 'amount' | 'price'>('rank');
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
   const { data, error, isLoading, mutate } = useSWR<{ success: boolean; data: DividendYieldData[] }>(
@@ -21,149 +24,473 @@ export default function DividendesPage() {
   );
 
   const dividends = data?.data || [];
-  
-  const filteredDividends = dividends.filter(d => 
-    d.symbol.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-    d.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
-  );
+
+  const parseNumeric = (val?: string | number) => {
+    if (typeof val === 'number') return val;
+    if (!val) return 0;
+    const num = parseFloat(String(val).replace(',', '.').replace(/[^\d.-]/g, ''));
+    return Number.isNaN(num) ? 0 : num;
+  };
+
+  const filteredDividends = useMemo(() => {
+    const q = debouncedSearchTerm.toLowerCase().trim();
+    const list = q
+      ? dividends.filter(
+          (d) => d.symbol.toLowerCase().includes(q) || d.name.toLowerCase().includes(q)
+        )
+      : [...dividends];
+
+    if (sortBy === 'yield') {
+      return [...list].sort((a, b) => parseNumeric(b.yield) - parseNumeric(a.yield));
+    }
+    if (sortBy === 'amount') {
+      return [...list].sort((a, b) => parseNumeric(b.amountDH) - parseNumeric(a.amountDH));
+    }
+    if (sortBy === 'price') {
+      return [...list].sort((a, b) => parseNumeric(b.price) - parseNumeric(a.price));
+    }
+    return list;
+  }, [dividends, debouncedSearchTerm, sortBy]);
+
+  const handleAnalyze = (symbol: string) => {
+    router.push(`/console?q=${encodeURIComponent(symbol)}&agent=FUNDAMENTAL`);
+  };
 
   return (
-    <div className="flex min-h-screen bg-slate-900 text-slate-100 overflow-hidden font-sans">
+    <div className="app-container">
       <Sidebar history={[]} onSelect={() => {}} activeAgent="STRATEGY" onAgentChange={() => {}} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-      <main className="flex-1 flex flex-col relative h-screen max-w-full overflow-hidden transition-all duration-300 z-10 lg:ml-64">
-        <Header onOpenSidebar={() => setIsSidebarOpen(true)} />
-        
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 scroll-smooth">
-          <div className="max-w-6xl mx-auto space-y-6">
-            
-            {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
-              <div>
-                <h1 className="text-3xl font-bold flex items-center gap-3">
-                  <Coins className="text-emerald-400" size={32} />
-                  Palmarès des Dividendes 2026
-                </h1>
-                <p className="text-slate-400 mt-2 max-w-2xl">
-                  Classement des entreprises cotées à la Bourse de Casablanca offrant les meilleurs rendements (Dividend Yield) basés sur les données en temps réel.
-                </p>
+      <Header onOpenSidebar={() => setIsSidebarOpen(true)} />
+
+      <main className="main-content">
+        <div className="max-container">
+          {/* Header Section */}
+          <header className="div-header animate-fade-in">
+            <div className="header-identity">
+              <div className="identity-block">
+                <div className="status-light pulse"></div>
+                <span className="mono-tiny text-emerald">PALMARÈS RENDEMENTS BVC</span>
               </div>
-              <button 
-                onClick={() => mutate()}
-                disabled={isLoading}
-                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-sm py-2 px-4 rounded-xl border border-slate-700 transition-colors disabled:opacity-50"
-              >
-                <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
-                Actualiser
-              </button>
+              <div className="title-row">
+                <h1 className="title-h1">
+                  <Coins size={28} className="title-icon" />
+                  Dividendes 2026
+                </h1>
+                <div className="market-badge">
+                  {dividends.length > 0 ? `${dividends.length} VALEURS CLASSÉES` : 'BOURSE DE CASABLANCA'}
+                </div>
+              </div>
+              <p className="div-subtitle">
+                Classement des entreprises cotées à la Bourse de Casablanca offrant les meilleurs rendements (Dividend Yield) en temps réel.
+              </p>
             </div>
 
-            {/* Error State */}
-            {error && (
-              <div className="bg-rose-500/10 border border-rose-500/20 p-4 rounded-xl flex items-start gap-3">
-                <AlertCircle className="text-rose-400 shrink-0 mt-0.5" size={20} />
-                <p className="text-rose-300 text-sm">
-                  Erreur lors du chargement des données. Veuillez réessayer plus tard.
-                </p>
-              </div>
-            )}
+            <button
+              type="button"
+              onClick={() => mutate()}
+              disabled={isLoading}
+              className="div-refresh-btn glass"
+            >
+              <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} />
+              <span className="mono">ACTUALISER</span>
+            </button>
+          </header>
 
-            {/* Content Box */}
-            <div className="bg-slate-800/40 border border-slate-700/50 rounded-2xl overflow-hidden backdrop-blur-sm">
-              <div className="p-4 md:p-6 border-b border-slate-700/50 flex flex-col sm:flex-row gap-4 items-center justify-between">
-                <div className="flex items-center gap-2 text-slate-300 font-medium">
-                  <Trophy size={18} className="text-amber-400" />
-                  Top Rendements BVC
-                </div>
-                
-                <div className="relative w-full sm:w-64">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                  <input
-                    type="text"
-                    placeholder="Rechercher (ex: IAM, Attijari...)"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
-                  />
-                </div>
+          {/* Error State */}
+          {error && (
+            <div className="div-error-banner animate-fade-in">
+              <AlertCircle size={20} style={{ color: '#fb7185', flexShrink: 0 }} />
+              <p>Erreur lors du chargement des données de dividendes. Veuillez réessayer plus tard.</p>
+            </div>
+          )}
+
+          {/* Search & Sort Controls */}
+          <div className="div-controls glass-heavy animate-fade-in">
+            <div className="div-controls-top">
+              <div className="div-title-badge">
+                <Trophy size={16} style={{ color: '#fbbf24' }} />
+                <span>Top Rendements BVC</span>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm whitespace-nowrap">
-                  <thead className="bg-slate-800/80 text-slate-400 text-xs uppercase tracking-wider">
-                    <tr>
-                      <th className="px-6 py-4 font-medium">Rang</th>
-                      <th className="px-6 py-4 font-medium">Valeur</th>
-                      <th className="px-6 py-4 font-medium text-right">Yield (%)</th>
-                      <th className="px-6 py-4 font-medium text-right">Dividende (DH)</th>
-                      <th className="px-6 py-4 font-medium text-right">Cours</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-700/50">
-                    {isLoading ? (
-                      // Skeleton Loading
-                      Array.from({ length: 10 }).map((_, i) => (
-                        <tr key={i} className="animate-pulse">
-                          <td className="px-6 py-4"><div className="h-4 w-8 bg-slate-700 rounded"></div></td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="h-8 w-8 bg-slate-700 rounded-full"></div>
-                              <div className="h-4 w-24 bg-slate-700 rounded"></div>
+              <div className="div-search-wrap">
+                <Search size={16} className="div-search-icon" />
+                <input
+                  type="text"
+                  placeholder="Rechercher (ex: IAM, ATW, Attijari...)"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="div-search-input"
+                  aria-label="Rechercher une valeur à dividende"
+                />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    className="div-clear-btn"
+                    aria-label="Effacer la recherche"
+                  >
+                    <X size={15} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="div-sort-strip" role="toolbar" aria-label="Trier les dividendes">
+              {[
+                { key: 'rank' as const, label: 'Par Rang' },
+                { key: 'yield' as const, label: 'Rendement (%)' },
+                { key: 'amount' as const, label: 'Dividende (DH)' },
+                { key: 'price' as const, label: 'Cours' },
+              ].map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  className={`mobile-sort-pill ${sortBy === opt.key ? 'active' : ''}`}
+                  onClick={() => setSortBy(opt.key)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Content Container */}
+          <div className="data-terminal glass-heavy animate-fade-in">
+            {isLoading ? (
+              <div className="div-loading-grid">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="div-skeleton-row animate-pulse" />
+                ))}
+              </div>
+            ) : filteredDividends.length === 0 ? (
+              <div className="div-empty">
+                Aucun résultat trouvé pour &laquo; {searchTerm} &raquo;
+              </div>
+            ) : (
+              <>
+                {/* ── VUE MOBILE CARTES (< 1024px) ── */}
+                <div className="mobile-cards-list">
+                  {filteredDividends.map((item, idx) => {
+                    const isTop3 = idx < 3 && sortBy === 'rank';
+                    return (
+                      <div key={item.symbol} className={`live-market-mobile-card div-mobile-card ${isTop3 ? 'top3' : ''}`}>
+                        <div className="div-card-top">
+                          <div className="card-identity">
+                            <div className={`div-rank-badge mono ${isTop3 ? 'gold' : ''}`}>
+                              #{item.rank}
                             </div>
-                          </td>
-                          <td className="px-6 py-4"><div className="h-4 w-12 bg-slate-700 rounded ml-auto"></div></td>
-                          <td className="px-6 py-4"><div className="h-4 w-16 bg-slate-700 rounded ml-auto"></div></td>
-                          <td className="px-6 py-4"><div className="h-4 w-16 bg-slate-700 rounded ml-auto"></div></td>
-                        </tr>
-                      ))
-                    ) : filteredDividends.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
-                          Aucun résultat trouvé pour "{searchTerm}"
-                        </td>
+                            <div className="stock-avatar-badge">
+                              {item.symbol.substring(0, 3)}
+                            </div>
+                            <div className="stock-titles">
+                              <span className="stock-symbol-title">{item.symbol}</span>
+                              <span className="div-company-name">{item.name}</span>
+                            </div>
+                          </div>
+
+                          <div className="div-yield-pill">
+                            <ArrowUpRight size={14} />
+                            <span className="mono">{item.yield}</span>
+                          </div>
+                        </div>
+
+                        <div className="div-metrics-2col">
+                          <div className="metric-box">
+                            <span className="metric-label">DIVIDENDE UNITAIRE</span>
+                            <span className="metric-primary-val">{item.amountDH}</span>
+                          </div>
+                          <div className="metric-box">
+                            <span className="metric-label">COURS ACTUEL</span>
+                            <span className="metric-primary-val">{item.price}</span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleAnalyze(item.symbol)}
+                          className="div-analyze-btn"
+                        >
+                          <Zap size={13} />
+                          <span>Analyser les Fondamentaux</span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* ── VUE TABLEAU DESKTOP (>= 1024px) ── */}
+                <div className="desktop-only-container table-scroll">
+                  <table className="institutional-table div-table">
+                    <thead>
+                      <tr className="glass-heavy">
+                        <th>Rang</th>
+                        <th>Valeur</th>
+                        <th className="num">Yield (%)</th>
+                        <th className="num">Dividende (DH)</th>
+                        <th className="num">Cours</th>
+                        <th className="num">Action</th>
                       </tr>
-                    ) : (
-                      filteredDividends.map((item, idx) => (
-                        <tr key={item.symbol} className="hover:bg-slate-800/40 transition-colors group">
-                          <td className="px-6 py-4">
-                            <span className={`font-mono font-medium ${idx < 3 ? 'text-amber-400' : 'text-slate-400'}`}>
+                    </thead>
+                    <tbody>
+                      {filteredDividends.map((item, idx) => (
+                        <tr key={item.symbol} className="inst-row">
+                          <td>
+                            <span className={`mono div-rank-text ${idx < 3 ? 'gold' : ''}`}>
                               #{item.rank}
                             </span>
                           </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
-                                {item.symbol.substring(0, 3)}
-                              </div>
+                          <td>
+                            <div className="div-sym-cell">
+                              <div className="div-avatar">{item.symbol.substring(0, 3)}</div>
                               <div>
-                                <div className="font-medium text-slate-200">{item.symbol}</div>
-                                <div className="text-xs text-slate-500">{item.name}</div>
+                                <div className="div-sym">{item.symbol}</div>
+                                <div className="div-subname">{item.name}</div>
                               </div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-right">
-                            <div className="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-md font-medium">
+                          <td className="num">
+                            <span className="div-yield-pill inline">
                               <ArrowUpRight size={14} />
-                              {item.yield}
-                            </div>
+                              <span className="mono">{item.yield}</span>
+                            </span>
                           </td>
-                          <td className="px-6 py-4 text-right font-medium text-slate-300">
-                            {item.amountDH}
-                          </td>
-                          <td className="px-6 py-4 text-right text-slate-400 font-mono">
-                            {item.price}
+                          <td className="num mono div-amount">{item.amountDH}</td>
+                          <td className="num mono div-price">{item.price}</td>
+                          <td className="num">
+                            <button
+                              type="button"
+                              onClick={() => handleAnalyze(item.symbol)}
+                              className="terminal-btn-sm glass"
+                            >
+                              <Zap size={12} />
+                              <span>ANALYSER</span>
+                            </button>
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </main>
+
+      <style jsx>{`
+        .max-container { width: 100%; max-width: 1320px; margin: 0 auto; padding: 1.5rem 1rem; }
+        .div-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-end;
+          gap: 1.25rem;
+          flex-wrap: wrap;
+          border-bottom: 1px solid var(--border-glass);
+          padding-bottom: 1.25rem;
+          margin-bottom: 1.25rem;
+        }
+        .header-identity { display: flex; flex-direction: column; gap: 0.65rem; min-width: 0; flex: 1; }
+        .identity-block { display: flex; align-items: center; gap: 0.65rem; }
+        .title-row { display: flex; align-items: center; gap: 0.85rem; flex-wrap: wrap; }
+        .title-h1 {
+          display: flex;
+          align-items: center;
+          gap: 0.65rem;
+          font-family: 'Outfit', sans-serif;
+          font-size: 2.25rem;
+          font-weight: 950;
+          letter-spacing: -0.04em;
+          color: #fff;
+          margin: 0;
+        }
+        :global(.title-icon) { color: #10b981; flex-shrink: 0; }
+        .market-badge {
+          background: rgba(255, 255, 255, 0.05);
+          padding: 4px 10px;
+          border-radius: 6px;
+          font-size: 10px;
+          font-weight: 800;
+          font-family: 'JetBrains Mono', monospace;
+          color: #94a3b8;
+        }
+        .div-subtitle { font-size: 0.9rem; color: #94a3b8; max-width: 640px; line-height: 1.5; margin: 0; }
+        .div-refresh-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
+          min-height: 44px;
+          padding: 0 1.1rem;
+          border-radius: 12px;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          background: rgba(15, 23, 42, 0.7);
+          color: #f8fafc;
+          font-size: 11px;
+          font-weight: 800;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .div-refresh-btn:hover:not(:disabled) { border-color: rgba(16, 185, 129, 0.4); color: #34d399; }
+        .div-refresh-btn:disabled { opacity: 0.5; cursor: wait; }
+
+        .div-error-banner {
+          display: flex;
+          align-items: flex-start;
+          gap: 0.75rem;
+          padding: 1rem 1.25rem;
+          border-radius: 14px;
+          background: rgba(244, 63, 94, 0.1);
+          border: 1px solid rgba(244, 63, 94, 0.28);
+          color: #fda4af;
+          font-size: 0.9rem;
+          margin-bottom: 1rem;
+        }
+        .div-error-banner p { margin: 0; }
+
+        .div-controls {
+          padding: 1rem 1.25rem;
+          border-radius: 1rem;
+          border: 1px solid var(--border-glass);
+          margin-bottom: 1rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.85rem;
+        }
+        .div-controls-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1rem;
+          flex-wrap: wrap;
+        }
+        .div-title-badge { display: flex; align-items: center; gap: 0.55rem; color: #e2e8f0; font-weight: 700; font-size: 0.95rem; }
+        .div-search-wrap {
+          position: relative;
+          display: flex;
+          align-items: center;
+          flex: 1;
+          min-width: 240px;
+          max-width: 380px;
+          background: rgba(0, 0, 0, 0.4);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 0.75rem;
+          padding: 0 0.75rem;
+        }
+        :global(.div-search-icon) { color: #64748b; flex-shrink: 0; }
+        .div-search-input {
+          flex: 1;
+          min-width: 0;
+          min-height: 42px;
+          background: transparent;
+          border: none;
+          outline: none;
+          color: #fff;
+          font-size: 14px;
+          padding: 0.5rem 0.6rem;
+        }
+        .div-clear-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 34px;
+          height: 34px;
+          border: none;
+          background: rgba(255, 255, 255, 0.06);
+          border-radius: 999px;
+          color: #94a3b8;
+          cursor: pointer;
+        }
+        .div-sort-strip {
+          display: flex;
+          align-items: center;
+          gap: 0.45rem;
+          overflow-x: auto;
+          scrollbar-width: none;
+          -webkit-overflow-scrolling: touch;
+        }
+        .div-sort-strip::-webkit-scrollbar { display: none; }
+
+        .div-loading-grid { display: flex; flex-direction: column; gap: 0.75rem; padding: 1rem; }
+        .div-skeleton-row { height: 56px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); }
+        .div-empty { text-align: center; padding: 3rem 1rem; color: #94a3b8; font-size: 0.95rem; }
+
+        .div-mobile-card.top3 { border-color: rgba(245, 158, 11, 0.28) !important; }
+        .div-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
+        .div-rank-badge {
+          min-width: 28px;
+          height: 28px;
+          padding: 0 6px;
+          border-radius: 8px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(255, 255, 255, 0.06);
+          color: #94a3b8;
+          font-size: 11px;
+          font-weight: 800;
+          flex-shrink: 0;
+        }
+        .div-rank-badge.gold { background: rgba(245, 158, 11, 0.16); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.35); }
+        .div-company-name { font-size: 11px; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 155px; }
+        .div-yield-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 5px 10px;
+          border-radius: 999px;
+          background: rgba(16, 185, 129, 0.14);
+          border: 1px solid rgba(16, 185, 129, 0.3);
+          color: #34d399;
+          font-size: 12px;
+          font-weight: 800;
+          flex-shrink: 0;
+        }
+        .div-metrics-2col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+        .div-analyze-btn {
+          width: 100%;
+          min-height: 42px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          border-radius: 10px;
+          border: 1px solid rgba(56, 189, 248, 0.3);
+          background: rgba(56, 189, 248, 0.12);
+          color: #38bdf8;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+
+        .div-table th.num, .div-table td.num { text-align: right; }
+        .div-rank-text { color: #94a3b8; font-weight: 700; }
+        .div-rank-text.gold { color: #fbbf24; font-weight: 900; }
+        .div-sym-cell { display: flex; align-items: center; gap: 0.75rem; }
+        .div-avatar {
+          width: 34px;
+          height: 34px;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 11px;
+          font-weight: 800;
+          color: #fff;
+        }
+        .div-sym { font-weight: 800; color: #f8fafc; font-size: 13px; }
+        .div-subname { font-size: 11px; color: #64748b; }
+        .div-amount { color: #e2e8f0; font-weight: 700; }
+        .div-price { color: #94a3b8; }
+
+        @media (max-width: 768px) {
+          .max-container { padding: 0.5rem 0; }
+          .title-h1 { font-size: 1.5rem; }
+          .div-controls { padding: 0.85rem; }
+          .div-search-wrap { max-width: none; width: 100%; }
+          .div-search-input { font-size: 16px; }
+        }
+      `}</style>
     </div>
   );
 }

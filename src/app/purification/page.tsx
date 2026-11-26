@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
-import BottomNav from '@/components/BottomNav';
 import { ShariaResult } from '@/lib/schemas';
 import { getDividendsAction, getPortfolioTransactionsAction } from '@/lib/portfolio-actions';
 
@@ -216,7 +215,7 @@ export default function PurificationPage() {
   const halalAmount = numericDividend > 0 ? numericDividend - purificationAmount : 0;
 
   return (
-    <div className="aetheris-app dark-theme min-h-screen pb-24 md:pb-10">
+    <div className="app-container">
       <Sidebar 
         history={[]} 
         onSelect={() => {}} 
@@ -281,7 +280,6 @@ export default function PurificationPage() {
           
         </div>
       </main>
-      <BottomNav />
     </div>
   );
 }

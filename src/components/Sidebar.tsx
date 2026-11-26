@@ -9,10 +9,9 @@ import {
 import type { CompanyAnalysis, AgentType } from '@/lib/schemas';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getUserProfileAction } from '@/lib/portfolio-actions';
 import { supabase, performCleanLogout } from '@/lib/supabase';
-import { useDevice } from '@/hooks/useDevice';
 
 interface SidebarProps {
   history: CompanyAnalysis[];
@@ -35,12 +34,28 @@ export default function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { isDesktop } = useDevice();
   const [isIntelligenceOpen, setIsIntelligenceOpen] = useState(true);
   const [sidebarSearch, setSidebarSearch] = useState('');
   const [profile, setProfile] = useState<any>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [loggingOut, setLoggingOut] = useState<boolean>(false);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [isOpen, onClose]);
 
   const handleLogout = async () => {
     if (loggingOut) return;
@@ -127,9 +142,7 @@ export default function Sidebar({
     if (pathname !== '/console') {
       router.push(`/console?agent=${type}`);
     }
-    if (!isDesktop) {
-      onClose();
-    }
+    onClose();
   };
 
   const groupHistory = (items: CompanyAnalysis[]) => {
@@ -162,11 +175,10 @@ export default function Sidebar({
 
   return (
     <>
-      {!isDesktop && (
+      {isOpen && (
         <div 
-          className={`sidebar-overlay ${isOpen ? 'is-active' : ''}`}
+          className="sidebar-overlay is-active"
           onClick={onClose}
-          onTouchStart={onClose}
           aria-hidden="true"
         />
       )}
@@ -174,8 +186,23 @@ export default function Sidebar({
       <aside 
         className={`sidebar glass-heavy ${isOpen ? 'is-open' : ''}`}
         role="dialog"
-        aria-modal="true"
+        aria-modal={isOpen ? true : undefined}
+        aria-hidden={!isOpen}
         aria-label="Navigation principale Aetheris"
+        onTouchStart={(e) => {
+          const t = e.touches[0];
+          touchStartRef.current = { x: t.clientX, y: t.clientY };
+        }}
+        onTouchEnd={(e) => {
+          if (!touchStartRef.current) return;
+          const t = e.changedTouches[0];
+          const deltaX = t.clientX - touchStartRef.current.x;
+          const deltaY = t.clientY - touchStartRef.current.y;
+          touchStartRef.current = null;
+          if (deltaX < -60 && Math.abs(deltaY) < 70) {
+            onClose();
+          }
+        }}
       >
         {/* Header Branding */}
         <div className="sidebar-header">
@@ -189,15 +216,14 @@ export default function Sidebar({
             </div>
           </div>
 
-          {!isDesktop && (
-            <button 
-              onClick={onClose} 
-              className="close-btn-drawer touch-target"
-              aria-label="Fermer le menu"
-            >
-              <X size={18} />
-            </button>
-          )}
+          <button 
+            onClick={onClose} 
+            className="close-btn-drawer"
+            type="button"
+            aria-label="Fermer le menu"
+          >
+            <X size={18} />
+          </button>
         </div>
 
         {/* Scrollable Main Area */}
@@ -247,7 +273,7 @@ export default function Sidebar({
           <nav className="compact-nav">
             <div className="nav-label">PILOTAGE CORE</div>
             <div className="nav-list">
-              <Link href="/marche-live" style={{ textDecoration: 'none' }} onClick={() => !isDesktop && onClose()}>
+              <Link href="/marche-live" style={{ textDecoration: 'none' }} onClick={() => onClose()}>
                 <button className={`agent-btn-compact ${pathname === '/marche-live' ? 'active' : ''}`}>
                   <Globe size={16} className="nav-icon" />
                   <span>Flux de Marché</span>
@@ -255,28 +281,28 @@ export default function Sidebar({
                 </button>
               </Link>
 
-              <Link href="/console" style={{ textDecoration: 'none' }} onClick={() => !isDesktop && onClose()}>
+              <Link href="/console" style={{ textDecoration: 'none' }} onClick={() => onClose()}>
                 <button className={`agent-btn-compact ${pathname === '/console' ? 'active' : ''}`}>
                   <LayoutGrid size={16} className="nav-icon" />
                   <span>Console Alpha</span>
                 </button>
               </Link>
 
-              <Link href="/portfolio" style={{ textDecoration: 'none' }} onClick={() => !isDesktop && onClose()}>
+              <Link href="/portfolio" style={{ textDecoration: 'none' }} onClick={() => onClose()}>
                 <button className={`agent-btn-compact ${pathname === '/portfolio' ? 'active' : ''}`}>
                   <Briefcase size={16} className="nav-icon" />
                   <span>Portefeuille</span>
                 </button>
               </Link>
 
-              <Link href="/dividendes" style={{ textDecoration: 'none' }} onClick={() => !isDesktop && onClose()}>
+              <Link href="/dividendes" style={{ textDecoration: 'none' }} onClick={() => onClose()}>
                 <button className={`agent-btn-compact ${pathname === '/dividendes' ? 'active' : ''}`}>
                   <Landmark size={16} className="nav-icon text-amber-400" />
                   <span>Palmarès Dividendes</span>
                 </button>
               </Link>
 
-              <Link href="/purification" style={{ textDecoration: 'none' }} onClick={() => !isDesktop && onClose()}>
+              <Link href="/purification" style={{ textDecoration: 'none' }} onClick={() => onClose()}>
                 <button className={`agent-btn-compact ${pathname === '/purification' ? 'active' : ''}`}>
                   <Scale size={16} className="nav-icon" />
                   <span>Purification Dividendes</span>
@@ -323,7 +349,7 @@ export default function Sidebar({
             {/* User Profile Navigation */}
             <div className="nav-label">COMPTE</div>
             <div className="nav-list">
-              <Link href="/profile" style={{ textDecoration: 'none' }} onClick={() => !isDesktop && onClose()}>
+              <Link href="/profile" style={{ textDecoration: 'none' }} onClick={() => onClose()}>
                 <button 
                   className={`agent-btn-compact user-profile-btn ${pathname === '/profile' ? 'active' : ''}`}
                 >
@@ -361,7 +387,7 @@ export default function Sidebar({
                         key={analysis.id}
                         onClick={() => { 
                           onSelect(analysis); 
-                          if (!isDesktop) onClose(); 
+                          onClose(); 
                         }}
                         className={`history-item ${activeId === analysis.id ? 'active' : ''}`}
                       >
@@ -391,7 +417,7 @@ export default function Sidebar({
           ) : (
             <button 
               onClick={() => {
-                if (!isDesktop) onClose();
+                onClose();
                 router.push('/login');
               }}
               className="logout-btn-minimal"
@@ -418,20 +444,27 @@ export default function Sidebar({
             position: fixed;
             top: 0;
             left: 0;
-            width: var(--sidebar-width, 240px);
-            z-index: 100000 !important;
+            width: min(85vw, 290px);
+            z-index: var(--z-drawer, 2010) !important;
             background: linear-gradient(180deg, rgba(9, 13, 22, 0.98) 0%, rgba(6, 9, 16, 0.99) 100%) !important;
             backdrop-filter: blur(24px) saturate(180%) !important;
             -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
-            border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+            border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
             box-shadow: 20px 0 60px rgba(0, 0, 0, 0.85) !important;
+            transition: transform 0.34s var(--ease-spring) !important;
+          }
+
+          @media (min-width: 1024px) {
+            .sidebar {
+              width: var(--sidebar-width, 240px);
+            }
           }
 
           .sidebar-header { 
             display: flex; 
             align-items: center; 
             justify-content: space-between; 
-            padding: 1rem 1rem 0.85rem;
+            padding: calc(0.95rem + env(safe-area-inset-top, 0px)) 1rem 0.85rem;
             border-bottom: 1px solid rgba(255, 255, 255, 0.05);
             flex-shrink: 0;
           }
@@ -479,12 +512,12 @@ export default function Sidebar({
           }
 
           .close-btn-drawer { 
-            background: rgba(255, 255, 255, 0.03); 
-            border: 1px solid rgba(255, 255, 255, 0.08); 
+            background: rgba(255, 255, 255, 0.04); 
+            border: 1px solid rgba(255, 255, 255, 0.1); 
             color: #94a3b8; 
-            border-radius: 6px;
-            width: 32px;
-            height: 32px;
+            border-radius: 10px;
+            width: 40px;
+            height: 40px;
             cursor: pointer; 
             display: flex; 
             align-items: center; 
@@ -621,12 +654,18 @@ export default function Sidebar({
             width: 100%; 
             background: rgba(0, 0, 0, 0.35); 
             border: 1px solid rgba(255, 255, 255, 0.06); 
-            border-radius: 8px; 
-            padding: 0.45rem 2rem 0.45rem 2rem; 
+            border-radius: 10px; 
+            padding: 0.55rem 2.1rem; 
             color: #fff; 
-            font-size: 11px; 
+            font-size: 12px; 
             outline: none; 
             transition: all 0.25s;
+          }
+          @media (max-width: 767px) {
+            .sidebar-search-input {
+              font-size: 16px;
+              padding: 0.6rem 2.2rem;
+            }
           }
           .sidebar-search-input:focus {
             border-color: rgba(16, 185, 129, 0.35);
@@ -668,9 +707,10 @@ export default function Sidebar({
           .agent-btn-compact {
             display: flex;
             align-items: center;
-            gap: 0.65rem;
+            gap: 0.7rem;
             width: 100%;
-            padding: 0.5rem 1rem;
+            min-height: 44px;
+            padding: 0.55rem 1rem;
             background: transparent;
             border: none;
             border-left: 2px solid transparent;
@@ -678,7 +718,7 @@ export default function Sidebar({
             cursor: pointer;
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             text-align: left;
-            font-size: 11.5px;
+            font-size: 12.5px;
             font-weight: 500;
           }
           .agent-btn-compact:hover { 
@@ -787,16 +827,17 @@ export default function Sidebar({
             display: flex;
             align-items: center;
             gap: 0.6rem;
-            padding: 0.4rem 0.75rem;
+            min-height: 40px;
+            padding: 0.45rem 0.75rem;
             background: transparent;
             border: none;
-            color: #64748b;
-            font-size: 11px;
+            color: #94a3b8;
+            font-size: 11.5px;
             font-weight: 500;
             cursor: pointer;
             width: 100%;
             text-align: left;
-            border-radius: 6px;
+            border-radius: 8px;
             transition: all 0.2s;
           }
           .sub-node:hover { 

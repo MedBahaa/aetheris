@@ -228,29 +228,16 @@ export default function LoginPage() {
                   autoCapitalize="none"
                   autoCorrect="off"
                   spellCheck={false}
-                  style={{ paddingRight: '2.75rem' }}
+                  style={{ paddingRight: '3.25rem' }}
                   required 
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
                   aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
-                  style={{
-                    position: 'absolute',
-                    right: '0.85rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#64748b',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '4px',
-                  }}
+                  className="password-toggle-btn"
                 >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                 </button>
               </div>
             </div>
@@ -306,7 +293,7 @@ export default function LoginPage() {
 
       <style jsx>{`
         .login-root {
-          min-height: 100vh;
+          min-height: 100dvh;
           width: 100vw;
           max-width: 100%;
           display: flex;
@@ -316,7 +303,7 @@ export default function LoginPage() {
           position: relative;
           overflow: hidden !important;
           overflow-x: hidden !important;
-          padding: 1.5rem 1rem;
+          padding: calc(1.5rem + env(safe-area-inset-top, 0px)) 1rem calc(1.5rem + env(safe-area-inset-bottom, 0px));
           box-sizing: border-box;
         }
 
@@ -349,9 +336,28 @@ export default function LoginPage() {
           background: radial-gradient(circle, rgba(14, 165, 233, 0.05) 0%, transparent 70%);
         }
 
+        .password-toggle-btn {
+          position: absolute;
+          right: 4px;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 44px;
+          height: 44px;
+          background: transparent;
+          border: none;
+          border-radius: 0.5rem;
+          color: #64748b;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: color 0.2s;
+        }
+        .password-toggle-btn:hover { color: #cbd5e1; }
+
         @media (max-width: 640px) {
           .login-root {
-            padding: 1rem 0.5rem !important;
+            padding: calc(1rem + env(safe-area-inset-top, 0px)) 0.75rem calc(1.5rem + env(safe-area-inset-bottom, 0px)) !important;
           }
           .login-glass {
             padding: 1.75rem 1.25rem !important;
@@ -368,6 +374,21 @@ export default function LoginPage() {
           .light-orb.side {
             bottom: -150px !important;
             left: -150px !important;
+          }
+          input {
+            font-size: 16px !important;
+            min-height: 48px;
+          }
+          .login-btn {
+            min-height: 48px;
+          }
+          .toggle-action {
+            min-height: 40px;
+            padding: 0.5rem 1rem;
+          }
+          .system-grid {
+            flex-wrap: wrap;
+            gap: 0.75rem 1.25rem;
           }
         }
 

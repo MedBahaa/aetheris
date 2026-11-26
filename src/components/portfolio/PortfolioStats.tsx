@@ -16,26 +16,45 @@ interface TooltipProps {
 
 const KpiTooltip: React.FC<TooltipProps> = ({ content }) => {
   const [visible, setVisible] = useState(false);
+  const [isTouchSheet, setIsTouchSheet] = useState(false);
+  const [flipBelow, setFlipBelow] = useState(false);
   const [coords, setCoords] = useState({ top: 0, left: 0 });
-  const iconRef = useRef<HTMLSpanElement>(null);
+  const iconRef = useRef<HTMLButtonElement>(null);
   const hideTimer = useRef<NodeJS.Timeout | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
 
-  const show = () => {
+  const showPopover = () => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
+    if (typeof window !== 'undefined' && window.innerWidth < 768) return;
     if (iconRef.current) {
       const rect = iconRef.current.getBoundingClientRect();
+      const clampedLeft = Math.max(155, Math.min(window.innerWidth - 155, rect.left + rect.width / 2));
+      const shouldFlip = rect.top < 170;
+      setFlipBelow(shouldFlip);
       setCoords({
-        top: rect.top + window.scrollY - 8,   // juste au-dessus de l'icône
-        left: rect.left + rect.width / 2,
+        top: shouldFlip ? rect.bottom + 8 : rect.top - 8,
+        left: clampedLeft,
       });
     }
+    setIsTouchSheet(false);
     setVisible(true);
   };
 
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setIsTouchSheet(true);
+      setVisible(true);
+      return;
+    }
+    if (visible) setVisible(false);
+    else showPopover();
+  };
+
   const hide = () => {
+    if (isTouchSheet) return;
     hideTimer.current = setTimeout(() => setVisible(false), 120);
   };
 
@@ -44,28 +63,59 @@ const KpiTooltip: React.FC<TooltipProps> = ({ content }) => {
   };
 
   const tooltip = visible && mounted ? createPortal(
-    <div
-      className="kpi-tooltip-portal"
-      style={{ top: coords.top, left: coords.left }}
-      onMouseEnter={cancelHide}
-      onMouseLeave={hide}
-    >
-      {content}
-      <div className="kpi-tooltip-arrow" />
-    </div>,
+    isTouchSheet ? (
+      <div
+        className="kpi-sheet-backdrop"
+        onClick={(e) => {
+          e.stopPropagation();
+          setVisible(false);
+          setIsTouchSheet(false);
+        }}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="kpi-sheet-panel" onClick={(e) => e.stopPropagation()}>
+          <div className="sheet-handle" aria-hidden="true" />
+          <div className="kpi-sheet-body">{content}</div>
+          <button
+            type="button"
+            className="kpi-sheet-done"
+            onClick={() => {
+              setVisible(false);
+              setIsTouchSheet(false);
+            }}
+          >
+            COMPRIS
+          </button>
+        </div>
+      </div>
+    ) : (
+      <div
+        className={`kpi-tooltip-portal ${flipBelow ? 'flip-below' : ''}`}
+        style={{ top: coords.top, left: coords.left }}
+        onMouseEnter={cancelHide}
+        onMouseLeave={hide}
+      >
+        {content}
+        {!flipBelow && <div className="kpi-tooltip-arrow" />}
+      </div>
+    ),
     document.body
   ) : null;
 
   return (
     <>
-      <span
+      <button
+        type="button"
         ref={iconRef}
         className="kpi-tooltip-trigger"
-        onMouseEnter={show}
+        onMouseEnter={showPopover}
         onMouseLeave={hide}
+        onClick={handleClick}
+        aria-label="Afficher le détail de cet indicateur"
       >
-        <Info size={11} />
-      </span>
+        <Info size={12} />
+      </button>
       {tooltip}
     </>
   );
@@ -227,7 +277,7 @@ export const PortfolioStats: React.FC<PortfolioStatsProps> = ({
         </div>
       </div>
 
-      <div className="stat-card glass-heavy highlighted">
+      <div className="stat-card glass-heavy highlighted hero-stat">
         <div className="liquid-glow"></div>
         <div className="stat-icon-box white"><PieChart size={18} /></div>
         <div className="stat-info">
@@ -271,7 +321,7 @@ export const PortfolioStats: React.FC<PortfolioStatsProps> = ({
         <div className="stat-icon-box" style={{ color: '#10b981', background: 'rgba(16, 185, 129, 0.1)' }}><Gift size={18} /></div>
         <div className="stat-info">
           <span className="stat-label mono"><span className="stat-label-text">DIVIDENDES REÇUS (NET)</span> <KpiTooltip content={tooltips.dividendes} /></span>
-          <div className="stat-value text-emerald-400">{renderVal(<>{totalDividends.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} <span className="currency">MAD</span></>)}</div>
+          <div className="stat-value text-emerald">{renderVal(<>{totalDividends.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} <span className="currency">MAD</span></>)}</div>
         </div>
       </div>
 

@@ -39,53 +39,25 @@ export const SalesHistoryTable: React.FC<SalesHistoryTableProps> = ({
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <div
-            style={{
-              display: 'inline-flex',
-              background: 'rgba(0,0,0,0.4)',
-              padding: '3px',
-              borderRadius: '8px',
-              border: '1px solid rgba(255,255,255,0.08)',
-            }}
-          >
+        <div className="sales-controls-bar">
+          <div className="sales-view-toggle">
             <button
               type="button"
               onClick={() => setViewMode('sales')}
-              className="mono"
-              style={{
-                padding: '6px 12px',
-                borderRadius: '6px',
-                fontSize: '10px',
-                fontWeight: 800,
-                border: 'none',
-                cursor: 'pointer',
-                background: viewMode === 'sales' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
-                color: viewMode === 'sales' ? '#10b981' : '#94a3b8',
-              }}
+              className={`sales-toggle-btn mono ${viewMode === 'sales' ? 'active-sales' : ''}`}
             >
-              VENTES RÉALISÉES ({salesHistory.length})
+              VENTES ({salesHistory.length})
             </button>
             <button
               type="button"
               onClick={() => setViewMode('all')}
-              className="mono"
-              style={{
-                padding: '6px 12px',
-                borderRadius: '6px',
-                fontSize: '10px',
-                fontWeight: 800,
-                border: 'none',
-                cursor: 'pointer',
-                background: viewMode === 'all' ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                color: viewMode === 'all' ? '#60a5fa' : '#94a3b8',
-              }}
+              className={`sales-toggle-btn mono ${viewMode === 'all' ? 'active-all' : ''}`}
             >
-              JOURNAL COMPLET ({transactions.length})
+              JOURNAL ({transactions.length})
             </button>
           </div>
 
-          <button onClick={() => setShowAddModal(true)} className="action-btn-terminal strategy">
+          <button type="button" onClick={() => setShowAddModal(true)} className="action-btn-terminal strategy">
             <Plus size={14} /> <span>NOUVEL ORDRE</span>
           </button>
         </div>
@@ -99,72 +71,82 @@ export const SalesHistoryTable: React.FC<SalesHistoryTableProps> = ({
           </div>
         ) : (
           <>
+            {/* Mobile Summary Strip */}
+            <div className="mobile-summary-strip">
+              <div className="mobile-summary-item">
+                <span className="mobile-summary-label">Brut Cédé</span>
+                <span className="mobile-summary-val">{totalGrossProceeds.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD</span>
+              </div>
+              <div className="mobile-summary-item">
+                <span className="mobile-summary-label">Frais &amp; TPV</span>
+                <span className="mobile-summary-val text-rose">-{totalDeductions.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD</span>
+              </div>
+              <div className="mobile-summary-item">
+                <span className="mobile-summary-label">PV Nette</span>
+                <span className={`mobile-summary-val ${totalNetRealizedPnL >= 0 ? 'text-emerald' : 'text-rose'}`}>
+                  {totalNetRealizedPnL >= 0 ? '+' : ''}{totalNetRealizedPnL.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD
+                </span>
+              </div>
+            </div>
+
             {/* ────────────────── MOBILE CARDS VIEW (< 1024px) ────────────────── */}
-            <div className="mobile-only-container gap-2.5 p-3">
+            <div className="mobile-cards-list">
               {salesHistory.map((sale) => {
                 const isPositive = sale.netPnL >= 0;
                 const totalFeesAndTax = sale.sellFee + sale.tpvTax;
 
                 return (
-                  <div key={sale.id} className="glass-heavy p-3.5 rounded-xl flex flex-col gap-2 border border-white/10">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-extrabold text-base text-white">{sale.symbol}</span>
-                        <span
-                          className="text-[9px] px-2 py-0.5 rounded font-mono font-bold"
-                          style={{
-                            background: sale.status === 'CLÔTURÉE' ? 'rgba(168, 85, 247, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                            color: sale.status === 'CLÔTURÉE' ? '#c084fc' : '#60a5fa',
-                            border: sale.status === 'CLÔTURÉE' ? '1px solid rgba(168, 85, 247, 0.3)' : '1px solid rgba(59, 130, 246, 0.3)',
-                          }}
-                        >
+                  <div key={sale.id} className="history-mobile-card">
+                    <div className="history-card-head">
+                      <div className="history-card-badges">
+                        <span className="history-card-symbol">{sale.symbol}</span>
+                        <span className={`status-pill ${sale.status === 'CLÔTURÉE' ? 'closed' : 'partial'}`}>
                           {sale.status}
                         </span>
-                        <span className="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded font-mono">
+                        <span className="date-pill">
                           {new Date(sale.sellDate).toLocaleDateString('fr-FR')}
                         </span>
                       </div>
                       <button
-                        className="text-red-400 p-1.5 hover:bg-red-500/10 rounded-lg touch-target"
+                        type="button"
+                        className="mobile-icon-danger-btn"
                         onClick={() => {
                           if (confirm('Supprimer cette vente de l’historique ?')) onDeleteTransaction(sale.id);
                         }}
                         aria-label="Supprimer la vente"
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={15} />
                       </button>
                     </div>
 
-                    <div className="flex flex-col gap-1.5 text-xs bg-slate-950/70 p-2.5 rounded-lg border border-white/5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400 text-[11px]">Quantité Vendue :</span>
-                        <span className="mono font-semibold text-slate-200">{sale.quantity} pcs</span>
+                    <div className="history-metrics-box">
+                      <div className="history-metric-row">
+                        <span className="label">Quantité Vendue</span>
+                        <span className="val">{sale.quantity} pcs</span>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400 text-[11px]">PMP d&apos;achat → Prix Vente :</span>
-                        <span className="mono font-semibold text-slate-200">
+                      <div className="history-metric-row">
+                        <span className="label">PMP → Vente</span>
+                        <span className="val">
                           {sale.pmpAtSale.toFixed(2)} → {sale.sellPrice.toFixed(2)} MAD
                         </span>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400 text-[11px]">Montant Brut Cédé :</span>
-                        <span className="mono font-semibold text-slate-200">
+                      <div className="history-metric-row">
+                        <span className="label">Montant Brut Cédé</span>
+                        <span className="val">
                           {sale.grossProceeds.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD
                         </span>
                       </div>
-                      <div className="flex items-center justify-between text-rose-400 text-[11px]">
-                        <span>Frais (0,99%) + TPV (15%) :</span>
-                        <span className="mono font-semibold">
+                      <div className="history-metric-row">
+                        <span className="label text-rose">Frais (0,99%) + TPV (15%)</span>
+                        <span className="val text-rose">
                           -{totalFeesAndTax.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD
                         </span>
                       </div>
-                      <div className="flex items-center justify-between border-t border-white/5 pt-1.5 mt-0.5">
-                        <span className="text-slate-100 text-[11px] font-bold">PV Réalisée Nette :</span>
-                        <span className={`mono font-bold ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      <div className="history-total-row">
+                        <span>PV Réalisée Nette</span>
+                        <span className={`mono ${isPositive ? 'text-emerald' : 'text-rose'}`}>
                           {isPositive ? '+' : ''}
-                          {sale.netPnL.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD (
-                          {isPositive ? '+' : ''}
-                          {sale.netPnLPct.toFixed(2)}%)
+                          {sale.netPnL.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD ({isPositive ? '+' : ''}{sale.netPnLPct.toFixed(2)}%)
                         </span>
                       </div>
                     </div>
@@ -302,7 +284,7 @@ export const SalesHistoryTable: React.FC<SalesHistoryTableProps> = ({
       ) : (
         <>
           {/* ────────────────── JOURNAL COMPLET (ACHATS & VENTES) ────────────────── */}
-          <div className="mobile-only-container gap-2.5 p-3">
+          <div className="mobile-cards-list">
             {sortedAllTransactions.map((tx) => {
               const isBuy = (tx.type || 'BUY') === 'BUY';
               const gross = tx.quantity * tx.buy_price;
@@ -310,40 +292,35 @@ export const SalesHistoryTable: React.FC<SalesHistoryTableProps> = ({
               const totalWithFees = isBuy ? gross + fee : gross - fee;
 
               return (
-                <div key={tx.id} className="glass-heavy p-3.5 rounded-xl flex flex-col gap-2 border border-white/10">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`px-2 py-0.5 text-[9px] rounded-full font-extrabold ${
-                          isBuy
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                            : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                        }`}
-                      >
+                <div key={tx.id} className="history-mobile-card">
+                  <div className="history-card-head">
+                    <div className="history-card-badges">
+                      <span className={`mobile-tx-badge ${isBuy ? 'buy' : 'sell'}`}>
                         {isBuy ? 'ACHAT' : 'VENTE'}
                       </span>
-                      <span className="font-extrabold text-base text-white">{tx.symbol}</span>
-                      <span className="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded font-mono">
+                      <span className="history-card-symbol">{tx.symbol}</span>
+                      <span className="date-pill">
                         {new Date(tx.buy_date).toLocaleDateString('fr-FR')}
                       </span>
                     </div>
                     <button
-                      className="text-red-400 p-1.5 hover:bg-red-500/10 rounded-lg touch-target"
+                      type="button"
+                      className="mobile-icon-danger-btn"
                       onClick={() => {
                         if (confirm('Supprimer cet ordre ?')) onDeleteTransaction(tx.id);
                       }}
                       aria-label="Supprimer l'ordre"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={15} />
                     </button>
                   </div>
-                  <div className="flex items-center justify-between text-xs bg-slate-950/70 p-2.5 rounded-lg border border-white/5 font-mono">
-                    <span className="text-slate-300">
-                      {tx.quantity} pcs @ {tx.buy_price.toFixed(2)} MAD
-                    </span>
-                    <span className={isBuy ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                      {totalWithFees.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD
-                    </span>
+                  <div className="history-metrics-box">
+                    <div className="history-metric-row">
+                      <span className="label">{tx.quantity} pcs @ {tx.buy_price.toFixed(2)} MAD</span>
+                      <span className={`val ${isBuy ? 'text-emerald' : 'text-rose'}`}>
+                        {totalWithFees.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD
+                      </span>
+                    </div>
                   </div>
                 </div>
               );
@@ -411,6 +388,57 @@ export const SalesHistoryTable: React.FC<SalesHistoryTableProps> = ({
           </div>
         </>
       )}
+
+      <style jsx>{`
+        .sales-controls-bar {
+          display: flex;
+          align-items: center;
+          gap: 0.65rem;
+          flex-wrap: wrap;
+        }
+        .sales-view-toggle {
+          display: inline-flex;
+          background: rgba(0, 0, 0, 0.45);
+          padding: 3px;
+          border-radius: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .sales-toggle-btn {
+          padding: 0.45rem 0.85rem;
+          min-height: 36px;
+          border-radius: 8px;
+          font-size: 10px;
+          font-weight: 800;
+          border: none;
+          cursor: pointer;
+          background: transparent;
+          color: #94a3b8;
+          transition: all 0.2s ease;
+          white-space: nowrap;
+        }
+        .sales-toggle-btn.active-sales {
+          background: rgba(16, 185, 129, 0.16);
+          color: #34d399;
+        }
+        .sales-toggle-btn.active-all {
+          background: rgba(59, 130, 246, 0.16);
+          color: #60a5fa;
+        }
+        @media (max-width: 767px) {
+          .sales-controls-bar {
+            width: 100%;
+          }
+          .sales-view-toggle {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            flex: 1;
+          }
+          .sales-toggle-btn {
+            min-height: 40px;
+            font-size: 10px;
+          }
+        }
+      `}</style>
     </div>
   );
 };

@@ -66,6 +66,16 @@ export default function StrategyReport({ analysis }: StrategyReportProps) {
         .pill-val { font-size: 10px; font-weight: 700; color: #94a3b8; }
         .ai .pill-val { color: var(--accent-emerald); }
         .text-emerald { color: var(--accent-emerald); }
+
+        @media (max-width: 768px) {
+          .strategy-report { gap: 1.75rem; padding-bottom: 2rem; }
+          .tech-header { padding-bottom: 1.5rem; margin-bottom: 0.25rem; }
+          .status-indicator { gap: 0.6rem; margin-bottom: 0.85rem; }
+          .tech-main-title { font-size: 1.45rem; line-height: 1.18; margin-bottom: 1.15rem; }
+          .tech-meta { gap: 0.5rem; }
+          .meta-pill { padding: 0.45rem 0.75rem; gap: 0.5rem; }
+          .pill-key { font-size: 9px; letter-spacing: 0.06rem; }
+        }
       `}</style>
     </div>
   );

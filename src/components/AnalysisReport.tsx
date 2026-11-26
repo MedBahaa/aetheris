@@ -334,6 +334,25 @@ export default function AnalysisReport({ analysis }: AnalysisReportProps) {
 
         
         .text-emerald { color: var(--accent-emerald); }
+
+        @media (max-width: 768px) {
+          .analysis-feed { gap: 1.75rem; padding-bottom: 2rem; }
+          .title-h2 { font-size: 2.1rem; line-height: 1.05; }
+          .fundamentals-grid { gap: 0.75rem; margin-bottom: 1.75rem; }
+          .fund-card { padding: 1rem; border-radius: 1rem; }
+          .synthesis-card { padding: 1.35rem; border-radius: 1.25rem; }
+          .synthesis-header { gap: 0.75rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+          .narrative-body { font-size: 1.08rem; line-height: 1.5; margin-bottom: 1.5rem; }
+          .synthesis-data-footer { gap: 1.25rem; padding-top: 1.25rem; flex-wrap: wrap; }
+          .log-header { gap: 1rem; margin-bottom: 1.5rem; }
+          .log-row { padding: 1rem; gap: 0.75rem; flex-direction: column; align-items: flex-start; }
+          .log-main { gap: 0.85rem; }
+          .log-summary { font-size: 0.95rem; }
+          .log-actions { width: 100%; justify-content: space-between; }
+          .log-details { padding: 1.15rem; }
+          .detail-meta { gap: 1.25rem; flex-wrap: wrap; }
+          .analyst-note { padding: 1rem; }
+        }
       `}</style>
     </div>
   );

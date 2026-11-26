@@ -8,25 +8,32 @@ import { Zap, Briefcase, Activity, BrainCircuit, User } from 'lucide-react';
 export default function BottomNav() {
   const pathname = usePathname();
 
-  // Ne pas afficher la barre de navigation mobile sur la page de connexion ou les callbacks auth
-  if (pathname === '/login' || pathname?.startsWith('/auth')) {
+  // Masquer sur la landing page, la page de connexion, les callbacks auth et la page hors-ligne
+  if (
+    pathname === '/' ||
+    pathname === '/login' ||
+    pathname === '/offline' ||
+    pathname?.startsWith('/auth')
+  ) {
     return null;
   }
 
   const navItems = [
-    { label: 'Accueil', href: '/', icon: Zap },
+    { label: 'Console', href: '/console', icon: Zap },
     { label: 'Portefeuille', href: '/portfolio', icon: Briefcase },
-    { label: 'Marché Live', href: '/marche-live', icon: Activity },
-    { label: 'Intelligence', href: '/intelligence', icon: BrainCircuit },
+    { label: 'Marché', href: '/marche-live', icon: Activity },
+    { label: 'IA Hub', href: '/intelligence', icon: BrainCircuit },
     { label: 'Profil', href: '/profile', icon: User },
   ];
 
   return (
-    <nav className="mobile-bottom-nav lg:hidden" aria-label="Navigation mobile principale">
+    <nav className="mobile-bottom-nav" aria-label="Navigation mobile principale">
       <div className="bottom-nav-inner">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href;
+          const isActive =
+            pathname === item.href ||
+            (item.href !== '/' && pathname?.startsWith(`${item.href}/`));
 
           return (
             <Link
@@ -36,8 +43,7 @@ export default function BottomNav() {
               aria-current={isActive ? 'page' : undefined}
             >
               <div className="icon-wrapper">
-                <Icon size={20} className="tab-icon" />
-                {isActive && <span className="active-glow-dot" />}
+                <Icon size={19} className="tab-icon" strokeWidth={isActive ? 2.4 : 1.9} />
               </div>
               <span className="tab-label">{item.label}</span>
             </Link>
@@ -47,17 +53,17 @@ export default function BottomNav() {
 
       <style jsx>{`
         .mobile-bottom-nav {
-          position: fixed !important;
-          bottom: 0 !important;
-          left: 0 !important;
-          right: 0 !important;
-          z-index: 99999 !important;
-          background: #090d14 !important;
-          backdrop-filter: blur(24px) saturate(200%) !important;
-          -webkit-backdrop-filter: blur(24px) saturate(200%) !important;
-          border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
-          padding-bottom: env(safe-area-inset-bottom, 0px) !important;
-          box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.9) !important;
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          z-index: var(--z-bottom-nav, 1000);
+          background: rgba(8, 12, 20, 0.92);
+          backdrop-filter: blur(22px) saturate(180%);
+          -webkit-backdrop-filter: blur(22px) saturate(180%);
+          border-top: 1px solid rgba(255, 255, 255, 0.1);
+          padding-bottom: env(safe-area-inset-bottom, 0px);
+          box-shadow: 0 -10px 36px rgba(0, 0, 0, 0.72);
         }
 
         @media (min-width: 1024px) {
@@ -67,13 +73,14 @@ export default function BottomNav() {
         }
 
         .bottom-nav-inner {
-          display: flex;
+          display: grid;
+          grid-template-columns: repeat(5, 1fr);
           align-items: center;
-          justify-content: space-around;
-          height: 64px;
-          max-width: 500px;
+          height: var(--bottom-nav-height, 68px);
+          max-width: 560px;
           margin: 0 auto;
-          padding: 0 0.5rem;
+          padding: 0 0.35rem;
+          gap: 0.15rem;
         }
 
         :global(.nav-tab-item),
@@ -81,17 +88,17 @@ export default function BottomNav() {
         :global(.nav-tab-item:hover),
         :global(.nav-tab-item:active),
         :global(.nav-tab-item:focus) {
-          flex: 1;
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          gap: 3px;
-          min-height: 48px;
-          min-width: 48px;
+          gap: 4px;
+          min-height: 50px;
+          min-width: 0;
+          padding: 4px 2px;
           color: #94a3b8 !important;
           text-decoration: none !important;
-          transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+          transition: transform 0.2s var(--ease-spring), color 0.2s ease;
           position: relative;
           border-radius: 12px;
           -webkit-tap-highlight-color: transparent;
@@ -104,7 +111,6 @@ export default function BottomNav() {
         :global(.nav-tab-item.is-active),
         :global(.nav-tab-item.is-active:visited) {
           color: #10b981 !important;
-          text-decoration: none !important;
         }
 
         .icon-wrapper {
@@ -112,40 +118,43 @@ export default function BottomNav() {
           display: flex;
           align-items: center;
           justify-content: center;
-          width: 24px;
-          height: 24px;
+          width: 44px;
+          height: 28px;
+          border-radius: 14px;
+          transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+          border: 1px solid transparent;
+        }
+
+        :global(.nav-tab-item.is-active) .icon-wrapper {
+          background: rgba(16, 185, 129, 0.15);
+          border-color: rgba(16, 185, 129, 0.35);
+          box-shadow: 0 0 16px rgba(16, 185, 129, 0.2);
         }
 
         .tab-icon {
-          transition: transform 0.25s ease, color 0.25s ease;
+          transition: transform 0.25s var(--ease-spring), color 0.2s ease;
         }
 
         :global(.nav-tab-item.is-active) .tab-icon {
-          transform: translateY(-1px);
           color: #10b981 !important;
-        }
-
-        .active-glow-dot {
-          position: absolute;
-          bottom: -4px;
-          width: 5px;
-          height: 5px;
-          background-color: #10b981;
-          border-radius: 50%;
-          box-shadow: 0 0 10px #10b981, 0 0 14px #10b981;
+          transform: scale(1.04);
         }
 
         .tab-label {
           font-size: 10px;
           font-weight: 700;
           letter-spacing: -0.01em;
-          line-height: 1;
-          color: #94a3b8 !important;
-          transition: color 0.25s ease;
+          line-height: 1.1;
+          color: #94a3b8;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 100%;
+          transition: color 0.2s ease;
         }
 
         :global(.nav-tab-item.is-active) .tab-label {
-          color: #ffffff !important;
+          color: #ffffff;
           font-weight: 800;
         }
       `}</style>

@@ -33,7 +33,7 @@ export default function IntelligenceDashboard() {
         'Social Media Buzz Detection',
         'Calcul du score de sentiment global'
       ],
-      href: '/?agent=SENTIMENT'
+      href: '/console?agent=SENTIMENT'
     },
     {
       id: 'TECHNICAL',
@@ -48,7 +48,7 @@ export default function IntelligenceDashboard() {
         'Analyse des volumes anormaux',
         'Calcul des retracements de Fibonacci'
       ],
-      href: '/?agent=TECHNICAL'
+      href: '/console?agent=TECHNICAL'
     },
     {
       id: 'FUNDAMENTAL',
@@ -63,7 +63,7 @@ export default function IntelligenceDashboard() {
         'Comparaison sectorielle',
         'Historique des bénéfices'
       ],
-      href: '/?agent=FUNDAMENTAL'
+      href: '/console?agent=FUNDAMENTAL'
     },
     {
       id: 'STRATEGY',
@@ -78,7 +78,7 @@ export default function IntelligenceDashboard() {
         'Calcul du Risk/Reward Ratio',
         'Tactique d\'entrée multi-horizon'
       ],
-      href: '/?agent=STRATEGY',
+      href: '/console?agent=STRATEGY',
       isPremium: true
     }
   ];
@@ -270,8 +270,22 @@ export default function IntelligenceDashboard() {
         .animate-fade-in { animation: fadeIn 0.8s var(--ease) forwards; opacity: 0; }
 
         @media (max-width: 1024px) {
-          .agent-grid { grid-template-columns: 1fr; }
-          .title-h1 { font-size: 3rem; }
+          .agent-grid { grid-template-columns: 1fr; gap: 1.25rem; margin-bottom: 2.5rem; }
+          .title-h1 { font-size: 2.75rem; line-height: 1; }
+        }
+
+        @media (max-width: 768px) {
+          .max-container { padding: 0.75rem 0.25rem; }
+          .terminal-header { margin-top: 0.5rem; padding-bottom: 1.5rem; margin-bottom: 1.5rem; gap: 1rem; }
+          .header-identity { gap: 0.85rem; }
+          .title-row { gap: 0.85rem; }
+          .title-h1 { font-size: 2rem; line-height: 1.05; }
+          .intro-section { margin-bottom: 1.75rem; }
+          .intro-text { font-size: 0.95rem; }
+          .agent-card { padding: 1.35rem; border-radius: 1.25rem; gap: 1.25rem; }
+          .agent-title { font-size: 1.35rem; }
+          .capability-list { grid-template-columns: 1fr; gap: 0.65rem; }
+          .launch-btn { min-height: 48px; }
         }
       `}</style>
     </div>
