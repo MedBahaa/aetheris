@@ -91,7 +91,6 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
           </Link>
 
           <div className="header-breadcrumb mono">
-            <span className="bc-root">AETHERIS</span>
             <ChevronRight size={12} className="bc-sep" />
             <span className="bc-current">{routeLabel}</span>
           </div>
@@ -377,7 +376,6 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
           font-weight: 800;
           letter-spacing: 0.09em;
         }
-        .bc-root { color: #64748b; }
         :global(.bc-sep) { color: #475569; }
         .bc-current {
           color: #10b981;
@@ -422,10 +420,8 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
         }
 
         @media (min-width: 1024px) {
-          :global(.header-logo-link) { display: none; }
           .header-breadcrumb { display: flex; }
           .cmd-trigger-btn { display: inline-flex; }
-          .menu-toggle-btn { display: none; }
         }
       `}</style>
     </header>

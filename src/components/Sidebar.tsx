@@ -12,7 +12,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
 import { getUserProfileAction } from '@/lib/portfolio-actions';
 import { supabase, performCleanLogout } from '@/lib/supabase';
-import { useDevice } from '@/hooks/useDevice';
 
 interface SidebarProps {
   history: CompanyAnalysis[];
@@ -35,7 +34,6 @@ export default function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { isDesktop } = useDevice();
   const [isIntelligenceOpen, setIsIntelligenceOpen] = useState(true);
   const [sidebarSearch, setSidebarSearch] = useState('');
   const [profile, setProfile] = useState<any>(null);
@@ -44,7 +42,7 @@ export default function Sidebar({
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
-    if (!isOpen || isDesktop) return;
+    if (!isOpen) return;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
@@ -57,7 +55,7 @@ export default function Sidebar({
       document.body.style.overflow = prevOverflow;
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [isOpen, isDesktop, onClose]);
+  }, [isOpen, onClose]);
 
   const handleLogout = async () => {
     if (loggingOut) return;
@@ -177,7 +175,7 @@ export default function Sidebar({
 
   return (
     <>
-      {isOpen && !isDesktop && (
+      {isOpen && (
         <div 
           className="sidebar-overlay is-active"
           onClick={onClose}
@@ -187,9 +185,9 @@ export default function Sidebar({
 
       <aside 
         className={`sidebar glass-heavy ${isOpen ? 'is-open' : ''}`}
-        role={isDesktop ? 'navigation' : 'dialog'}
-        aria-modal={!isDesktop && isOpen ? true : undefined}
-        aria-hidden={isDesktop ? false : !isOpen}
+        role="dialog"
+        aria-modal={isOpen ? true : undefined}
+        aria-hidden={!isOpen}
         aria-label="Navigation principale Aetheris"
         onTouchStart={(e) => {
           const t = e.touches[0];
@@ -459,12 +457,6 @@ export default function Sidebar({
           @media (min-width: 1024px) {
             .sidebar {
               width: var(--sidebar-width, 256px) !important;
-              transform: translateX(0) !important;
-              box-shadow: none !important;
-              border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
-            }
-            .close-btn-drawer {
-              display: none !important;
             }
           }
 
