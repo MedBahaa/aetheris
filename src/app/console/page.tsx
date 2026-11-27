@@ -42,6 +42,7 @@ function ConsoleHome() {
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const searchRef = useRef<HTMLDivElement>(null);
   const logContainerRef = useRef<HTMLDivElement>(null);
+  const streamAbortRef = useRef<AbortController | null>(null);
   
   const [isPending, startTransition] = useTransition();
   const searchParams = useSearchParams();
@@ -146,64 +147,109 @@ function ConsoleHome() {
       return;
     }
 
+    if (streamAbortRef.current) {
+      streamAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    streamAbortRef.current = controller;
+
     setLoading(true);
     setAnalysis(null); 
     setError(null);
     setActiveId(undefined);
     setShowSuggestions(false);
-    setTerminalLogs([`INITIALISATION DU MOTEUR POUR : ${finalQuery}`, `ÉTABLISSEMENT DE LA CONNEXION SÉCURISÉE...`]);
-    
-    const steps = agentToUse === 'SENTIMENT' 
-      ? ['RÉCUPÉRATION DES FLUX RSS', 'EXTRACTION DES NEWS BOURSIÈRES', 'TRAITEMENT DES SOURCES', 'ANALYSE SENTIMENTALE IA EN COURS']
-      : agentToUse === 'TECHNICAL'
-      ? ['CONNEXION AU MARCHÉ LIVE', 'RÉCUPÉRATION DES COURS HISTORIQUES', 'CALCUL DES INDICATEURS TECHNIQUES', 'GÉNÉRATION DES RETRACEMENTS']
-      : ['LIAISON MULTI-AGENTS OK', 'RÉCUPÉRATION DES DONNÉES MARCHÉ', 'SCRAPING DES NEWS INSTITUTIONNELLES', 'CALCUL DES POINTS PIVOTS', 'AGENTS NEWS OPÉRATIONNELS', 'AGENTS MARCHÉ PRÊTS', 'SYNTHÈSE IA ÉLITE EN COURS'];
-
-    let stepIdx = 0;
-    const interval = setInterval(() => {
-      if (stepIdx < steps.length) {
-        setTerminalLogs(prev => [...prev, steps[stepIdx]]);
-        stepIdx++;
-      } else {
-        clearInterval(interval);
-      }
-    }, 600);
+    setTerminalLogs([`INITIALISATION DU MOTEUR POUR : ${finalQuery}`, `CONNEXION AU FLUX TEMPS RÉEL SSE...`]);
 
     startTransition(async () => {
       try {
-        const result = await analyzeCompanyAction(finalQuery, agentToUse, forceRefresh);
-        setTerminalLogs(prev => [...prev, `VALIDATION DES DONNÉES TERMINÉE`, `SYNTHÈSE CALCULÉE AVEC SUCCÈS`, `GÉNÉRATION DU RAPPORT EN COURS...`]);
-        setTimeout(() => {
-          clearInterval(interval);
-          setAnalysis(result);
-          setActiveId(result.id);
-          HistoryService.saveToHistory(result);
-          setHistory(HistoryService.getFilteredHistory(agentToUse));
-          const verdict = result.orchestrator?.finalAction || result.recommendedAction;
-          if (agentToUse === 'STRATEGY' && verdict) {
-            void recordAiSignal({
-              symbol: finalQuery,
-              companyName: result.companyName || finalQuery,
-              action: verdict,
-              priceAtSignal: String(result.price || result.fundamentals?.marketCap || 'N/A'),
-              targetPrice: result.orchestrator?.takeProfit,
-              stopLoss: result.orchestrator?.stopLoss,
-              confidenceLevel: result.orchestrator?.confidenceLevel || result.confidenceLevel,
-            });
+        let result: CompanyAnalysis | null = null;
+        let usedSse = false;
+
+        try {
+          const res = await fetch('/api/analyze-stream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: finalQuery, type: agentToUse, forceRefresh }),
+            signal: controller.signal,
+          });
+
+          if (!res.ok) {
+            const errJson = await res.json().catch(() => null);
+            if (errJson?.message) {
+              throw new Error(errJson.message);
+            }
+          } else if (res.body) {
+            usedSse = true;
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let streamDone = false;
+
+            while (!streamDone) {
+              const { value, done } = await reader.read();
+              streamDone = done;
+              if (value) {
+                buffer += decoder.decode(value, { stream: true });
+                const chunks = buffer.split('\n\n');
+                buffer = chunks.pop() || '';
+                for (const chunk of chunks) {
+                  if (!chunk.startsWith('data: ')) continue;
+                  const payload = JSON.parse(chunk.slice(6));
+                  if (payload.type === 'progress' && typeof payload.message === 'string') {
+                    setTerminalLogs(prev =>
+                      prev[prev.length - 1] === payload.message ? prev : [...prev, payload.message]
+                    );
+                  } else if (payload.type === 'result' && payload.data) {
+                    result = payload.data as CompanyAnalysis;
+                  } else if (payload.type === 'error') {
+                    throw new Error(payload.message || "Erreur lors de l'analyse.");
+                  }
+                }
+              }
+            }
           }
-          setQuery('');
-          setLoading(false);
-        }, 500);
+        } catch (sseErr: any) {
+          if (sseErr?.name === 'AbortError') return;
+          if (usedSse || sseErr?.message?.includes('PAYWALL_BLOCKED') || sseErr?.message?.includes('Limite') || sseErr?.message?.includes('limite')) {
+            throw sseErr;
+          }
+          // Repli transparent vers la Server Action si le flux SSE n'est pas joignable
+          setTerminalLogs(prev => [...prev, 'BASCULE SUR LE CANAL D\'EXÉCUTION DIRECT...']);
+          result = await analyzeCompanyAction(finalQuery, agentToUse, forceRefresh);
+        }
+
+        if (!result) {
+          result = await analyzeCompanyAction(finalQuery, agentToUse, forceRefresh);
+        }
+
+        setAnalysis(result);
+        setActiveId(result.id);
+        HistoryService.saveToHistory(result);
+        setHistory(HistoryService.getFilteredHistory(agentToUse));
+        const verdict = result.orchestrator?.finalAction || result.recommendedAction;
+        if (agentToUse === 'STRATEGY' && verdict) {
+          void recordAiSignal({
+            symbol: finalQuery,
+            companyName: result.companyName || finalQuery,
+            action: verdict,
+            priceAtSignal: String(result.price || result.fundamentals?.marketCap || 'N/A'),
+            targetPrice: result.orchestrator?.takeProfit,
+            stopLoss: result.orchestrator?.stopLoss,
+            confidenceLevel: result.orchestrator?.confidenceLevel || result.confidenceLevel,
+          });
+        }
+        setQuery('');
+        setLoading(false);
       } catch (err: any) {
+        if (err?.name === 'AbortError') return;
         console.error(err);
-        const msg = err.message || '';
+        const msg = err?.message || '';
         if (msg.includes('PAYWALL_BLOCKED')) {
           setShowPaywallModal(true);
         } else {
           setError(msg || "Une erreur est survenue lors de l'analyse.");
         }
         setLoading(false);
-        clearInterval(interval);
       }
     });
   };

@@ -1,24 +1,25 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Sparkles, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Sparkles, ShieldCheck, RefreshCw } from 'lucide-react';
 import { PortfolioHolding } from '@/lib/schemas';
 
 interface RoboAdvisorPanelProps {
   holdings: PortfolioHolding[];
-  onOptimize: () => Promise<any>;
+  onOptimize: (options?: { shariaOnly?: boolean }) => Promise<any>;
 }
 
 export const RoboAdvisorPanel: React.FC<RoboAdvisorPanelProps> = ({ holdings, onOptimize }) => {
   const [loading, setLoading] = useState(false);
   const [recommendation, setRecommendation] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [shariaOnly, setShariaOnly] = useState(false);
 
   const triggerOptimization = async () => {
     try {
       setLoading(true);
       setError(null);
-      const result = await onOptimize();
+      const result = await onOptimize({ shariaOnly });
       if (!result) {
         throw new Error("L'optimisation a retourné un résultat vide.");
       }
@@ -38,14 +39,31 @@ export const RoboAdvisorPanel: React.FC<RoboAdvisorPanelProps> = ({ holdings, on
           <Sparkles className="robo-icon text-purple animate-pulse" size={20} />
           <h3 className="mono white">ROBO-ADVISOR & OPTIMISATION PORTFOLIO</h3>
         </div>
-        <span className="premium-tag-mini mono-tiny">PREMIUM ACTIF</span>
+        <div className="robo-badges-row">
+          {recommendation?.shariaMode && (
+            <span className="sharia-tag-mini mono-tiny">
+              <ShieldCheck size={11} /> MODE SHARIA AAOIFI
+            </span>
+          )}
+          <span className="premium-tag-mini mono-tiny">PREMIUM ACTIF</span>
+        </div>
       </div>
 
       {!recommendation ? (
         <div className="robo-intro">
           <p className="intro-text">
-            Optimisation IA basée sur la concentration sectorielle et les pondérations de votre portefeuille.
+            Optimisation IA basée sur la concentration sectorielle (HHI), les frais BVC réels et les pondérations de votre portefeuille.
           </p>
+          <label className="sharia-toggle-label mono-tiny">
+            <input
+              type="checkbox"
+              checked={shariaOnly}
+              onChange={(e) => setShariaOnly(e.target.checked)}
+              disabled={loading}
+            />
+            <ShieldCheck size={14} />
+            <span>Mode Sharia strict (AAOIFI — exclut banques & assurances conventionnelles)</span>
+          </label>
           <button 
             type="button" 
             className="optimize-btn mono" 
@@ -115,6 +133,34 @@ export const RoboAdvisorPanel: React.FC<RoboAdvisorPanelProps> = ({ holdings, on
 
           </div>
 
+          {(recommendation.diversification || recommendation.feesSummary) && (
+            <div className="robo-metrics-strip mono-tiny">
+              {recommendation.diversification && (
+                <div className="robo-metric-pill">
+                  <span>DIVERSIFICATION HHI</span>
+                  <strong>
+                    {recommendation.diversification.scoreBefore}/100 → {recommendation.diversification.scoreAfter}/100 ({recommendation.diversification.concentrationRisk})
+                  </strong>
+                </div>
+              )}
+              {recommendation.feesSummary && (
+                <div className="robo-metric-pill">
+                  <span>FRAIS BVC ESTIMÉS ({recommendation.feesSummary.feeRatePct}%)</span>
+                  <strong>{recommendation.feesSummary.totalEstimatedFeesMAD.toLocaleString('fr-FR')} MAD</strong>
+                </div>
+              )}
+              {recommendation.feesSummary && (
+                <div className="robo-metric-pill">
+                  <span>IMPACT TRÉSORERIE NET</span>
+                  <strong>
+                    {recommendation.feesSummary.netCashImpactMAD >= 0 ? '+' : ''}
+                    {recommendation.feesSummary.netCashImpactMAD.toLocaleString('fr-FR')} MAD
+                  </strong>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="ia-analysis-card">
             <h4 className="mono title-sub"><Sparkles size={12} className="inline-icon" /> RATIONNEL DE L'IA</h4>
             <p className="ia-text">{recommendation.rationale}</p>
@@ -151,6 +197,54 @@ export const RoboAdvisorPanel: React.FC<RoboAdvisorPanelProps> = ({ holdings, on
         }
         .robo-icon {
           color: #a855f7;
+        }
+        .robo-badges-row {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          flex-wrap: wrap;
+        }
+        .sharia-tag-mini {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.3rem;
+          background: rgba(16, 185, 129, 0.14);
+          color: #10b981;
+          border: 1px solid rgba(16, 185, 129, 0.3);
+          padding: 3px 8px;
+          border-radius: 4px;
+          font-weight: 800;
+        }
+        .sharia-toggle-label {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.55rem 0.9rem;
+          border-radius: 999px;
+          background: rgba(16, 185, 129, 0.08);
+          border: 1px solid rgba(16, 185, 129, 0.22);
+          color: #a7f3d0;
+          cursor: pointer;
+        }
+        .robo-metrics-strip {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+          gap: 0.75rem;
+          margin-bottom: 1.25rem;
+        }
+        .robo-metric-pill {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+          padding: 0.75rem 1rem;
+          border-radius: 0.75rem;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(168, 85, 247, 0.2);
+          color: #94a3b8;
+        }
+        .robo-metric-pill strong {
+          color: #f8fafc;
+          font-size: 0.78rem;
         }
         .premium-tag-mini {
           background: rgba(168, 85, 247, 0.15);

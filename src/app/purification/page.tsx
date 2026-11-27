@@ -5,6 +5,7 @@ import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import { ShariaResult } from '@/lib/schemas';
 import { getDividendsAction, getPortfolioTransactionsAction } from '@/lib/portfolio-actions';
+import { computeConsolidatedPurification, ConsolidatedPurificationSummary } from '@/lib/portfolio-service';
 
 // Import subcomponents
 import ShariaSearchBox from './components/ShariaSearchBox';
@@ -42,6 +43,8 @@ export default function PurificationPage() {
   const [dividendAmount, setDividendAmount] = useState<string>('0');
   const [dividendType, setDividendType] = useState<'BRUT' | 'NET'>('BRUT');
   const [prefillManualData, setPrefillManualData] = useState<Partial<ManualFormState> | null>(null);
+  const [denominatorMethod, setDenominatorMethod] = useState<'MARKET_CAP' | 'TOTAL_ASSETS'>('MARKET_CAP');
+  const [consolidatedPurification, setConsolidatedPurification] = useState<ConsolidatedPurificationSummary | null>(null);
 
   const handlePrefillManual = () => {
     if (!result) return;
@@ -76,12 +79,14 @@ export default function PurificationPage() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setConsolidatedPurification(null);
     setLoadingStep(1);
     setLoadingMessage('Recherche des états financiers officiels sur le web...');
 
     try {
       const formData = new FormData();
       formData.append('query', query.trim());
+      formData.append('denominator', denominatorMethod);
       if (pdfFile) {
         formData.append('pdf', pdfFile);
       }
@@ -145,42 +150,27 @@ export default function PurificationPage() {
 
       const json = { data: finalResult as ShariaResult, ticker: finalResult.ticker };
       
-      // Auto-fetch real dividends if available
+      // Auto-fetch real dividends if available and compute consolidated purification
       try {
         const divs = await getDividendsAction(false);
         const txs = await getPortfolioTransactionsAction(false);
-        const tickerDivs = divs.filter(d => 
-          d.symbol.toUpperCase() === json.data.ticker.toUpperCase() || 
-          d.symbol.toUpperCase() === query.toUpperCase()
-        );
-        
-        if (tickerDivs.length > 0) {
-          let totalGross = 0;
-          for (const div of tickerDivs) {
-            const divDate = new Date(div.dividend_date).getTime();
-            let qty = 0;
-            const sorted = [...txs]
-              .filter(tx => tx.symbol === div.symbol)
-              .sort((a, b) => new Date(a.buy_date).getTime() - new Date(b.buy_date).getTime());
-            
-            for (const tx of sorted) {
-              if (new Date(tx.buy_date).getTime() > divDate) break;
-              const txType = tx.type || 'BUY';
-              if (txType === 'BUY') qty += tx.quantity;
-              else if (txType === 'SELL') qty = Math.max(0, qty - tx.quantity);
-            }
-            
-            if (qty > 0) {
-              totalGross += (qty * div.amount_per_share);
-            }
-          }
-          setDividendAmount(totalGross > 0 ? totalGross.toString() : '0');
-        } else {
-          setDividendAmount('0');
-        }
+        const rateForTicker =
+          !json.data.interestIncomeMissing &&
+          !json.data.isHaramSector &&
+          typeof json.data.purificationRate === 'number' &&
+          json.data.purificationRate >= 0
+            ? json.data.purificationRate
+            : 0;
+        const summary = computeConsolidatedPurification(divs, txs, {
+          [json.data.ticker]: rateForTicker,
+          [query.trim()]: rateForTicker,
+        });
+        setDividendAmount(summary.totalGrossMAD > 0 ? String(summary.totalGrossMAD) : '0');
+        setConsolidatedPurification(rateForTicker > 0 && summary.items.length > 0 ? summary : null);
       } catch (err) {
         console.error('Error fetching user dividends', err);
         setDividendAmount('0');
+        setConsolidatedPurification(null);
       }
 
     } catch (err: any) {
@@ -270,6 +260,30 @@ export default function PurificationPage() {
             </div>
           </header>
 
+          {activeTab === 'AI_SEARCH' && (
+            <div className="denom-switcher no-print">
+              <span className="denom-switcher-label">Méthode de calcul des ratios :</span>
+              <div className="denom-switcher-pills" role="group" aria-label="Dénominateur AAOIFI">
+                <button
+                  type="button"
+                  className={`denom-pill ${denominatorMethod === 'MARKET_CAP' ? 'active' : ''}`}
+                  onClick={() => setDenominatorMethod('MARKET_CAP')}
+                  disabled={loading}
+                >
+                  Capitalisation Boursière (AAOIFI)
+                </button>
+                <button
+                  type="button"
+                  className={`denom-pill ${denominatorMethod === 'TOTAL_ASSETS' ? 'active' : ''}`}
+                  onClick={() => setDenominatorMethod('TOTAL_ASSETS')}
+                  disabled={loading}
+                >
+                  Total Actif (Bilan)
+                </button>
+              </div>
+            </div>
+          )}
+
           <ShariaSearchBox 
             onSearch={handleSearch}
             loading={loading}
@@ -306,11 +320,190 @@ export default function PurificationPage() {
             isAIEstimated={result?.isAIEstimated}
             onPrefillManual={handlePrefillManual}
           />
+
+          {consolidatedPurification && consolidatedPurification.items.length > 0 && (
+            <section className="consolidated-purif-card">
+              <div className="consolidated-purif-head">
+                <div>
+                  <span className="consolidated-purif-tag">Portefeuille synchronisé</span>
+                  <h3>Synthèse Purification Portefeuille</h3>
+                </div>
+                <div className="consolidated-kpis">
+                  <div className="consolidated-kpi">
+                    <span>Dividendes bruts</span>
+                    <strong>{consolidatedPurification.totalGrossMAD.toFixed(2)} MAD</strong>
+                  </div>
+                  <div className="consolidated-kpi purif">
+                    <span>À purifier (arrondi AAOIFI)</span>
+                    <strong>{consolidatedPurification.totalPurificationMAD.toFixed(0)} MAD</strong>
+                  </div>
+                  <div className="consolidated-kpi halal">
+                    <span>Net Halal estimé</span>
+                    <strong>{consolidatedPurification.totalHalalMAD.toFixed(2)} MAD</strong>
+                  </div>
+                </div>
+              </div>
+              <div className="consolidated-table-wrap">
+                <table className="consolidated-table">
+                  <thead>
+                    <tr>
+                      <th>Symbole</th>
+                      <th>Date</th>
+                      <th>Titres</th>
+                      <th>Brut</th>
+                      <th>Taux</th>
+                      <th>À purifier</th>
+                      <th>Net Halal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {consolidatedPurification.items.map((item, idx) => (
+                      <tr key={`${item.symbol}-${item.dividendDate}-${idx}`}>
+                        <td><strong>{item.symbol}</strong></td>
+                        <td>{item.dividendDate}</td>
+                        <td>{item.sharesHeld}</td>
+                        <td>{item.grossDividendMAD.toFixed(2)} MAD</td>
+                        <td>{item.purificationRatePct.toFixed(2)}%</td>
+                        <td className="txt-purif">{item.purificationAmountMAD.toFixed(0)} MAD</td>
+                        <td className="txt-halal">{item.halalNetMAD.toFixed(2)} MAD</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
           
         </div>
       </main>
 
       <style jsx>{`
+        .denom-switcher {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          flex-wrap: wrap;
+          margin-bottom: 14px;
+          padding: 10px 14px;
+          border-radius: 12px;
+          background: rgba(17, 24, 39, 0.72);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .denom-switcher-label {
+          font-size: 12px;
+          color: #9ca3af;
+          font-weight: 500;
+        }
+        .denom-switcher-pills {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+        .denom-pill {
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          background: rgba(255, 255, 255, 0.04);
+          color: #d1d5db;
+          font-size: 12px;
+          font-weight: 600;
+          padding: 6px 12px;
+          border-radius: 999px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .denom-pill:hover:not(:disabled) {
+          border-color: rgba(16, 185, 129, 0.45);
+          color: #f3f4f6;
+        }
+        .denom-pill.active {
+          background: rgba(16, 185, 129, 0.18);
+          border-color: rgba(16, 185, 129, 0.6);
+          color: #6ee7b7;
+        }
+        .denom-pill:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+        .consolidated-purif-card {
+          margin-top: 20px;
+          padding: 20px;
+          border-radius: 14px;
+          background: rgba(17, 24, 39, 0.78);
+          border: 1px solid rgba(16, 185, 129, 0.22);
+        }
+        .consolidated-purif-head {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 16px;
+          flex-wrap: wrap;
+          margin-bottom: 16px;
+        }
+        .consolidated-purif-tag {
+          display: inline-block;
+          font-size: 11px;
+          font-weight: 600;
+          color: #34d399;
+          background: rgba(16, 185, 129, 0.14);
+          border: 1px solid rgba(16, 185, 129, 0.28);
+          padding: 2px 9px;
+          border-radius: 999px;
+          margin-bottom: 6px;
+        }
+        .consolidated-purif-head h3 {
+          margin: 0;
+          font-size: 16px;
+          font-weight: 600;
+          color: #f9fafb;
+        }
+        .consolidated-kpis {
+          display: flex;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+        .consolidated-kpi {
+          padding: 8px 12px;
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+        .consolidated-kpi span {
+          font-size: 11px;
+          color: #9ca3af;
+        }
+        .consolidated-kpi strong {
+          font-size: 13px;
+          color: #f3f4f6;
+        }
+        .consolidated-kpi.purif strong {
+          color: #fbbf24;
+        }
+        .consolidated-kpi.halal strong {
+          color: #34d399;
+        }
+        .consolidated-table-wrap {
+          overflow-x: auto;
+        }
+        .consolidated-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 12px;
+        }
+        .consolidated-table th, .consolidated-table td {
+          padding: 9px 10px;
+          text-align: left;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+          color: #d1d5db;
+        }
+        .consolidated-table th {
+          color: #9ca3af;
+          font-weight: 600;
+        }
+        .txt-purif { color: #fbbf24; font-weight: 600; }
+        .txt-halal { color: #34d399; font-weight: 600; }
         @media (min-width: 1024px) {
           .max-container {
             max-width: 1180px;

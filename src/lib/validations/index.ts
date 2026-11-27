@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const shariaQuerySchema = z.object({
   query: z.string().min(1, "Veuillez fournir un nom de société ou un ticker (ex: DHO, Delta Holding...)").max(50, "Le nom est trop long."),
+  denominator: z.enum(['MARKET_CAP', 'TOTAL_ASSETS']).optional(),
 });
 
 export const companySearchSchema = z.object({

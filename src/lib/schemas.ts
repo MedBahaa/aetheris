@@ -17,6 +17,7 @@ export const DataQualitySchema = z.object({
   warnings: z.array(z.string()),
   missingFields: z.array(z.string()),
   sources: z.array(DataSourceSchema),
+  agentReliabilityScore: z.number().min(0).max(100).optional(),
 });
 export type DataQuality = z.infer<typeof DataQualitySchema>;
 
@@ -67,6 +68,13 @@ export interface ShariaResult {
   confidenceScore?: number;
   explanation?: string;
   sources: string[];
+  citations?: Array<{ metric: string; pageOrNote: string; excerpt: string }>;
+  historicalYears?: Array<{ fiscalYear: string; purificationRate?: number | null; debtRatio?: number | null }>;
+  denominatorComparison?: {
+    activeMethod: 'MARKET_CAP' | 'TOTAL_ASSETS';
+    marketCap?: { value: string; debtRatio: number; cashRatio: number; compliant: boolean };
+    totalAssets?: { value: string; debtRatio: number; cashRatio: number; compliant: boolean };
+  };
 }
 
 
@@ -95,6 +103,8 @@ export const NewsItemSchema = z.object({
   url: SafeExternalUrlSchema,
   fullContent: z.string().optional(), // Contenu scrapé en profondeur
   sourceType: z.string().optional(), // RSS, WEB, etc.
+  eventCategory: z.string().optional(),
+  corroboratingSourcesCount: z.number().optional(),
 });
 
 export const OrchestratorResultSchema = z.object({
@@ -134,6 +144,20 @@ export const FundamentalDataSchema = z.object({
   sector: z.string().optional(),
   /** AUDIT FIX: Source de chaque donnée fondamentale */
   dataSources: z.record(z.string(), DataSourceSchema).optional(),
+  sectorBenchmark: z.object({
+    sectorName: z.string(),
+    peerCount: z.number(),
+    medianPe: z.number().nullable(),
+    medianDividendYield: z.number().nullable(),
+    medianRoe: z.number().nullable(),
+    peVsSectorPct: z.number().nullable(),
+    valuationVerdict: z.enum(['DÉCOTE', 'EN_LIGNE', 'PRIME', 'INDÉTERMINÉ']),
+  }).optional(),
+  fundamentalQualityScore: z.object({
+    score: z.number().min(0).max(100),
+    grade: z.enum(['A', 'B', 'C', 'D']),
+    highlights: z.array(z.string()),
+  }).optional(),
 });
 
 export const CollectionStatusSchema = z.object({
@@ -206,6 +230,42 @@ export const CompanyAnalysisSchema = z.object({
   liquidityWarning: LiquidityWarningSchema.optional(),
   /** AUDIT FIX: Statut de la collecte RSS */
   collectionStatus: CollectionStatusSchema.optional(),
+  /** Momentum du sentiment comparé au cache précédent */
+  sentimentMomentum: z.object({
+    direction: z.string(),
+    variation: z.string(),
+    previousScore: z.string(),
+  }).optional(),
+  detectedEvents: z.array(z.string()).optional(),
+  atr: z.object({
+    atr14: z.number(),
+    atrPercent: z.number(),
+    dynamicStopBuy: z.number(),
+    dynamicTargetBuy: z.number(),
+    dynamicStopSell: z.number(),
+    dynamicTargetSell: z.number(),
+  }).optional(),
+  volumeBreakout: z.object({
+    ratio: z.number(),
+    avgVolume20: z.number(),
+    isBreakout: z.boolean(),
+    bollingerBandwidth: z.number().optional(),
+    isBollingerSqueeze: z.boolean().optional(),
+  }).optional(),
+  relativeStrengthMasi: z.object({
+    stockVariationPct: z.number(),
+    masiVariationPct: z.number(),
+    alphaPct: z.number(),
+    label: z.string(),
+  }).optional(),
+  marketRegime: z.enum(['TRENDING', 'RANGING', 'HIGH_VOLATILITY']).optional(),
+  strategyBacktest: z.object({
+    sampleSize: z.number(),
+    winRatePct: z.number(),
+    avgReturnPct: z.number(),
+    maxDrawdownPct: z.number(),
+    horizonSessions: z.number(),
+  }).optional(),
 });
 
 export type CompanyAnalysis = z.infer<typeof CompanyAnalysisSchema>;

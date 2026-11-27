@@ -447,6 +447,101 @@ export default function ResultDashboard({
         </div>
       )}
 
+      {/* 7B. COMPARAISON DÉNOMINATEUR (CAP. BOURSIÈRE VS TOTAL ACTIF) */}
+      {result.denominatorComparison && (
+        <div className="sharia-upgrade-card">
+          <div className="sharia-upgrade-header">
+            <span className="sharia-upgrade-badge">AAOIFI · Double Méthode</span>
+            <h4>Comparaison du dénominateur des ratios</h4>
+          </div>
+          <div className="sharia-comp-grid">
+            {result.denominatorComparison.marketCap && (
+              <div className={`sharia-comp-box ${result.denominatorComparison.activeMethod === 'MARKET_CAP' ? 'active' : ''}`}>
+                <div className="sharia-comp-title">
+                  <span>Capitalisation Boursière</span>
+                  {result.denominatorComparison.activeMethod === 'MARKET_CAP' && <span className="sharia-comp-pill">Active</span>}
+                </div>
+                <div className="sharia-comp-val">Base : {result.denominatorComparison.marketCap.value}</div>
+                <div className="sharia-comp-metrics">
+                  <span>Dette : <strong>{result.denominatorComparison.marketCap.debtRatio.toFixed(2)}%</strong></span>
+                  <span>Cash : <strong>{result.denominatorComparison.marketCap.cashRatio.toFixed(2)}%</strong></span>
+                  <span className={result.denominatorComparison.marketCap.compliant ? 'comp-ok' : 'comp-ko'}>
+                    {result.denominatorComparison.marketCap.compliant ? 'Conforme ≤ 33.33%' : 'Non conforme'}
+                  </span>
+                </div>
+              </div>
+            )}
+            {result.denominatorComparison.totalAssets && (
+              <div className={`sharia-comp-box ${result.denominatorComparison.activeMethod === 'TOTAL_ASSETS' ? 'active' : ''}`}>
+                <div className="sharia-comp-title">
+                  <span>Total Actif (Bilan)</span>
+                  {result.denominatorComparison.activeMethod === 'TOTAL_ASSETS' && <span className="sharia-comp-pill">Active</span>}
+                </div>
+                <div className="sharia-comp-val">Base : {result.denominatorComparison.totalAssets.value}</div>
+                <div className="sharia-comp-metrics">
+                  <span>Dette : <strong>{result.denominatorComparison.totalAssets.debtRatio.toFixed(2)}%</strong></span>
+                  <span>Cash : <strong>{result.denominatorComparison.totalAssets.cashRatio.toFixed(2)}%</strong></span>
+                  <span className={result.denominatorComparison.totalAssets.compliant ? 'comp-ok' : 'comp-ko'}>
+                    {result.denominatorComparison.totalAssets.compliant ? 'Conforme ≤ 33.33%' : 'Non conforme'}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 7C. HISTORIQUE MULTI-EXERCICES */}
+      {result.historicalYears && result.historicalYears.length > 0 && (
+        <div className="sharia-upgrade-card">
+          <div className="sharia-upgrade-header">
+            <span className="sharia-upgrade-badge">Historique</span>
+            <h4>Évolution pluriannuelle des ratios</h4>
+          </div>
+          <div className="sharia-history-wrap">
+            <table className="sharia-history-table">
+              <thead>
+                <tr>
+                  <th>Exercice</th>
+                  <th>Ratio d&apos;endettement</th>
+                  <th>Taux de purification</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.historicalYears.map((yr, idx) => (
+                  <tr key={`${yr.fiscalYear}-${idx}`}>
+                    <td><strong>{yr.fiscalYear}</strong></td>
+                    <td>{typeof yr.debtRatio === 'number' ? `${yr.debtRatio.toFixed(2)}%` : 'N/A'}</td>
+                    <td>{typeof yr.purificationRate === 'number' ? `${yr.purificationRate.toFixed(2)}%` : 'N/A'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 7D. CITATIONS AUDITABLES (CPC / BILAN) */}
+      {result.citations && result.citations.length > 0 && (
+        <div className="sharia-upgrade-card">
+          <div className="sharia-upgrade-header">
+            <span className="sharia-upgrade-badge">Traçabilité CPC / Bilan</span>
+            <h4>Extraits &amp; notes financières vérifiables</h4>
+          </div>
+          <ul className="sharia-citations-list">
+            {result.citations.map((c, idx) => (
+              <li key={`${c.metric}-${idx}`} className="sharia-citation-item">
+                <div className="sharia-citation-top">
+                  <strong>{c.metric}</strong>
+                  <span>{c.pageOrNote}</span>
+                </div>
+                <p>&laquo; {c.excerpt} &raquo;</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* 8. METHODOLOGY ACCORDION */}
       <div className="sharia-accordion-block">
         <button
@@ -918,6 +1013,126 @@ export default function ResultDashboard({
           border-radius: 8px;
         }
         .calc-ai-warn p { font-size: 11px; color: rgba(251, 191, 36, 0.85); line-height: 1.45; margin: 0; }
+
+        .sharia-upgrade-card {
+          background: rgba(17, 24, 39, 0.72);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 14px;
+          padding: 18px 20px;
+          margin-top: 16px;
+        }
+        .sharia-upgrade-header {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 14px;
+          flex-wrap: wrap;
+        }
+        .sharia-upgrade-header h4 {
+          margin: 0;
+          font-size: 14px;
+          font-weight: 600;
+          color: #f3f4f6;
+        }
+        .sharia-upgrade-badge {
+          font-size: 11px;
+          font-weight: 600;
+          padding: 3px 9px;
+          border-radius: 999px;
+          background: rgba(16, 185, 129, 0.14);
+          color: #34d399;
+          border: 1px solid rgba(16, 185, 129, 0.28);
+        }
+        .sharia-comp-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          gap: 12px;
+        }
+        .sharia-comp-box {
+          padding: 12px 14px;
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.07);
+        }
+        .sharia-comp-box.active {
+          border-color: rgba(16, 185, 129, 0.45);
+          background: rgba(16, 185, 129, 0.06);
+        }
+        .sharia-comp-title {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-size: 12px;
+          font-weight: 600;
+          color: #e5e7eb;
+          margin-bottom: 6px;
+        }
+        .sharia-comp-pill {
+          font-size: 10px;
+          padding: 2px 7px;
+          border-radius: 999px;
+          background: rgba(16, 185, 129, 0.22);
+          color: #6ee7b7;
+        }
+        .sharia-comp-val {
+          font-size: 12px;
+          color: #9ca3af;
+          margin-bottom: 8px;
+        }
+        .sharia-comp-metrics {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          font-size: 12px;
+          color: #d1d5db;
+        }
+        .comp-ok { color: #34d399; font-weight: 600; }
+        .comp-ko { color: #f87171; font-weight: 600; }
+        .sharia-history-wrap { overflow-x: auto; }
+        .sharia-history-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 12px;
+        }
+        .sharia-history-table th, .sharia-history-table td {
+          text-align: left;
+          padding: 8px 10px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+          color: #d1d5db;
+        }
+        .sharia-history-table th {
+          color: #9ca3af;
+          font-weight: 600;
+        }
+        .sharia-citations-list {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .sharia-citation-item {
+          padding: 10px 12px;
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .sharia-citation-top {
+          display: flex;
+          justify-content: space-between;
+          gap: 8px;
+          font-size: 12px;
+          margin-bottom: 4px;
+        }
+        .sharia-citation-top strong { color: #f3f4f6; }
+        .sharia-citation-top span { color: #6ee7b7; font-size: 11px; }
+        .sharia-citation-item p {
+          margin: 0;
+          font-size: 12px;
+          color: #9ca3af;
+          line-height: 1.45;
+        }
 
         @media (max-width: 1024px) {
           .purif-calc-grid { grid-template-columns: 1fr; }

@@ -58,10 +58,11 @@ export class ImpactValidator {
           let isAccurate = false;
           let score = 0;
 
-          // Logique de validation simplifiée
-          if (news.sentiment_label === 'POSITIF' && variation > 0.5) isAccurate = true;
-          if (news.sentiment_label === 'NEGATIF' && variation < -0.5) isAccurate = true;
-          if (news.sentiment_label === 'NEUTRE' && Math.abs(variation) <= 0.5) isAccurate = true;
+          // Logique de validation (couvre sentiment simple et fort)
+          const sentLabel = String(news.sentiment_label || '').toUpperCase();
+          if ((sentLabel === 'POSITIF' || sentLabel === 'FORTEMENT_POSITIF') && variation > 0.5) isAccurate = true;
+          if ((sentLabel === 'NEGATIF' || sentLabel === 'FORTEMENT_NEGATIF') && variation < -0.5) isAccurate = true;
+          if (sentLabel === 'NEUTRE' && Math.abs(variation) <= 0.5) isAccurate = true;
 
           // Calcul d'un score de confiance
           score = isAccurate ? 80 + Math.min(20, Math.abs(variation) * 5) : Math.max(0, 40 - Math.abs(variation) * 10);

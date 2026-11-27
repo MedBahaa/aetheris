@@ -29,7 +29,15 @@ export interface TradingViewShariaData {
 const HARAM_INDUSTRIES = [
   'regional banks',
   'major banks',
+  'commercial banks',
+  'savings banks',
+  'investment banks/brokers',
+  'financial conglomerates',
+  'consumer lending',
   'multi-line insurance',
+  'life/health insurance',
+  'property/casualty insurance',
+  'specialty insurance',
   'insurance brokers',
   'finance/rental/leasing',
   'beverages: alcoholic',
@@ -51,7 +59,7 @@ const HARAM_KEYWORDS = [
 
 const HARAM_BVC_TICKERS = new Set([
   'ATW', 'BCP', 'BOA', 'CIH', 'CDM', 'CFG',
-  'WAA', 'ATH', 'SAN', 'AGM', 'SBM', 'EQD', 'SLF', 'MAB', 'MLE',
+  'WAA', 'ATH', 'SAN', 'SAH', 'AGM', 'AFM', 'SBM', 'EQD', 'SLF', 'MAB', 'MLE', 'TSF', 'SOF',
 ]);
 
 /**
@@ -97,12 +105,51 @@ function normalizeSearchText(val: string): string {
     .trim();
 }
 
+export interface SectorMedian {
+  sectorName: string;
+  peerCount: number;
+  medianPe: number | null;
+  medianDividendYield: number | null;
+  medianRoe: number | null;
+}
+
+export interface SectorBenchmarkComparison extends SectorMedian {
+  peVsSectorPct: number | null;
+  valuationVerdict: 'DÉCOTE' | 'EN_LIGNE' | 'PRIME' | 'INDÉTERMINÉ';
+}
+
+const SECTOR_ALIAS_MAP: Record<string, string[]> = {
+  banques: ['finance'],
+  assurances: ['finance'],
+  immobilier: ['finance'],
+  telecoms: ['communications'],
+  telecommunications: ['communications'],
+  sante: ['health technology', 'health services'],
+  distribution: ['distribution services', 'retail trade'],
+  industrie: ['process industries', 'producer manufacturing'],
+  btp: ['industrial services', 'non energy minerals'],
+  technologie: ['technology services'],
+  energie: ['energy minerals', 'utilities'],
+  agroalimentaire: ['consumer non durables'],
+  mines: ['non energy minerals'],
+};
+
+function computeMedian(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const raw = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+  return Number(raw.toFixed(2));
+}
+
 export class TradingViewScraper {
   private static shariaUniverseCache: { rows: any[]; timestamp: number } | null = null;
+  private static sectorBenchmarksCache: { map: Map<string, SectorMedian>; timestamp: number } | null = null;
   private static readonly SHARIA_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
   static clearCache(): void {
     this.shariaUniverseCache = null;
+    this.sectorBenchmarksCache = null;
   }
 
   private static async getUsdMadRate(): Promise<number> {
@@ -344,5 +391,127 @@ export class TradingViewScraper {
         status: 'error'
       };
     }
+  }
+
+  /**
+   * Calcule les médianes sectorielles BVC (PER, Rendement, ROE) via /morocco/scan avec cache 6h.
+   */
+  static async getSectorBenchmarks(): Promise<Map<string, SectorMedian>> {
+    const now = Date.now();
+    if (
+      this.sectorBenchmarksCache &&
+      now - this.sectorBenchmarksCache.timestamp < this.SHARIA_CACHE_TTL_MS
+    ) {
+      return this.sectorBenchmarksCache.map;
+    }
+
+    try {
+      const res = await fetch('https://scanner.tradingview.com/morocco/scan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+        body: JSON.stringify({
+          filter: [],
+          options: { lang: 'en' },
+          markets: ['morocco'],
+          columns: ['name', 'sector', 'price_earnings_ttm', 'dividends_yield', 'return_on_equity_fq'],
+          range: [0, 100],
+        }),
+        signal: AbortSignal.timeout(8000),
+      });
+
+      if (!res.ok) {
+        return new Map();
+      }
+
+      const parsed = await res.json();
+      const rows = Array.isArray(parsed?.data) ? parsed.data : [];
+      const groups = new Map<string, { label: string; pe: number[]; div: number[]; roe: number[]; count: number }>();
+
+      for (const r of rows) {
+        const d = r?.d;
+        if (!Array.isArray(d)) continue;
+        const rawSec = typeof d[1] === 'string' ? d[1].trim() : '';
+        if (!rawSec) continue;
+        const key = normalizeSearchText(rawSec);
+        if (!key) continue;
+
+        let grp = groups.get(key);
+        if (!grp) {
+          grp = { label: rawSec, pe: [], div: [], roe: [], count: 0 };
+          groups.set(key, grp);
+        }
+        grp.count++;
+        if (typeof d[2] === 'number' && Number.isFinite(d[2]) && d[2] > 0 && d[2] < 200) grp.pe.push(d[2]);
+        if (typeof d[3] === 'number' && Number.isFinite(d[3]) && d[3] >= 0 && d[3] < 50) grp.div.push(d[3]);
+        if (typeof d[4] === 'number' && Number.isFinite(d[4]) && d[4] > -100 && d[4] < 200) grp.roe.push(d[4]);
+      }
+
+      const map = new Map<string, SectorMedian>();
+      groups.forEach((grp, key) => {
+        map.set(key, {
+          sectorName: grp.label,
+          peerCount: grp.count,
+          medianPe: computeMedian(grp.pe),
+          medianDividendYield: computeMedian(grp.div),
+          medianRoe: computeMedian(grp.roe),
+        });
+      });
+
+      if (map.size > 0) {
+        this.sectorBenchmarksCache = { map, timestamp: now };
+      }
+      return map;
+    } catch {
+      return new Map();
+    }
+  }
+
+  /**
+   * Compare le PER d'une société à la médiane de son secteur BVC.
+   */
+  static computeSectorBenchmark(
+    sectorName: string,
+    companyPe: number | null,
+    benchmarks: Map<string, SectorMedian>
+  ): SectorBenchmarkComparison | undefined {
+    const normInput = normalizeSearchText(sectorName);
+    if (!normInput || benchmarks.size === 0) return undefined;
+
+    let peer = benchmarks.get(normInput);
+    if (!peer) {
+      const mappedAliases = SECTOR_ALIAS_MAP[normInput] || [];
+      for (const alias of mappedAliases) {
+        peer = benchmarks.get(alias);
+        if (peer) break;
+      }
+    }
+    if (!peer) {
+      for (const [key, val] of benchmarks.entries()) {
+        if (key.includes(normInput) || normInput.includes(key)) {
+          peer = val;
+          break;
+        }
+      }
+    }
+    if (!peer) return undefined;
+
+    let peVsSectorPct: number | null = null;
+    let valuationVerdict: SectorBenchmarkComparison['valuationVerdict'] = 'INDÉTERMINÉ';
+    if (companyPe !== null && companyPe > 0 && peer.medianPe !== null && peer.medianPe > 0) {
+      peVsSectorPct = Number((((companyPe - peer.medianPe) / peer.medianPe) * 100).toFixed(1));
+      if (peVsSectorPct <= -15) valuationVerdict = 'DÉCOTE';
+      else if (peVsSectorPct >= 15) valuationVerdict = 'PRIME';
+      else valuationVerdict = 'EN_LIGNE';
+    }
+
+    return {
+      ...peer,
+      sectorName: sectorName || peer.sectorName,
+      peVsSectorPct,
+      valuationVerdict,
+    };
   }
 }

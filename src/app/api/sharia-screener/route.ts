@@ -5,6 +5,7 @@ import { createServerSupabase, supabaseAdmin } from '@/lib/supabase-server';
 import { checkRateLimitAsync } from '@/lib/rate-limiter';
 import { shariaQuerySchema } from '@/lib/validations';
 import { InputSanitizer } from '@/lib/input-sanitizer';
+import { SymbolMapper } from '@/lib/symbol-mapper';
 
 const MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024; // 10 Mo maximum
 
@@ -38,6 +39,8 @@ export async function POST(req: Request) {
     if (contentType.includes('multipart/form-data')) {
       const formData = await req.formData().catch(() => new FormData());
       body.query = formData.get('query')?.toString() || '';
+      const rawDenom = formData.get('denominator')?.toString();
+      if (rawDenom) body.denominator = rawDenom;
       
       const file = formData.get('pdf');
       if (file && file instanceof File) {
@@ -88,16 +91,18 @@ export async function POST(req: Request) {
       );
     }
 
-    const { query } = validationResult.data;
+    const { query, denominator } = validationResult.data;
+    const activeDenominator = denominator || 'MARKET_CAP';
+    const shariaAgentKey = activeDenominator === 'TOTAL_ASSETS' ? 'SHARIA_ASSETS' : 'SHARIA';
     const cleanQuery = query.trim();
 
     const encoder = new TextEncoder();
+    let streamClosed = false;
+    let step2Timer: ReturnType<typeof setTimeout> | undefined;
+    let step3Timer: ReturnType<typeof setTimeout> | undefined;
+
     const stream = new ReadableStream({
       async start(controller) {
-        let streamClosed = false;
-        let step2Timer: ReturnType<typeof setTimeout> | undefined;
-        let step3Timer: ReturnType<typeof setTimeout> | undefined;
-
         const sendEvent = (data: any) => {
           if (streamClosed) return;
           try {
@@ -128,13 +133,18 @@ export async function POST(req: Request) {
 
           const dbClient = supabaseAdmin || supabase;
           const safeFilterQuery = InputSanitizer.sanitizePostgrestFilter(cleanQuery);
+          const aliasSymbol = InputSanitizer.sanitizePostgrestFilter(SymbolMapper.resolve(cleanQuery));
+          const orFilter =
+            aliasSymbol && aliasSymbol !== safeFilterQuery
+              ? `symbol.ilike.${safeFilterQuery},symbol.ilike.${aliasSymbol},name.ilike.%${safeFilterQuery}%`
+              : `symbol.ilike.${safeFilterQuery},name.ilike.%${safeFilterQuery}%`;
 
           if (!pdfData && safeFilterQuery) {
             // Check cache (7 days)
             const { data: companyMatch } = await dbClient
               .from('companies')
               .select('id, symbol')
-              .or(`symbol.ilike.${safeFilterQuery},name.ilike.%${safeFilterQuery}%`)
+              .or(orFilter)
               .limit(1)
               .maybeSingle();
               
@@ -148,7 +158,7 @@ export async function POST(req: Request) {
                 .from('analyses_cache')
                 .select('result')
                 .eq('company_id', companyMatch.id)
-                .eq('agent_type', 'SHARIA')
+                .eq('agent_type', shariaAgentKey)
                 .gte('timestamp', sevenDaysAgo.toISOString())
                 .order('timestamp', { ascending: false })
                 .limit(1)
@@ -161,7 +171,12 @@ export async function POST(req: Request) {
           }
 
           if (!result) {
-            result = await GeminiService.analyzeShariaCompliance(cleanQuery, pdfData, resolvedSymbol);
+            result = await GeminiService.analyzeShariaCompliance(
+              cleanQuery,
+              pdfData,
+              resolvedSymbol,
+              activeDenominator
+            );
             
             if (!pdfData) {
                if (!cachedCompanyId && result.ticker) {
@@ -187,7 +202,7 @@ export async function POST(req: Request) {
                if (cachedCompanyId && isCacheableConfidence && !hasInjectionArtifact && isCompleteOrHaram) {
                   await dbClient.from('analyses_cache').insert({
                     company_id: cachedCompanyId,
-                    agent_type: 'SHARIA',
+                    agent_type: shariaAgentKey,
                     result: result
                   });
                }
@@ -217,7 +232,9 @@ export async function POST(req: Request) {
         }
       },
       cancel() {
-        // Client disconnected cleanly
+        streamClosed = true;
+        if (step2Timer) clearTimeout(step2Timer);
+        if (step3Timer) clearTimeout(step3Timer);
       }
     });
 

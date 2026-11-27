@@ -28,6 +28,11 @@ export class CasabourseScraper {
   private static lastFetchTime: number = 0;
   private static readonly CACHE_TTL = 6 * 60 * 60 * 1000; // 6 heures (évite de re-télécharger 2.4 Mo)
 
+  static clearCache(): void {
+    this.cachedRows = null;
+    this.lastFetchTime = 0;
+  }
+
   private static async getScreenerRows(): Promise<CachedScreenerRow[]> {
     const now = Date.now();
     if (this.cachedRows && (now - this.lastFetchTime < this.CACHE_TTL)) {
@@ -62,8 +67,10 @@ export class CasabourseScraper {
       });
     });
 
-    this.cachedRows = parsedRows;
-    this.lastFetchTime = now;
+    if (parsedRows.length > 0) {
+      this.cachedRows = parsedRows;
+      this.lastFetchTime = now;
+    }
     return parsedRows;
   }
 

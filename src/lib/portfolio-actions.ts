@@ -501,7 +501,14 @@ const OptimizeHoldingsArraySchema = z
   .min(1, 'Portefeuille vide.')
   .max(60, 'Trop de positions pour une seule optimisation.');
 
-export async function optimizePortfolioAction(holdings: unknown[]) {
+const OptimizePortfolioOptionsSchema = z
+  .object({
+    shariaOnly: z.boolean().optional(),
+    availableCashMAD: z.number().nonnegative().finite().max(100_000_000_000).optional(),
+  })
+  .optional();
+
+export async function optimizePortfolioAction(holdings: unknown[], options?: unknown) {
   const client = await createServerSupabase();
   const user = await requireAuthenticatedUser(client);
 
@@ -523,7 +530,11 @@ export async function optimizePortfolioAction(holdings: unknown[]) {
     throw new Error(parsedHoldings.error.issues[0]?.message || 'Données de portefeuille invalides.');
   }
 
-  return await GeminiService.optimizePortfolio(parsedHoldings.data);
+  const parsedOptions = OptimizePortfolioOptionsSchema.safeParse(options);
+  return await GeminiService.optimizePortfolio(
+    parsedHoldings.data,
+    parsedOptions.success ? parsedOptions.data : undefined
+  );
 }
 
 export async function sendTestAlertAction(): Promise<{ success: boolean; message?: string; error?: string }> {

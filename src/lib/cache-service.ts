@@ -4,8 +4,8 @@ import { supabaseAdmin } from './supabase-server';
 class RedisClient {
   private static get config() {
     return {
-      url: process.env.UPSTASH_REDIS_REST_URL,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN
+      url: process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN
     };
   }
 
@@ -25,7 +25,8 @@ class RedisClient {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(command),
-      cache: 'no-store'
+      cache: 'no-store',
+      signal: AbortSignal.timeout(4000),
     });
 
     if (!res.ok) {
@@ -69,6 +70,7 @@ export class CacheService {
     }
 
     // Fallback Driver Supabase (DB)
+    if (!supabaseAdmin) return null;
     try {
       console.log(`[Cache] 💾 Lecture Supabase DB pour ${ticker} (${type})`);
       const { data, error } = await supabaseAdmin
@@ -118,6 +120,7 @@ export class CacheService {
     }
 
     // Fallback Driver Supabase (DB)
+    if (!supabaseAdmin) return;
     try {
       console.log(`[Cache] 💾 Écriture Supabase DB pour ${ticker} (${type})`);
       const { error } = await supabaseAdmin
@@ -142,9 +145,9 @@ export class CacheService {
   }
 
   /**
-   * Récupère une valeur générique par clé de cache (ex: hash de prompt LLM)
+   * Récupère une valeur générique par clé de cache (ex: hash de prompt LLM ou ratios)
    */
-  static async getGeneric(key: string): Promise<any | null> {
+  static async getGeneric(key: string, maxAgeMs: number = 15 * 60 * 1000): Promise<any | null> {
     if (RedisClient.isAvailable) {
       try {
         const result = await RedisClient.execute(["GET", key]);
@@ -155,6 +158,7 @@ export class CacheService {
       }
     }
 
+    if (!supabaseAdmin) return null;
     try {
       const { data, error } = await supabaseAdmin
         .from('analysis_cache')
@@ -165,9 +169,8 @@ export class CacheService {
 
       if (error || !data) return null;
 
-      // TTL générique de 15 minutes pour les appels LLM
       const createdAt = new Date(data.created_at).getTime();
-      if (Date.now() - createdAt > 15 * 60 * 1000) {
+      if (Date.now() - createdAt > maxAgeMs) {
         return null; // Expiré
       }
 
@@ -178,12 +181,11 @@ export class CacheService {
   }
 
   /**
-   * Stocke une valeur générique avec TTL
+   * Stocke une valeur générique avec TTL configurable
    */
-  static async setGeneric(key: string, value: any): Promise<void> {
+  static async setGeneric(key: string, value: any, ttlMs: number = 15 * 60 * 1000): Promise<void> {
     if (RedisClient.isAvailable) {
       try {
-        const ttlMs = 15 * 60 * 1000; // 15 min TTL
         await RedisClient.execute(["SET", key, JSON.stringify(value), "PX", ttlMs]);
         return;
       } catch (e) {
@@ -191,6 +193,7 @@ export class CacheService {
       }
     }
 
+    if (!supabaseAdmin) return;
     try {
       await supabaseAdmin
         .from('analysis_cache')
@@ -202,6 +205,36 @@ export class CacheService {
         }, { onConflict: 'ticker,type' });
     } catch (e) {
       // Ignorer l'échec de cache non critique
+    }
+  }
+
+  /**
+   * Acquiert un verrou distribué anti-cache-stampede (SET NX PX).
+   * Retourne un jeton unique si acquis, 'local' si Redis est absent/indisponible, ou null si déjà verrouillé.
+   */
+  static async acquireLock(lockKey: string, ttlMs: number = 25000): Promise<string | null> {
+    if (!RedisClient.isAvailable) return 'local';
+    const token = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    try {
+      const res = await RedisClient.execute(["SET", lockKey, token, "PX", ttlMs, "NX"]);
+      return res === 'OK' ? token : null;
+    } catch {
+      return 'local';
+    }
+  }
+
+  /**
+   * Libère un verrou distribué uniquement s'il appartient encore au même détenteur.
+   */
+  static async releaseLock(lockKey: string, token: string | null): Promise<void> {
+    if (!token || token === 'local' || !RedisClient.isAvailable) return;
+    try {
+      const current = await RedisClient.execute(["GET", lockKey]);
+      if (current === token) {
+        await RedisClient.execute(["DEL", lockKey]);
+      }
+    } catch {
+      // Expiration automatique via PX
     }
   }
 }

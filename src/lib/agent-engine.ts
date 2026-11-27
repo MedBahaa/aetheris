@@ -4,6 +4,7 @@ import { GeminiService } from './gemini';
 import { supabaseAdmin } from './supabase-server';
 import { CacheService } from './cache-service';
 import { InputSanitizer } from './input-sanitizer';
+import { ImpactValidator } from './impact-validator';
 import { 
   CompanyAnalysis, 
   AgentType, 
@@ -46,6 +47,13 @@ export function parseFrenchPrice(raw?: string | number | null): number {
   return Number.isFinite(num) && num > 0 ? num : 0;
 }
 
+export interface AtrLevelsInput {
+  dynamicStopBuy?: number;
+  dynamicTargetBuy?: number;
+  dynamicStopSell?: number;
+  dynamicTargetSell?: number;
+}
+
 /**
  * Valide et recalcule TP / SL / R:R pour garantir la cohérence mathématique vis-à-vis de l'action et du cours.
  */
@@ -54,7 +62,8 @@ export function validatePriceLevels(
   currentPrice: number,
   tp: string | undefined,
   sl: string | undefined,
-  entry?: string | undefined
+  entry?: string | undefined,
+  atrLevels?: AtrLevelsInput
 ): { tp: string; sl: string; riskRewardRatio?: string } {
   if (currentPrice <= 0 || !tp || !sl) {
     return { tp: tp || 'N/A', sl: sl || 'N/A' };
@@ -74,14 +83,22 @@ export function validatePriceLevels(
   let effectiveSl = slVal;
 
   if (action === 'ACHETER') {
-    const tpOk = tpVal > currentPrice;
+    const tpOk = tpVal > currentPrice && tpVal <= currentPrice * 2.5;
     const slOk = slVal < currentPrice && slVal >= currentPrice * 0.70;
     if (!tpOk) {
-      effectiveTp = currentPrice * 1.12;
+      const atrTp = atrLevels?.dynamicTargetBuy;
+      effectiveTp =
+        typeof atrTp === 'number' && atrTp > currentPrice && atrTp <= currentPrice * 2.5
+          ? atrTp
+          : currentPrice * 1.12;
       finalTp = `${effectiveTp.toFixed(2)} MAD ⚠️ (recalculé: TP original incohérent)`;
     }
     if (!slOk) {
-      effectiveSl = currentPrice * 0.94;
+      const atrSl = atrLevels?.dynamicStopBuy;
+      effectiveSl =
+        typeof atrSl === 'number' && atrSl < currentPrice && atrSl >= currentPrice * 0.70
+          ? atrSl
+          : currentPrice * 0.94;
       finalSl = `${effectiveSl.toFixed(2)} MAD ⚠️ (recalculé: SL original incohérent)`;
     }
     if (!tpOk || !slOk) {
@@ -91,11 +108,19 @@ export function validatePriceLevels(
     const tpOk = tpVal < currentPrice && tpVal >= currentPrice * 0.50;
     const slOk = slVal > currentPrice && slVal <= currentPrice * 1.30;
     if (!tpOk) {
-      effectiveTp = currentPrice * 0.90;
+      const atrTp = atrLevels?.dynamicTargetSell;
+      effectiveTp =
+        typeof atrTp === 'number' && atrTp < currentPrice && atrTp >= currentPrice * 0.50
+          ? atrTp
+          : currentPrice * 0.90;
       finalTp = `${effectiveTp.toFixed(2)} MAD ⚠️ (recalculé: TP original incohérent pour VENDRE)`;
     }
     if (!slOk) {
-      effectiveSl = currentPrice * 1.05;
+      const atrSl = atrLevels?.dynamicStopSell;
+      effectiveSl =
+        typeof atrSl === 'number' && atrSl > currentPrice && atrSl <= currentPrice * 1.30
+          ? atrSl
+          : currentPrice * 1.05;
       finalSl = `${effectiveSl.toFixed(2)} MAD ⚠️ (recalculé: SL original incohérent pour VENDRE)`;
     }
     if (!tpOk || !slOk) {
@@ -103,8 +128,19 @@ export function validatePriceLevels(
     }
   }
 
-  const reward = Math.abs(effectiveTp - entryVal);
-  const risk = Math.abs(entryVal - effectiveSl);
+  let effectiveEntry = currentPrice;
+  if (entryVal > 0) {
+    if (action === 'ACHETER' && entryVal > effectiveSl && entryVal < effectiveTp) {
+      effectiveEntry = entryVal;
+    } else if (action === 'VENDRE' && entryVal < effectiveSl && entryVal > effectiveTp) {
+      effectiveEntry = entryVal;
+    } else if (action !== 'ACHETER' && action !== 'VENDRE') {
+      effectiveEntry = entryVal;
+    }
+  }
+
+  const reward = Math.abs(effectiveTp - effectiveEntry);
+  const risk = Math.abs(effectiveEntry - effectiveSl);
   const riskRewardRatio = risk > 0 && reward > 0 ? `1:${(reward / risk).toFixed(1)}` : undefined;
 
   return { tp: finalTp, sl: finalSl, riskRewardRatio };
@@ -124,21 +160,24 @@ export class AetherisOrchestrator {
   private static memoryRequestCount = 0;
   private static memoryWindowStart = Date.now();
   private static readonly MAX_REQUESTS_PER_MINUTE = 60;
+  private static inFlightRequests = new Map<string, Promise<CompanyAnalysis>>();
 
   private static async checkRateLimit(): Promise<boolean> {
-    try {
-      // Vérifier en DB le nombre d'analyses créées dans la dernière minute
-      const oneMinuteAgo = new Date(Date.now() - 60000).toISOString();
-      const { count, error } = await supabaseAdmin
-        .from('analysis_cache')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', oneMinuteAgo);
-      
-      if (!error && count !== null) {
-        return count >= this.MAX_REQUESTS_PER_MINUTE;
+    if (supabaseAdmin) {
+      try {
+        // Vérifier en DB le nombre d'analyses créées dans la dernière minute
+        const oneMinuteAgo = new Date(Date.now() - 60000).toISOString();
+        const { count, error } = await supabaseAdmin
+          .from('analysis_cache')
+          .select('*', { count: 'exact', head: true })
+          .gte('created_at', oneMinuteAgo);
+        
+        if (!error && count !== null) {
+          return count >= this.MAX_REQUESTS_PER_MINUTE;
+        }
+      } catch {
+        // Fallback silencieux sur la vérification mémoire
       }
-    } catch {
-      // Fallback silencieux sur la vérification mémoire
     }
     
     // Fallback mémoire (mieux que rien)
@@ -151,7 +190,12 @@ export class AetherisOrchestrator {
     return this.memoryRequestCount > this.MAX_REQUESTS_PER_MINUTE;
   }
 
-  static async process(companyName: string, type: AgentType, forceRefresh: boolean = false): Promise<CompanyAnalysis> {
+  static async process(
+    companyName: string,
+    type: AgentType,
+    forceRefresh: boolean = false,
+    onProgress?: (step: string) => void
+  ): Promise<CompanyAnalysis> {
     
     // SECURITY: Sanitize user input before any processing
     if (InputSanitizer.detectInjection(companyName)) {
@@ -159,6 +203,7 @@ export class AetherisOrchestrator {
       throw new Error('Entrée invalide détectée.');
     }
     companyName = InputSanitizer.sanitizeCompanyName(companyName);
+    onProgress?.(`RÉSOLUTION DU TICKER & RÉFÉRENTIEL BVC : ${companyName}`);
 
     // 0. Smart Ticker Resolution (Ex: 'IAM' -> 'MAROC TELECOM')
     const queryTerm = companyName.toUpperCase().trim();
@@ -177,11 +222,13 @@ export class AetherisOrchestrator {
           ? `symbol.eq.${dbQueryTerm},symbol.eq.${resolvedAlias},name.ilike.%${dbQueryTerm}%`
           : `symbol.eq.${dbQueryTerm},name.ilike.%${dbQueryTerm}%`;
 
-      const { data: dbCompanies } = await supabaseAdmin
-        .from('companies')
-        .select('id, name, symbol, sector')
-        .or(orFilter)
-        .limit(1);
+      const { data: dbCompanies } = supabaseAdmin
+        ? await supabaseAdmin
+            .from('companies')
+            .select('id, name, symbol, sector')
+            .or(orFilter)
+            .limit(1)
+        : { data: null };
 
       const dbCompany = dbCompanies?.[0];
 
@@ -215,11 +262,13 @@ export class AetherisOrchestrator {
           resolvedName = aiResolved.companyName;
 
           // AUDIT FIX: Validate AI-resolved ticker against the companies table
-          const { data: aiValidation } = await supabaseAdmin
-            .from('companies')
-            .select('id, name, symbol, sector')
-            .eq('symbol', aiResolved.symbol.toUpperCase())
-            .maybeSingle();
+          const { data: aiValidation } = supabaseAdmin
+            ? await supabaseAdmin
+                .from('companies')
+                .select('id, name, symbol, sector')
+                .eq('symbol', aiResolved.symbol.toUpperCase())
+                .maybeSingle()
+            : { data: null };
 
           if (aiValidation) {
             // AI ticker confirmed in DB
@@ -240,11 +289,13 @@ export class AetherisOrchestrator {
 
     const searchName = resolvedName.toUpperCase();
     const searchTicker = symbol.toUpperCase();
+    onProgress?.(`TITRE IDENTIFIÉ : ${searchTicker} (${searchName})`);
     
     // 1. Check Cache first
     const cachedResult = await CacheService.get(searchTicker, type, forceRefresh);
     if (cachedResult) {
       console.log(`[Orchestrator] 🧊 CACHE HIT : Chargement instantané pour ${searchTicker} (${type}).`);
+      onProgress?.(`CACHE HIT : CHARGEMENT INSTANTANÉ (${searchTicker})`);
       return cachedResult;
     }
 
@@ -253,32 +304,65 @@ export class AetherisOrchestrator {
       throw new Error('RATE_LIMIT: Trop de requêtes. Veuillez réessayer dans quelques secondes.');
     }
 
-    console.log(`[Orchestrator] 🚀 Launching Engine: Ticker="${searchTicker}", Nom="${searchName}"`);
-    
-    // AUDIT FIX: Tracker de qualité des données
-    const dataQuality: DataQuality = {
-      score: 100,
-      warnings: [],
-      missingFields: [],
-      sources: [],
-    };
-
-    if (tickerUnverified) {
-      dataQuality.warnings.push(`Ticker résolu par IA (${symbol}) non confirmé dans le référentiel officiel.`);
-      dataQuality.score -= 15;
+    const flightKey = `${searchTicker}:${type}`;
+    if (!forceRefresh) {
+      const existingFlight = this.inFlightRequests.get(flightKey);
+      if (existingFlight) {
+        onProgress?.(`COALESCENCE : REQUÊTE SIMULTANÉE DÉJÀ EN COURS (${searchTicker})`);
+        return existingFlight;
+      }
     }
 
-    let result: Partial<CompanyAnalysis> = {
-      id: companyDbId || Math.random().toString(36).substring(2, 11),
-      companyName: resolvedName,
-      sector: sector,
-      date: new Date().toLocaleDateString('fr-FR'),
-      type: type,
-    };
+    const computeAnalysis = async (): Promise<CompanyAnalysis> => {
+      const lockKey = `aetheris:lock:${type}:${searchTicker}`;
+      let lockToken = await CacheService.acquireLock(lockKey, 25000);
+      if (!lockToken && !forceRefresh) {
+        onProgress?.(`ATTENTE DU VERROU DISTRIBUÉ (${searchTicker})...`);
+        await new Promise((r) => setTimeout(r, 800));
+        const warmed = await CacheService.get(searchTicker, type, false);
+        if (warmed) return warmed;
+        lockToken = await CacheService.acquireLock(lockKey, 25000);
+      }
 
-    try {
-      if (type === 'SENTIMENT') {
-        const newsData = await NewsWorker.analyze(searchName);
+      console.log(`[Orchestrator] 🚀 Launching Engine: Ticker="${searchTicker}", Nom="${searchName}"`);
+      
+      // AUDIT FIX: Tracker de qualité des données
+      const dataQuality: DataQuality = {
+        score: 100,
+        warnings: [],
+        missingFields: [],
+        sources: [],
+      };
+
+      if (tickerUnverified) {
+        dataQuality.warnings.push(`Ticker résolu par IA (${symbol}) non confirmé dans le référentiel officiel.`);
+        dataQuality.score -= 15;
+      }
+
+      let result: Partial<CompanyAnalysis> = {
+        id: companyDbId || Math.random().toString(36).substring(2, 11),
+        companyName: resolvedName,
+        sector: sector,
+        date: new Date().toLocaleDateString('fr-FR'),
+        type: type,
+      };
+
+      try {
+        if (type === 'SENTIMENT') {
+          onProgress?.(`COLLECTE DES FLUX RSS INSTITUTIONNELS (AMMC / PRESSE)...`);
+          const [newsData, reliabilityScore] = await Promise.all([
+            NewsWorker.analyze(searchName),
+            companyDbId
+              ? ImpactValidator.getAgentReliabilityScore(companyDbId).catch(() => undefined)
+              : Promise.resolve(undefined),
+          ]);
+          if (typeof reliabilityScore === 'number') {
+            dataQuality.agentReliabilityScore = reliabilityScore;
+            if (reliabilityScore < 50) {
+              dataQuality.score -= 10;
+              dataQuality.warnings.push(`Fiabilité historique mesurée modérée (${reliabilityScore}/100) sur ce titre.`);
+            }
+          }
         
         // --- AUDIT IMPROVEMENT: HISTORISATION & MOMENTUM ---
         if (newsData.news && companyDbId) {
@@ -310,7 +394,9 @@ export class AetherisOrchestrator {
         }
       } 
       else if (type === 'TECHNICAL') {
+        onProgress?.(`COLLECTE DES COURS LIVE, HISTORIQUES & INDICE MASI...`);
         const marketData = await MarketWorker.analyze(searchName);
+        onProgress?.(`CALCUL ATR(14), BANDES BOLLINGER & INDICATEURS QUANTITATIFS...`);
         const cleanedMarket = this.cleanMarketData(marketData);
         result = {
           ...result,
@@ -367,9 +453,11 @@ export class AetherisOrchestrator {
         }
       } 
       else if (type === 'FUNDAMENTAL') {
-        // On récupère le prix d'abord pour ancrer l'IA
-        const marketData = await MarketWorker.analyze(searchName);
-        const fundamentalData = await FundamentalWorker.analyze(searchName, marketData.price, { name: resolvedName, symbol: searchTicker });
+        onProgress?.(`EXTRACTION FONDAMENTAUX BVC & BENCHMARKS SECTORIELS...`);
+        const [marketData, fundamentalData] = await Promise.all([
+          MarketWorker.analyze(searchName),
+          FundamentalWorker.analyze(searchName, undefined, { name: resolvedName, symbol: searchTicker }),
+        ]);
         result = { 
           ...result, 
           globalSentiment: 'NEUTRE',
@@ -408,10 +496,21 @@ export class AetherisOrchestrator {
         
         // Collecte Parallèle (Gain de temps massif)
         console.log(`[Orchestrator] Collecte de données en parallèle pour ${searchName}...`);
-        const [newsData, marketData] = await Promise.all([
+        onProgress?.(`COLLECTE PARALLÈLE : NEWS AMMC + MARCHÉ LIVE + HISTORIQUE...`);
+        const [newsData, marketData, reliabilityScore] = await Promise.all([
           NewsWorker.analyze(searchName),
-          MarketWorker.analyze(searchName)
+          MarketWorker.analyze(searchName),
+          companyDbId
+            ? ImpactValidator.getAgentReliabilityScore(companyDbId).catch(() => undefined)
+            : Promise.resolve(undefined),
         ]);
+        if (typeof reliabilityScore === 'number') {
+          dataQuality.agentReliabilityScore = reliabilityScore;
+          if (reliabilityScore < 50) {
+            dataQuality.score -= 10;
+            dataQuality.warnings.push(`Fiabilité historique mesurée modérée (${reliabilityScore}/100) sur ce titre.`);
+          }
+        }
         
         // AUDIT FIX: Circuit breaker — Vérifier les données avant de continuer
         if (marketData.price === 'INDISPONIBLE') {
@@ -444,18 +543,19 @@ export class AetherisOrchestrator {
           return finalResult;
         }
 
-        // Les fondamentaux dépendent du prix pour l'IA fallback
-        const fundamentalData = await FundamentalWorker.analyze(searchName, marketData.price, { name: resolvedName, symbol: searchTicker });
-        
+        // Collecte en parallèle des fondamentaux et du contexte macroéconomique
+        onProgress?.(`EXTRACTION FONDAMENTAUX, BENCHMARKS SECTORIELS & MACRO BAM...`);
+        const [fundamentalData, macroData] = await Promise.all([
+          FundamentalWorker.analyze(searchName, marketData.price, { name: resolvedName, symbol: searchTicker }),
+          MacroScraper.getMacroData(),
+        ]);
+
         const cleanedMarket = this.cleanMarketData(marketData);
-        
+
         // Enrichissement des fondamentaux avec le secteur de la DB
         if (fundamentalData.fundamentals) {
           fundamentalData.fundamentals.sector = sector;
         }
-
-        // Fetch Macro Data (Pétrole, Or, USD/MAD) pour contextualiser l'IA
-        const macroData = await MacroScraper.getMacroData();
         
         // Sources tracking
         const actualSources = new Set<string>(['RSS']);
@@ -471,10 +571,11 @@ export class AetherisOrchestrator {
         if (macroData) dataQuality.sources.push('YAHOO');
 
         // Signal Premium
-        const rsiVal = typeof cleanedMarket.rsi === 'object' ? parseFloat(cleanedMarket.rsi.value) : 50;
+        const rsiVal = typeof cleanedMarket.rsi === 'object' ? parseFloat(String(cleanedMarket.rsi.value)) : NaN;
         const sentScore = newsData.globalScore || 0;
-        const isPremium = (sentScore > 0.4 && rsiVal < 40) || (sentScore < -0.4 && rsiVal > 65);
+        const isPremium = Number.isFinite(rsiVal) && ((sentScore > 0.4 && rsiVal < 40) || (sentScore < -0.4 && rsiVal > 65));
 
+        onProgress?.(`SYNTHÈSE STRATÉGIQUE MULTI-HORIZONS IA EN COURS...`);
         let orchestratorResult = await GeminiService.synthesizeAnalysis(
           searchName, 
           newsData, 
@@ -485,6 +586,7 @@ export class AetherisOrchestrator {
         );
         let strategyPlan: string | null = null;
         let horizons = (orchestratorResult as any)?.horizons;
+        let resolvedRegime = StrategyWorker.detectMarketRegime(cleanedMarket);
         
         if (orchestratorResult) {
           orchestratorResult.isAI = true;
@@ -503,6 +605,7 @@ export class AetherisOrchestrator {
           }
         } else {
           const strategyData = StrategyWorker.synthesize(newsData, cleanedMarket);
+          resolvedRegime = strategyData.marketRegime || resolvedRegime;
           orchestratorResult = this.generateFinalOrchestration(searchName, newsData, cleanedMarket, strategyData);
           strategyPlan = strategyData.strategyPlan || null;
           dataQuality.score -= 20;
@@ -534,10 +637,14 @@ export class AetherisOrchestrator {
           strategyPlan = JSON.stringify(strategyPlan, null, 2);
         }
         
-        // AUDIT FIX: Post-traitement transparent pour les prix cibles
-        const sanitizePriceField = (val: string | undefined, pType: 'TP' | 'SL', current: number) => {
+        // AUDIT FIX: Post-traitement transparent pour les prix cibles (symétrique BUY / SELL)
+        const sanitizePriceField = (val: string | undefined, pType: 'TP' | 'SL', current: number, action?: string) => {
           if (!val || val === 'N/A' || val.includes('...')) {
             if (current <= 0) return 'N/A (prix de base indisponible)';
+            if (action === 'VENDRE') {
+              if (pType === 'TP') return `${(current * 0.90).toFixed(2)} MAD ⚠️ (défaut -10%, non validé techniquement)`;
+              return `${(current * 1.05).toFixed(2)} MAD ⚠️ (défaut +5%, non validé techniquement)`;
+            }
             if (pType === 'TP') return `${(current * 1.15).toFixed(2)} MAD ⚠️ (défaut +15%, non validé techniquement)`;
             return `${(current * 0.94).toFixed(2)} MAD ⚠️ (défaut -6%, non validé techniquement)`;
           }
@@ -546,32 +653,24 @@ export class AetherisOrchestrator {
 
         const currentVal = parseFrenchPrice(cleanedMarket.price);
 
-        if (orchestratorResult) {
-          const rootValidated = validatePriceLevels(
-            orchestratorResult.finalAction,
-            currentVal,
-            orchestratorResult.takeProfit,
-            orchestratorResult.stopLoss,
-            orchestratorResult.idealEntryPoint
-          );
-          orchestratorResult.takeProfit = rootValidated.tp;
-          orchestratorResult.stopLoss = rootValidated.sl;
-          if (rootValidated.riskRewardRatio) {
-            orchestratorResult.riskRewardRatio = rootValidated.riskRewardRatio;
-          }
-        }
-
         if (horizons) {
-          // Sécuriser chaque horizon avec parseFrenchPrice + validatePriceLevels
+          // Sécuriser chaque horizon avec parseFrenchPrice + validatePriceLevels (bornes ATR si présentes)
           (['shortTerm', 'mediumTerm', 'longTerm'] as const).forEach(h => {
              const hData = horizons[h];
              if (hData) {
-               hData.takeProfit = sanitizePriceField(hData.takeProfit, 'TP', currentVal);
-               hData.stopLoss = sanitizePriceField(hData.stopLoss, 'SL', currentVal);
+               hData.takeProfit = sanitizePriceField(hData.takeProfit, 'TP', currentVal, hData.finalAction);
+               hData.stopLoss = sanitizePriceField(hData.stopLoss, 'SL', currentVal, hData.finalAction);
                hData.idealEntryPoint = hData.idealEntryPoint && hData.idealEntryPoint !== 'N/A' 
                  ? hData.idealEntryPoint : (cleanedMarket.support && cleanedMarket.support !== 'N/A' ? cleanedMarket.support : (cleanedMarket.price || 'MARKET'));
 
-               const validated = validatePriceLevels(hData.finalAction, currentVal, hData.takeProfit, hData.stopLoss, hData.idealEntryPoint);
+               const validated = validatePriceLevels(
+                 hData.finalAction,
+                 currentVal,
+                 hData.takeProfit,
+                 hData.stopLoss,
+                 hData.idealEntryPoint,
+                 cleanedMarket.atr
+               );
                hData.takeProfit = validated.tp;
                hData.stopLoss = validated.sl;
                if (validated.riskRewardRatio) {
@@ -579,6 +678,65 @@ export class AetherisOrchestrator {
                }
              }
           });
+        }
+
+        const needsPriceSync = (v?: string) => !v || v === 'N/A' || v.includes('...');
+        if (orchestratorResult && horizons?.shortTerm) {
+          const st = horizons.shortTerm;
+          if (!orchestratorResult.finalAction && st.finalAction) {
+            orchestratorResult.finalAction = st.finalAction;
+          }
+          if (needsPriceSync(orchestratorResult.takeProfit) && st.takeProfit) {
+            orchestratorResult.takeProfit = st.takeProfit;
+          }
+          if (needsPriceSync(orchestratorResult.stopLoss) && st.stopLoss) {
+            orchestratorResult.stopLoss = st.stopLoss;
+          }
+          if ((!orchestratorResult.idealEntryPoint || orchestratorResult.idealEntryPoint === 'N/A') && st.idealEntryPoint) {
+            orchestratorResult.idealEntryPoint = st.idealEntryPoint;
+          }
+          if (!orchestratorResult.riskRewardRatio && st.riskRewardRatio) {
+            orchestratorResult.riskRewardRatio = st.riskRewardRatio;
+          }
+          if (!orchestratorResult.confidenceLevel && st.confidenceLevel) {
+            orchestratorResult.confidenceLevel = st.confidenceLevel;
+          }
+        }
+
+        // Garde de cohérence multi-horizons : signal ACHETER CT contredit par MT/LT
+        const isIlliquidTitle = Boolean(marketData.liquidityWarning && marketData.liquidityWarning.isLiquid === false);
+        const shortAction = horizons?.shortTerm?.finalAction;
+        const medAction = horizons?.mediumTerm?.finalAction;
+        const longAction = horizons?.longTerm?.finalAction;
+        const hasMultiHorizonDivergence =
+          shortAction === 'ACHETER' &&
+          ((medAction === 'VENDRE' && longAction === 'VENDRE') ||
+            (isIlliquidTitle && longAction === 'VENDRE'));
+        if (hasMultiHorizonDivergence && horizons?.shortTerm && orchestratorResult) {
+          horizons.shortTerm.confidenceLevel = 'Faible';
+          orchestratorResult.confidenceLevel = 'Faible';
+          const coherenceNote =
+            'Divergence multi-horizons : signal acheteur court terme contredit par les perspectives moyen/long terme.';
+          orchestratorResult.contradictionDetected = orchestratorResult.contradictionDetected
+            ? `${orchestratorResult.contradictionDetected} | ${coherenceNote}`
+            : coherenceNote;
+          dataQuality.warnings.push(`⚠️ ${coherenceNote}`);
+        }
+
+        if (orchestratorResult) {
+          const rootValidated = validatePriceLevels(
+            orchestratorResult.finalAction,
+            currentVal,
+            orchestratorResult.takeProfit,
+            orchestratorResult.stopLoss,
+            orchestratorResult.idealEntryPoint,
+            cleanedMarket.atr
+          );
+          orchestratorResult.takeProfit = rootValidated.tp;
+          orchestratorResult.stopLoss = rootValidated.sl;
+          if (rootValidated.riskRewardRatio) {
+            orchestratorResult.riskRewardRatio = rootValidated.riskRewardRatio;
+          }
         }
 
         let idealEntry = horizons?.shortTerm?.idealEntryPoint || orchestratorResult?.idealEntryPoint;
@@ -610,6 +768,7 @@ export class AetherisOrchestrator {
           isAI: Boolean(orchestratorResult?.isAI),
           isPremiumSignal: isPremium,
           fibonacci: (cleanedMarket as any).fibonacci || undefined,
+          marketRegime: resolvedRegime,
         };
 
         // Sécurité ultime pour les 5 valeurs de SentimentSchema (ne jamais écraser FORTEMENT_POSITIF/NEGATIF)
@@ -620,6 +779,8 @@ export class AetherisOrchestrator {
           result.recommendedAction = 'ATTENDRE';
         }
       }
+
+      onProgress?.(`VALIDATION ZOD & ENREGISTREMENT CACHE...`);
 
       // AUDIT FIX: Clamp data quality score
       dataQuality.score = Math.max(0, Math.min(100, dataQuality.score));
@@ -666,10 +827,14 @@ export class AetherisOrchestrator {
             news: [],
             signals: ['Erreur de format IA - Signaux non disponibles'],
             technicalTrend: 'Neutre',
-            momentumScore: '50/100',
             marketSituation: 'L\'IA a généré un format de données invalide.',
             strategyPlan: 'Veuillez relancer l\'analyse. Les données reçues sont corrompues.',
-            dataQuality: { score: 10, warnings: ['Format de données invalide (Crash interface évité)'] },
+            dataQuality: {
+              score: 10,
+              warnings: ['Format de données invalide (Crash interface évité)'],
+              missingFields: [],
+              sources: [],
+            },
             orchestrator: {
               finalAction: 'ATTENDRE',
               idealEntryPoint: 'MARKET',
@@ -678,7 +843,7 @@ export class AetherisOrchestrator {
               risk: 'Moyen',
               why: 'Impossible de parser la stratégie suite à une erreur de formatage Gemini.',
               keyPoints: ['Analyse indisponible', 'Format JSON corrompu'],
-              isAI: true
+              isAI: false
             },
             horizons: {
               shortTerm: {
@@ -689,7 +854,7 @@ export class AetherisOrchestrator {
                 risk: 'Moyen',
                 why: 'Analyse indisponible',
                 keyPoints: ['Erreur de parsing'],
-                isAI: true
+                isAI: false
               }
             }
           } as unknown as CompanyAnalysis;
@@ -707,9 +872,24 @@ export class AetherisOrchestrator {
 
       return finalResult;
 
-    } catch (error) {
-      console.error("Orchestration Error:", error);
-      throw error;
+      } catch (error) {
+        console.error("Orchestration Error:", error);
+        throw error;
+      } finally {
+        await CacheService.releaseLock(lockKey, lockToken);
+      }
+    };
+
+    const flightPromise = computeAnalysis();
+    if (!forceRefresh) {
+      this.inFlightRequests.set(flightKey, flightPromise);
+    }
+    try {
+      return await flightPromise;
+    } finally {
+      if (!forceRefresh && this.inFlightRequests.get(flightKey) === flightPromise) {
+        this.inFlightRequests.delete(flightKey);
+      }
     }
   }
 
@@ -725,10 +905,12 @@ export class AetherisOrchestrator {
   ): OrchestratorResult {
     
     let contradiction = undefined;
-    if (news.globalSentiment === 'POSITIF' && market.marketSituation?.includes('baissière')) {
+    const isPositiveNews = news.globalSentiment === 'POSITIF' || news.globalSentiment === 'FORTEMENT_POSITIF';
+    const isNegativeNews = news.globalSentiment === 'NEGATIF' || news.globalSentiment === 'FORTEMENT_NEGATIF';
+    if (isPositiveNews && (market.technicalTrend === 'Baissière' || market.marketSituation?.toLowerCase().includes('baissière'))) {
       contradiction = "Divergence détectée : Le sentiment d'actualité est positif mais la tendance technique actuelle est baissière. Prudence accrue recommandée.";
     }
-    if (news.globalSentiment === 'NEGATIF' && market.technicalTrend === 'Haussière') {
+    if (isNegativeNews && (market.technicalTrend === 'Haussière' || market.marketSituation?.toLowerCase().includes('haussière'))) {
       contradiction = "Divergence détectée : Le sentiment d'actualité est négatif mais la tendance technique est haussière. Signal contradictoire.";
     }
 

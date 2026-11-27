@@ -11,12 +11,35 @@ export interface NewsArticle {
   contentSnippet: string;
   source: string;
   fullContent?: string; // Ajouté par l'audit : Contenu scrapé en profondeur
+  corroboratingSourcesCount?: number;
 }
 
 export enum SourceType {
   OFFICIAL = 'OFFICIAL',     // AMMC, Communiqués
   SPECIALIZED = 'SPECIALIZED', // Médias24 (Le Boursier), BMCE
   GENERAL = 'GENERAL'        // Google News, Presse généraliste
+}
+
+/**
+ * Classifie la source d'un article selon sa hiérarchie institutionnelle BVC.
+ */
+export function classifyNewsSourceType(source: string, link: string = ''): SourceType {
+  const s = (source || '').toLowerCase();
+  const l = (link || '').toLowerCase();
+  if (s.includes('ammc') || s.includes('bvc') || l.includes('ammc.ma') || l.includes('casablanca-bourse.com')) {
+    return SourceType.OFFICIAL;
+  }
+  if (
+    s.includes('médias24') ||
+    s.includes('medias24') ||
+    s.includes('bourse news') ||
+    s.includes('challenge') ||
+    l.includes('boursenews.ma') ||
+    l.includes('challenge.ma')
+  ) {
+    return SourceType.SPECIALIZED;
+  }
+  return SourceType.GENERAL;
 }
 
 const ALLOWED_DEEP_SCRAPE_HOSTS = new Set([
@@ -200,6 +223,10 @@ export class NewsEngine {
       {
         name: 'Google News',
         url: `https://news.google.com/rss/search?q=${encodeURIComponent(queryStr)}&hl=fr-MA&gl=MA&ceid=MA:fr`
+      },
+      {
+        name: 'AMMC & BVC Communiqués',
+        url: `https://news.google.com/rss/search?q=${encodeURIComponent(`(${termsGroup}) AND (site:ammc.ma OR site:casablanca-bourse.com OR "communiqué" OR "avis" OR "franchissement")`)}&hl=fr-MA&gl=MA&ceid=MA:fr`
       }
     ];
     
@@ -216,7 +243,7 @@ export class NewsEngine {
             this.parser.parseURL(feed.url),
             timeoutPromise
           ]);
-          return content.items.map(item => {
+          const items = content.items.map(item => {
             let actualTitle = item.title || '';
             let actualSource = feed.name;
 
@@ -236,20 +263,21 @@ export class NewsEngine {
               source: actualSource
             };
           });
+          return { ok: true, items };
         } catch (e) {
           console.warn(`[NewsEngine] ⚠️ Feed "${feed.name}" échoué: ${(e as Error).message?.substring(0, 60)}`);
-          return [];
+          return { ok: false, items: [] as NewsArticle[] };
         }
       })
     );
 
     results.forEach(res => {
       if (res.status === 'fulfilled') {
-        articles.push(...res.value);
+        articles.push(...res.value.items);
       }
     });
 
-    const successCount = results.filter(r => r.status === 'fulfilled' && (r.value as any[]).length > 0).length;
+    const successCount = results.filter(r => r.status === 'fulfilled' && r.value.ok).length;
     const metrics = {
       successCount,
       totalFeeds: allFeeds.length,
@@ -296,8 +324,7 @@ export class NewsEngine {
     // 3. Scraping profond uniquement sur les 5 plus récents (tout en conservant jusqu'à 15 articles uniques)
     const enrichedTop5 = await Promise.all(
       uniqueTop.slice(0, 5).map(async (article) => {
-        const sourceType = article.source.includes('AMMC') ? SourceType.OFFICIAL : 
-                           (article.source.includes('Médias24') || article.source.includes('Bourse News') || article.link.includes('boursenews.ma')) ? SourceType.SPECIALIZED : SourceType.GENERAL;
+        const sourceType = classifyNewsSourceType(article.source, article.link);
         if (sourceType !== SourceType.GENERAL) {
           const fullContent = await this.fetchFullContent(article.link, sourceType);
           if (fullContent) {
@@ -360,8 +387,11 @@ export class NewsEngine {
       let content = '';
 
       if (sourceType === SourceType.SPECIALIZED) {
-        // Sélecteurs Medias24 / Le Boursier
+        // Sélecteurs Medias24 / Le Boursier / Challenge.ma
         content = $('.entry-content p, .td-post-content p').map((_, el) => $(el).text()).get().join('\n');
+        if (!content.trim()) {
+          content = $('article p').map((_, el) => $(el).text()).get().join('\n');
+        }
       } else if (sourceType === SourceType.OFFICIAL) {
         // Sélecteurs AMMC
         content = $('.field-name-body .field-item, .node-content p').map((_, el) => $(el).text()).get().join('\n');
@@ -391,7 +421,9 @@ export class NewsEngine {
    */
   private getJaccardSimilarity(str1: string, str2: string): number {
     const cleanWords = (s: string) => s.toLowerCase()
-      .replace(/[^a-z0-9\s]/g, '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
       .split(/\s+/)
       .filter(w => w.length > 2); // Exclure les mots trop courts comme "le", "de", "la"
 
@@ -406,20 +438,37 @@ export class NewsEngine {
     return intersection.size / union.size;
   }
 
+  private getSourcePriority(source: string, link: string): number {
+    const type = classifyNewsSourceType(source, link);
+    return type === SourceType.OFFICIAL ? 3 : type === SourceType.SPECIALIZED ? 2 : 1;
+  }
+
   /**
-   * Dédoublonnage sémantique avancé par similarité de Jaccard
+   * Dédoublonnage sémantique par clusters Jaccard conservant la source la plus fiable
    */
   private deduplicateArticles(articles: NewsArticle[]): NewsArticle[] {
     const uniqueList: NewsArticle[] = [];
-    
-    for (const article of articles) {
-      const isDuplicate = uniqueList.some(inserted => {
-        const similarity = this.getJaccardSimilarity(inserted.title, article.title);
-        return similarity > 0.55; // Seuil de similarité (55% de mots communs)
-      });
 
-      if (!isDuplicate) {
-        uniqueList.push(article);
+    for (const article of articles) {
+      const matchIdx = uniqueList.findIndex(
+        inserted => this.getJaccardSimilarity(inserted.title, article.title) > 0.55
+      );
+
+      if (matchIdx === -1) {
+        uniqueList.push({ ...article, corroboratingSourcesCount: 1 });
+      } else {
+        const existing = uniqueList[matchIdx];
+        const count = (existing.corroboratingSourcesCount || 1) + 1;
+        const existingPrio = this.getSourcePriority(existing.source, existing.link);
+        const newPrio = this.getSourcePriority(article.source, article.link);
+        const existingTs = new Date(existing.pubDate).getTime() || 0;
+        const newTs = new Date(article.pubDate).getTime() || 0;
+
+        if (newPrio > existingPrio || (newPrio === existingPrio && newTs > existingTs)) {
+          uniqueList[matchIdx] = { ...article, corroboratingSourcesCount: count };
+        } else {
+          existing.corroboratingSourcesCount = count;
+        }
       }
     }
 

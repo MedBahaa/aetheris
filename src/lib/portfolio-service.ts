@@ -3,6 +3,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { BROKERAGE_FEE, TAX_ON_PROFIT, DIVIDEND_NET_RATIO } from './portfolio-constants';
 import { MarketListScraper } from './scrapers/market-list-scraper';
 import { InputSanitizer } from './input-sanitizer';
+import { SymbolMapper } from './symbol-mapper';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_BULK_IMPORT_ROWS = 500;
@@ -995,4 +996,107 @@ export class PortfolioService {
 
     return sorted;
   }
+}
+
+export interface ConsolidatedPurificationItem {
+  symbol: string;
+  dividendDate: string;
+  sharesHeld: number;
+  amountPerShare: number;
+  grossDividendMAD: number;
+  purificationRatePct: number;
+  purificationAmountMAD: number;
+  halalNetMAD: number;
+}
+
+export interface ConsolidatedPurificationSummary {
+  items: ConsolidatedPurificationItem[];
+  totalGrossMAD: number;
+  totalPurificationMAD: number;
+  totalHalalMAD: number;
+}
+
+/**
+ * Calcule la purification consolidée multi-dividendes selon les titres réellement détenus
+ * à chaque date de détachement (historique achats/ventes) et arrondit au dirham supérieur (AAOIFI).
+ */
+export function computeConsolidatedPurification(
+  dividends: DividendTransaction[],
+  transactions: PortfolioTransaction[],
+  ratesByTicker: Record<string, number>,
+): ConsolidatedPurificationSummary {
+  const normalizedRates: Record<string, number> = {};
+  for (const [key, val] of Object.entries(ratesByTicker || {})) {
+    const resolved = SymbolMapper.resolve(key).toUpperCase();
+    if (resolved && Number.isFinite(val) && val >= 0) {
+      normalizedRates[resolved] = val;
+    }
+    const rawKey = key.trim().toUpperCase();
+    if (rawKey && Number.isFinite(val) && val >= 0) {
+      normalizedRates[rawKey] = val;
+    }
+  }
+
+  const items: ConsolidatedPurificationItem[] = [];
+  let totalGrossMAD = 0;
+  let totalPurificationMAD = 0;
+  let totalHalalMAD = 0;
+
+  for (const div of dividends) {
+    const resolvedSym = SymbolMapper.resolve(div.symbol).toUpperCase();
+    const rawSym = div.symbol.trim().toUpperCase();
+    const rate = normalizedRates[resolvedSym] ?? normalizedRates[rawSym];
+    if (rate === undefined || !Number.isFinite(rate)) continue;
+
+    const divDate = (div.dividend_date || '').slice(0, 10);
+    const matchingTxs = transactions
+      .filter((tx) => {
+        const txResolved = SymbolMapper.resolve(tx.symbol).toUpperCase();
+        const txRaw = tx.symbol.trim().toUpperCase();
+        const sameSymbol = txResolved === resolvedSym || txRaw === rawSym;
+        const txDate = (tx.buy_date || '').slice(0, 10);
+        return sameSymbol && (!divDate || !txDate || txDate <= divDate);
+      })
+      .sort((a, b) => (a.buy_date || '').localeCompare(b.buy_date || ''));
+
+    let sharesHeld = 0;
+    for (const tx of matchingTxs) {
+      if (tx.type === 'SELL') {
+        sharesHeld = Math.max(0, sharesHeld - Number(tx.quantity || 0));
+      } else {
+        sharesHeld += Number(tx.quantity || 0);
+      }
+    }
+
+    if (sharesHeld <= 0) continue;
+
+    const amountPerShare = Number(div.amount_per_share || 0);
+    if (!Number.isFinite(amountPerShare) || amountPerShare <= 0) continue;
+
+    const grossDividendMAD = Number((sharesHeld * amountPerShare).toFixed(2));
+    const purificationAmountMAD = Math.ceil(grossDividendMAD * (rate / 100));
+    const halalNetMAD = Number(Math.max(0, grossDividendMAD - purificationAmountMAD).toFixed(2));
+
+    items.push({
+      symbol: resolvedSym || rawSym,
+      dividendDate: divDate || div.dividend_date,
+      sharesHeld,
+      amountPerShare,
+      grossDividendMAD,
+      purificationRatePct: rate,
+      purificationAmountMAD,
+      halalNetMAD,
+    });
+
+    totalGrossMAD += grossDividendMAD;
+    totalPurificationMAD += purificationAmountMAD;
+    totalHalalMAD += halalNetMAD;
+  }
+
+  return {
+    items,
+    totalGrossMAD: Number(totalGrossMAD.toFixed(2)),
+    totalPurificationMAD: Number(totalPurificationMAD.toFixed(2)),
+    totalHalalMAD: Number(totalHalalMAD.toFixed(2)),
+  };
 }

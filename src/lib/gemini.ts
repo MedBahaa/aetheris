@@ -5,6 +5,7 @@ import { InputSanitizer } from './input-sanitizer';
 import crypto from 'crypto';
 import { CacheService } from './cache-service';
 import { TradingViewScraper, isHaramIndustryOrSector } from './scrapers/tradingview-scraper';
+import { BROKERAGE_FEE } from './portfolio-constants';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -15,7 +16,21 @@ interface FundamentalInput {
   marketCap?: string;
   netProfit?: string;
   roe?: string;
+  margin?: string;
+  revenueGrowth?: string;
+  profitGrowth?: string;
   status?: string;
+  sectorBenchmark?: {
+    sectorName?: string;
+    medianPe?: number | null;
+    peVsSectorPct?: number | null;
+    valuationVerdict?: string;
+  };
+  fundamentalQualityScore?: {
+    score: number;
+    grade: string;
+    highlights?: string[];
+  };
 }
 
 interface MacroInput {
@@ -338,7 +353,28 @@ function sanitizeAIResult(obj: any): any {
   const opportunityMap = { "oui": "Oui", "yes": "Oui", "non": "Non", "no": "Non", "surveiller": "À surveiller", "a surveiller": "À surveiller", "watch": "À surveiller" };
   const actionMap = { "acheter": "ACHETER", "buy": "ACHETER", "vendre": "VENDRE", "sell": "VENDRE", "attendre": "ATTENDRE", "hold": "ATTENDRE", "wait": "ATTENDRE" };
 
+  const sentimentMap: Record<string, string> = {
+    "fortement_positif": "FORTEMENT_POSITIF",
+    "fortement positif": "FORTEMENT_POSITIF",
+    "tres positif": "FORTEMENT_POSITIF",
+    "strongly positive": "FORTEMENT_POSITIF",
+    "positif": "POSITIF",
+    "positive": "POSITIF",
+    "neutre": "NEUTRE",
+    "neutral": "NEUTRE",
+    "negatif": "NEGATIF",
+    "negative": "NEGATIF",
+    "fortement_negatif": "FORTEMENT_NEGATIF",
+    "fortement negatif": "FORTEMENT_NEGATIF",
+    "tres negatif": "FORTEMENT_NEGATIF",
+    "strongly negative": "FORTEMENT_NEGATIF",
+  };
   const impactMap = { "court terme": "Court terme", "short term": "Court terme", "moyen terme": "Moyen terme", "medium term": "Moyen terme", "long terme": "Long terme", "long term": "Long terme" };
+
+  const clampScore = (val: unknown): number => {
+    const num = typeof val === 'number' ? val : Number(val);
+    return Number.isFinite(num) ? Math.max(-1, Math.min(1, num)) : 0;
+  };
 
   // Appliquer récursivement sur les horizons et l'objet racine
   const processEntry = (entry: any) => {
@@ -349,6 +385,8 @@ function sanitizeAIResult(obj: any): any {
     if (entry.opportunity) entry.opportunity = mapValue(entry.opportunity, opportunityMap, "À surveiller");
     if (entry.finalAction) entry.finalAction = mapValue(entry.finalAction, actionMap, "ATTENDRE");
     if (entry.recommendedAction) entry.recommendedAction = mapValue(entry.recommendedAction, actionMap, "ATTENDRE");
+    if (entry.globalSentiment) entry.globalSentiment = mapValue(entry.globalSentiment, sentimentMap, "NEUTRE");
+    if (entry.globalScore !== undefined) entry.globalScore = clampScore(entry.globalScore);
     if (entry.riskExplication && typeof entry.riskExplication === 'object') entry.riskExplication = JSON.stringify(entry.riskExplication);
   };
 
@@ -359,10 +397,20 @@ function sanitizeAIResult(obj: any): any {
     if (obj.horizons.longTerm) processEntry(obj.horizons.longTerm);
   }
 
-  if (Array.isArray(obj.news)) {
-    obj.news.forEach((newsItem: any) => {
-      if (newsItem.impact) newsItem.impact = mapValue(newsItem.impact, impactMap, "Court terme");
+  const normalizeNewsItems = (items: any[]) => {
+    items.forEach((item: any) => {
+      if (!item || typeof item !== 'object') return;
+      if (item.impact) item.impact = mapValue(item.impact, impactMap, "Court terme");
+      if (item.sentiment !== undefined) item.sentiment = mapValue(item.sentiment, sentimentMap, "NEUTRE");
+      if (item.score !== undefined) item.score = clampScore(item.score);
     });
+  };
+
+  if (Array.isArray(obj.news)) {
+    normalizeNewsItems(obj.news);
+  }
+  if (Array.isArray(obj.details)) {
+    normalizeNewsItems(obj.details);
   }
 
   return obj;
@@ -459,6 +507,14 @@ export interface ValidatedPortfolioOrder {
   symbol: string;
   quantity: number;
   reason: string;
+  estimatedPriceMAD?: number;
+  estimatedAmountMAD?: number;
+  estimatedFeeMAD?: number;
+}
+
+export interface PortfolioOptimizationOptions {
+  shariaOnly?: boolean;
+  availableCashMAD?: number;
 }
 
 export interface ValidatedPortfolioOptimization {
@@ -466,19 +522,95 @@ export interface ValidatedPortfolioOptimization {
   orders: ValidatedPortfolioOrder[];
   rationale: string;
   isAI: boolean;
+  shariaMode?: boolean;
+  blockedHaramOrdersCount?: number;
+  feesSummary?: {
+    feeRatePct: number;
+    totalBuyAmountMAD: number;
+    totalSellAmountMAD: number;
+    totalEstimatedFeesMAD: number;
+    netCashImpactMAD: number;
+  };
+  diversification?: {
+    hhiCurrent: number;
+    hhiTarget: number;
+    scoreBefore: number;
+    scoreAfter: number;
+    concentrationRisk: 'FAIBLE' | 'MODÉRÉ' | 'ÉLEVÉ';
+  };
+}
+
+function computeHhiDiversification(allocations: ValidatedPortfolioAllocation[]) {
+  if (!allocations || allocations.length === 0) return undefined;
+  const hhiCurrent = Math.round(allocations.reduce((s, a) => s + a.current * a.current, 0));
+  const hhiTarget = Math.round(allocations.reduce((s, a) => s + a.target * a.target, 0));
+  const toScore = (hhi: number) => Math.max(0, Math.min(100, Math.round(100 - (hhi - 1000) / 90)));
+  const concentrationRisk: 'FAIBLE' | 'MODÉRÉ' | 'ÉLEVÉ' =
+    hhiCurrent > 2500 ? 'ÉLEVÉ' : hhiCurrent > 1500 ? 'MODÉRÉ' : 'FAIBLE';
+  return {
+    hhiCurrent,
+    hhiTarget,
+    scoreBefore: toScore(hhiCurrent),
+    scoreAfter: toScore(hhiTarget),
+    concentrationRisk,
+  };
+}
+
+function resolveHoldingValuation(h: any): number {
+  const direct = Number(h?.valuation);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+  const curPrice = Number(h?.curPrice ?? h?.currentPrice);
+  const qty = Number(h?.totalQuantity);
+  if (Number.isFinite(curPrice) && curPrice > 0 && Number.isFinite(qty) && qty > 0) {
+    return curPrice * qty;
+  }
+  const cost = Number(h?.totalCost);
+  if (Number.isFinite(cost) && cost > 0) return cost;
+  const pmp = Number(h?.weightedAveragePrice);
+  if (Number.isFinite(pmp) && pmp > 0 && Number.isFinite(qty) && qty > 0) {
+    return pmp * qty;
+  }
+  return 0;
 }
 
 /**
  * Post-validateur déterministe des recommandations du Robo-Advisor :
- * - Interdit les ordres SELL sur des titres non détenus ou au-delà de la quantité en portefeuille.
- * - Normalise la somme des allocations cibles à exactement 100 %.
+ * - Interdit les ordres SELL sur des titres non détenus ou au-delà de la quantité en portefeuille (cumul inclus).
+ * - Bloque les ordres contradictoires BUY + SELL sur le même symbole.
+ * - Calcule les pondérations sectorielles réelles, les frais BVC réels, la contrainte cash, le filtre Sharia et l'indice HHI.
  */
-export function validatePortfolioOptimization(parsed: any, holdings: any[]): ValidatedPortfolioOptimization {
+export function validatePortfolioOptimization(
+  parsed: any,
+  holdings: any[],
+  options?: PortfolioOptimizationOptions
+): ValidatedPortfolioOptimization {
   const heldQtyMap = new Map<string, { rawSymbol: string; qty: number }>();
+  const priceBySymbol = new Map<string, number>();
+  const sectorValMap = new Map<string, number>();
+  let totalHoldingsVal = 0;
+
   for (const h of holdings || []) {
+    const val = resolveHoldingValuation(h);
+    const secKey = String(h?.sector || 'Inconnu').trim().toLowerCase();
+    sectorValMap.set(secKey, (sectorValMap.get(secKey) || 0) + val);
+    totalHoldingsVal += val;
+
     const sym = String(h?.symbol || '').trim().toUpperCase();
     const qty = Number(h?.totalQuantity || 0);
     if (!sym || !Number.isFinite(qty) || qty <= 0) continue;
+
+    const unitPrice =
+      Number(h?.curPrice ?? h?.currentPrice) > 0
+        ? Number(h?.curPrice ?? h?.currentPrice)
+        : Number(h?.weightedAveragePrice) > 0
+          ? Number(h?.weightedAveragePrice)
+          : val > 0
+            ? val / qty
+            : 0;
+    if (Number.isFinite(unitPrice) && unitPrice > 0) {
+      priceBySymbol.set(sym, unitPrice);
+    }
+
     const prev = heldQtyMap.get(sym);
     heldQtyMap.set(sym, {
       rawSymbol: prev?.rawSymbol || sym,
@@ -490,11 +622,21 @@ export function validatePortfolioOptimization(parsed: any, holdings: any[]): Val
   const allocations: ValidatedPortfolioAllocation[] = rawAllocations
     .filter((a: any) => a && typeof a.sector === 'string' && a.sector.trim().length > 0)
     .map((a: any) => {
-      const current = Number(a.current);
+      const sectorLabel = sanitizeAiTextField(a.sector, 80);
+      const currentRaw = Number(a.current);
       const target = Number(a.target);
+      const realSectorVal = sectorValMap.get(sectorLabel.toLowerCase());
+      const computedCurrent =
+        totalHoldingsVal > 0
+          ? realSectorVal !== undefined
+            ? Math.round(((realSectorVal / totalHoldingsVal) * 100) * 10) / 10
+            : 0
+          : Number.isFinite(currentRaw)
+            ? Math.max(0, Math.min(100, Math.round(currentRaw * 10) / 10))
+            : 0;
       return {
-        sector: sanitizeAiTextField(a.sector, 80),
-        current: Number.isFinite(current) ? Math.max(0, Math.min(100, Math.round(current * 10) / 10)) : 0,
+        sector: sectorLabel,
+        current: computedCurrent,
         target: Number.isFinite(target) ? Math.max(0, Math.min(100, target)) : 0,
       };
     });
@@ -524,7 +666,12 @@ export function validatePortfolioOptimization(parsed: any, holdings: any[]): Val
   }
 
   const rawOrders = Array.isArray(parsed?.orders) ? parsed.orders : [];
-  const orders: ValidatedPortfolioOrder[] = [];
+  const candidateOrders: ValidatedPortfolioOrder[] = [];
+  const remainingSellableMap = new Map<string, number>();
+  heldQtyMap.forEach((entry, sym) => remainingSellableMap.set(sym, entry.qty));
+  const seenDirectionBySymbol = new Map<string, 'BUY' | 'SELL'>();
+  const shariaOnly = Boolean(options?.shariaOnly);
+  let blockedHaramOrdersCount = 0;
 
   for (const o of rawOrders) {
     if (!o || typeof o !== 'object') continue;
@@ -532,37 +679,112 @@ export function validatePortfolioOptimization(parsed: any, holdings: any[]): Val
     if (orderType !== 'BUY' && orderType !== 'SELL') continue;
 
     const sym = String(o.symbol || '').trim().toUpperCase();
-    if (!sym || sym.length > 20) continue;
+    if (!/^[A-Z0-9._\-]{1,20}$/.test(sym)) continue;
+
+    if (shariaOnly && orderType === 'BUY' && isHaramIndustryOrSector(undefined, undefined, sym)) {
+      blockedHaramOrdersCount++;
+      continue;
+    }
+
+    const prevDir = seenDirectionBySymbol.get(sym);
+    if (prevDir && prevDir !== orderType) {
+      continue;
+    }
 
     let qty = Number(o.quantity);
     if (!Number.isFinite(qty) || qty <= 0) continue;
 
     if (orderType === 'SELL') {
-      const held = heldQtyMap.get(sym);
-      if (!held || held.qty <= 0) {
-        // Interdire toute vente à découvert générée par le LLM
+      const remaining = remainingSellableMap.get(sym) ?? 0;
+      if (remaining <= 0) {
         continue;
       }
-      const capped = Math.min(qty, held.qty);
-      qty = held.qty >= 1 ? Math.floor(capped) : Number(capped.toFixed(4));
+      const capped = Math.min(qty, remaining);
+      qty = remaining >= 1 ? Math.floor(capped) : Number(capped.toFixed(4));
       if (qty <= 0) continue;
+      remainingSellableMap.set(sym, Math.max(0, Number((remaining - qty).toFixed(4))));
     } else {
       qty = qty >= 1 ? Math.round(qty) : Number(qty.toFixed(4));
     }
 
-    orders.push({
+    const rawEstPrice = Number(o.estimatedPriceMAD);
+    const unitPrice =
+      priceBySymbol.get(sym) ??
+      (Number.isFinite(rawEstPrice) && rawEstPrice > 0 ? rawEstPrice : undefined);
+    const estAmount = unitPrice !== undefined ? Number((qty * unitPrice).toFixed(2)) : undefined;
+    const estFee = estAmount !== undefined ? Number((estAmount * BROKERAGE_FEE).toFixed(2)) : undefined;
+
+    seenDirectionBySymbol.set(sym, orderType);
+    candidateOrders.push({
       type: orderType,
       symbol: sym,
       quantity: qty,
       reason: sanitizeAiTextField(o.reason, 400) || 'Rééquilibrage sectoriel suggéré',
+      estimatedPriceMAD: unitPrice !== undefined ? Number(unitPrice.toFixed(2)) : undefined,
+      estimatedAmountMAD: estAmount,
+      estimatedFeeMAD: estFee,
     });
   }
+
+  let orders = candidateOrders;
+  if (typeof options?.availableCashMAD === 'number' && Number.isFinite(options.availableCashMAD)) {
+    const netSellProceeds = candidateOrders
+      .filter((o) => o.type === 'SELL')
+      .reduce((sum, o) => sum + ((o.estimatedAmountMAD || 0) - (o.estimatedFeeMAD || 0)), 0);
+    let remainingCash = Math.max(0, options.availableCashMAD + netSellProceeds);
+    const cashFiltered: ValidatedPortfolioOrder[] = [];
+
+    for (const o of candidateOrders) {
+      if (o.type === 'SELL' || !o.estimatedPriceMAD || o.estimatedPriceMAD <= 0) {
+        cashFiltered.push(o);
+        continue;
+      }
+      const grossUnitCost = o.estimatedPriceMAD * (1 + BROKERAGE_FEE);
+      const maxAffordableQty = Math.floor(remainingCash / grossUnitCost);
+      const cappedQty = Math.min(o.quantity, maxAffordableQty);
+      if (cappedQty <= 0) continue;
+
+      const newAmount = Number((cappedQty * o.estimatedPriceMAD).toFixed(2));
+      const newFee = Number((newAmount * BROKERAGE_FEE).toFixed(2));
+      remainingCash = Math.max(0, remainingCash - (newAmount + newFee));
+      cashFiltered.push({
+        ...o,
+        quantity: cappedQty,
+        estimatedAmountMAD: newAmount,
+        estimatedFeeMAD: newFee,
+      });
+    }
+    orders = cashFiltered;
+  }
+
+  let totalBuyAmountMAD = 0;
+  let totalSellAmountMAD = 0;
+  let totalEstimatedFeesMAD = 0;
+  for (const o of orders) {
+    if (o.type === 'BUY') totalBuyAmountMAD += o.estimatedAmountMAD || 0;
+    else totalSellAmountMAD += o.estimatedAmountMAD || 0;
+    totalEstimatedFeesMAD += o.estimatedFeeMAD || 0;
+  }
+
+  const diversification = computeHhiDiversification(allocations);
+  const feeRatePct = Number((BROKERAGE_FEE * 100).toFixed(2));
+  const feesSummary = {
+    feeRatePct,
+    totalBuyAmountMAD: Number(totalBuyAmountMAD.toFixed(2)),
+    totalSellAmountMAD: Number(totalSellAmountMAD.toFixed(2)),
+    totalEstimatedFeesMAD: Number(totalEstimatedFeesMAD.toFixed(2)),
+    netCashImpactMAD: Number((totalSellAmountMAD - totalBuyAmountMAD - totalEstimatedFeesMAD).toFixed(2)),
+  };
 
   return {
     allocations,
     orders,
     rationale: sanitizeAiTextField(parsed?.rationale, 1500) || 'Synthèse d’allocation générée par le Robo-Advisor IA.',
     isAI: true,
+    shariaMode: shariaOnly || undefined,
+    blockedHaramOrdersCount: shariaOnly ? blockedHaramOrdersCount : undefined,
+    feesSummary,
+    diversification,
   };
 }
 
@@ -725,16 +947,29 @@ export class GeminiService {
         DONNÉES TEMPS RÉEL :
         - COURS ACTUEL: ${market.price}
         - RSI (14): ${typeof market.rsi === 'object' ? `${market.rsi.value} (${market.rsi.interpretation})` : market.rsi}
+        - MMS 20 / MMS 50: ${market.sma20 ?? 'N/A'} / ${market.sma50 ?? 'N/A'} (${market.smaLabel || 'N/A'})
+        - MACD: ${market.macd ? `Histogramme=${market.macd.histogram}, Signal=${market.macd.signal}, Tendance=${market.macd.trend}` : 'N/A'}
+        - POINT PIVOT: ${market.pivot ?? 'N/A'}
         - SUPPORT CLÉ: ${market.support}
         - RÉSISTANCE CLÉ: ${market.resistance}
+        - ATR(14) & BORNES DYNAMIQUES: ${market.atr ? `${market.atr.atr14} MAD (${market.atr.atrPercent}%), Stop BUY=${market.atr.dynamicStopBuy}, Cible BUY=${market.atr.dynamicTargetBuy}` : 'N/A'}
+        - VOLUME BREAKOUT / SQUEEZE: ${market.volumeBreakout ? `Ratio=${market.volumeBreakout.ratio}x MM20, Breakout=${market.volumeBreakout.isBreakout}, BW=${market.volumeBreakout.bollingerBandwidth ?? 'N/A'}%` : 'N/A'}
+        - FORCE RELATIVE MASI: ${market.relativeStrengthMasi ? `${market.relativeStrengthMasi.label} (${market.relativeStrengthMasi.alphaPct >= 0 ? '+' : ''}${market.relativeStrengthMasi.alphaPct}%)` : 'N/A'}
+        - LIQUIDITÉ: ${market.liquidityWarning?.message || (market.liquidityWarning?.isLiquid === false ? 'Illiquide' : 'Normale')}
         - SITUATION TECHNIQUE: ${market.marketSituation}
         - SIGNAUX VALIDÉS: ${market.signals?.join(' | ') || 'Aucun'}
         
         INDICATEURS FONDAMENTAUX :
         - P.E.R: ${fundamentals?.peRatio || 'N/A'}
+        - BENCHMARK SECTORIEL: ${fundamentals?.sectorBenchmark ? `${fundamentals.sectorBenchmark.valuationVerdict} (PER médian=${fundamentals.sectorBenchmark.medianPe ?? 'N/A'}, écart=${fundamentals.sectorBenchmark.peVsSectorPct ?? 'N/A'}%)` : 'N/A'}
+        - SCORE QUALITÉ FONDAMENTALE: ${fundamentals?.fundamentalQualityScore ? `${fundamentals.fundamentalQualityScore.score}/100 (Grade ${fundamentals.fundamentalQualityScore.grade})` : 'N/A'}
         - RENDEMENT DIVIDENDE: ${fundamentals?.dividendYield || 'N/A'}
         - CAPITALISATION: ${fundamentals?.marketCap || 'N/A'}
         - RÉSULTAT NET: ${fundamentals?.netProfit || 'N/A'}
+        - ROE: ${fundamentals?.roe || 'N/A'}
+        - MARGE OPÉRATIONNELLE / NETTE: ${fundamentals?.margin || 'N/A'}
+        - CROISSANCE CA: ${fundamentals?.revenueGrowth || 'N/A'}
+        - CROISSANCE RÉSULTAT NET: ${fundamentals?.profitGrowth || 'N/A'}
 
         ACTUALITÉS & SENTIMENT :
         - SCORE: ${news.globalScore || '0.0'}
@@ -834,14 +1069,23 @@ export class GeminiService {
 
       const text = await unifiedAICall(prompt, true, 'gemini-3.8-flash', undefined, false, undefined, undefined, 0.3, TECHNICAL_SYSTEM_PROMPT);
       const parsed = safeJsonParse(text);
-      if (!parsed) return null;
+      if (!parsed || typeof parsed !== 'object') return null;
 
-      // Sanitization
-      if (!['ACHETER', 'VENDRE', 'ATTENDRE'].includes(parsed.finalAction)) {
-        parsed.finalAction = 'ATTENDRE';
-      }
+      const normalized = sanitizeAIResult(parsed);
+      const marketSituation = sanitizeAiTextField(normalized.marketSituation, 1500);
+      const why = sanitizeAiTextField(normalized.why, 1500);
+      if (!marketSituation && !why) return null;
 
-      return parsed;
+      const finalAction: 'ACHETER' | 'VENDRE' | 'ATTENDRE' =
+        ['ACHETER', 'VENDRE', 'ATTENDRE'].includes(normalized.finalAction)
+          ? normalized.finalAction
+          : 'ATTENDRE';
+
+      return {
+        marketSituation: marketSituation || 'Synthèse technique indisponible.',
+        finalAction,
+        why: why || 'Justification indisponible.',
+      };
     } catch (error) {
       console.error("Gemini Technical Synthesis Error:", error);
       return null;
@@ -851,13 +1095,19 @@ export class GeminiService {
   static async generateStrategyPlan(analysis: Partial<CompanyAnalysis>): Promise<string | null> {
     if (!process.env.GEMINI_API_KEY && !process.env.MISTRAL_API_KEY) return null;
     try {
-      const prompt = `Tu es un stratégiste de la Bourse de Casablanca. Voici la situation de ${analysis.companyName} :
+      const safeCompany = InputSanitizer.sanitizeCompanyName(analysis.companyName || 'Société');
+      const dataBlock = `
+Société: ${safeCompany}
 - Cours: ${analysis.price || 'N/A'}
 - RSI: ${typeof analysis.rsi === 'object' ? `${analysis.rsi.value} (${analysis.rsi.interpretation})` : analysis.rsi || 'N/A'}
 - Support: ${analysis.support || 'N/A'}
 - Résistance: ${analysis.resistance || 'N/A'}
 - Tendance: ${analysis.technicalTrend || 'N/A'}
 - Sentiment: ${analysis.globalSentiment || 'N/A'}
+      `.trim();
+
+      const prompt = `Tu es un stratégiste de la Bourse de Casablanca. Voici la situation factuelle :
+${InputSanitizer.wrapUntrustedForPrompt('strategy_plan_context', dataBlock, 6000)}
 
 Rédige un plan tactique de 3 phrases couvrant :
 1. Le contexte immédiat du titre
@@ -872,15 +1122,27 @@ NE DONNE PAS de recommandation d'achat ou de vente. Concentre-toi sur les FAITS 
     }
   }
 
-  static async optimizePortfolio(holdings: any[]): Promise<ValidatedPortfolioOptimization> {
+  static async optimizePortfolio(
+    holdings: any[],
+    options?: PortfolioOptimizationOptions
+  ): Promise<ValidatedPortfolioOptimization> {
     try {
       const holdingsData = holdings.map(h => ({
         symbol: h.symbol,
         quantity: h.totalQuantity,
         pmp: h.weightedAveragePrice,
-        valuation: h.valuation,
+        curPrice: h.curPrice ?? h.currentPrice,
+        valuation: resolveHoldingValuation(h),
         sector: h.sector || 'Inconnu'
       }));
+
+      const shariaClause = options?.shariaOnly
+        ? `\n        5. MODE SHARIA STRICT (AAOIFI) : Interdiction absolue de proposer des ordres BUY sur des banques conventionnelles, assurances conventionnelles, sociétés de financement/leasing ou boissons alcoolisées (ex: ATW, BCP, BOA, CIH, CDM, CFG, WAA, ATH, SAH, SBM, EQD, SLF, MAB). Privilégie uniquement des valeurs conformes.`
+        : '';
+      const cashClause =
+        typeof options?.availableCashMAD === 'number' && Number.isFinite(options.availableCashMAD)
+          ? `\n        6. CONTRAINTE DE TRÉSORERIE & FRAIS BVC : Trésorerie disponible = ${options.availableCashMAD.toFixed(2)} MAD ; tiens compte des frais de courtage BVC (~${(BROKERAGE_FEE * 100).toFixed(2)}% par ordre).`
+          : `\n        6. Prends en compte les frais de courtage BVC (~${(BROKERAGE_FEE * 100).toFixed(2)}% par ordre) pour éviter le micro-trading coûteux.`;
 
       const prompt = `
         Tu es un analyste financier et Robo-Advisor expert de la Bourse de Casablanca.
@@ -891,7 +1153,7 @@ NE DONNE PAS de recommandation d'achat ou de vente. Concentre-toi sur les FAITS 
         1. Limite l'exposition à un seul secteur à 30% maximum et une seule action à 25% maximum.
         2. Propose une allocation cible en pourcentage pour chaque secteur actuel (somme = 100%).
         3. Suggère des ordres d'achat (BUY) ou de vente (SELL, au plus la quantité détenue) concrets pour rééquilibrer le portefeuille et tendre vers l'allocation idéale.
-        4. Rédige un rationnel d'IA argumenté (en français, max 150 mots) expliquant les choix boursiers.
+        4. Rédige un rationnel d'IA argumenté (en français, max 150 mots) expliquant les choix boursiers.${shariaClause}${cashClause}
 
         Réponds UNIQUEMENT sous forme de JSON valide correspondant à cette structure :
         {
@@ -908,7 +1170,7 @@ NE DONNE PAS de recommandation d'achat ou de vente. Concentre-toi sur les FAITS 
       const text = await unifiedAICall(prompt, true, 'gemini-3.8-flash', undefined, false, undefined, undefined, 0.3);
       const parsed = safeJsonParse(text);
       if (!parsed) throw new Error("JSON_PARSE_FAILED");
-      return validatePortfolioOptimization(parsed, holdings);
+      return validatePortfolioOptimization(parsed, holdings, options);
     } catch (e) {
       console.error("Gemini Optimize Portfolio Error:", e);
       // Calculer des pourcentages par secteur réels pour le fallback
@@ -916,8 +1178,9 @@ NE DONNE PAS de recommandation d'achat ou de vente. Concentre-toi sur les FAITS 
       let total = 0;
       holdings.forEach(h => {
         const sec = h.sector || 'Inconnu';
-        sectorsMap[sec] = (sectorsMap[sec] || 0) + (h.valuation || 0);
-        total += (h.valuation || 0);
+        const val = resolveHoldingValuation(h);
+        sectorsMap[sec] = (sectorsMap[sec] || 0) + val;
+        total += val;
       });
 
       const entries = Object.entries(sectorsMap);
@@ -939,6 +1202,15 @@ NE DONNE PAS de recommandation d'achat ou de vente. Concentre-toi sur les FAITS 
         allocations,
         orders: [],  // BUG FIX #8: Never generate fake trade orders when AI fails.
         isAI: false,
+        shariaMode: Boolean(options?.shariaOnly) || undefined,
+        diversification: computeHhiDiversification(allocations),
+        feesSummary: {
+          feeRatePct: Number((BROKERAGE_FEE * 100).toFixed(2)),
+          totalBuyAmountMAD: 0,
+          totalSellAmountMAD: 0,
+          totalEstimatedFeesMAD: 0,
+          netCashImpactMAD: 0,
+        },
         rationale: '⚠️ Optimisation de secours calculée localement (la synthèse IA est temporairement indisponible). Aucun ordre d\'ajustement automatisé n\'est émis. Veuillez relancer l\'analyse pour obtenir des recommandations personnalisées.'
       };
     }
@@ -1024,10 +1296,42 @@ Réponds UNIQUEMENT en JSON valide :
     return { sector: defaultSector, summary: defaultSummary, explanation: defaultExplanation };
   }
 
+  private static buildShariaDenominatorComparison(
+    activeMethod: 'MARKET_CAP' | 'TOTAL_ASSETS',
+    marketCap: number | null,
+    totalAssets: number | null,
+    interestDebt: number | null,
+    interestCash: number | null,
+    formatMAD: (num: number) => string
+  ) {
+    const computeSide = (denom: number | null) => {
+      if (!denom || denom <= 0) return undefined;
+      const debtRatio =
+        interestDebt !== null ? parseFloat(((interestDebt / denom) * 100).toFixed(2)) : 0;
+      const cashRatio =
+        interestCash !== null ? parseFloat(((interestCash / denom) * 100).toFixed(2)) : 0;
+      return {
+        value: formatMAD(denom),
+        debtRatio,
+        cashRatio,
+        compliant: debtRatio <= 33.33 && cashRatio <= 33.33,
+      };
+    };
+    const capSide = computeSide(marketCap);
+    const assetsSide = computeSide(totalAssets);
+    if (!capSide && !assetsSide) return undefined;
+    return {
+      activeMethod,
+      ...(capSide ? { marketCap: capSide } : {}),
+      ...(assetsSide ? { totalAssets: assetsSide } : {}),
+    };
+  }
+
   static async analyzeShariaCompliance(
     query: string,
     pdfData?: { data: string; mimeType: string },
-    resolvedSymbol?: string
+    resolvedSymbol?: string,
+    denominatorMethod: 'MARKET_CAP' | 'TOTAL_ASSETS' = 'MARKET_CAP'
   ): Promise<ShariaResult> {
     query = InputSanitizer.sanitizeCompanyName(query);
 
@@ -1040,14 +1344,17 @@ Réponds UNIQUEMENT en JSON valide :
       : null;
 
     if (tv && tv.status === 'success' && isHaramIndustryOrSector(tv.sector, tv.industry, tv.ticker)) {
-      const denominator =
-        tv.marketCap && tv.marketCap > 0
-          ? tv.marketCap
-          : tv.totalAssets && tv.totalAssets > 0
-            ? tv.totalAssets
-            : null;
+      const capValid = tv.marketCap && tv.marketCap > 0 ? tv.marketCap : null;
+      const assetsValid = tv.totalAssets && tv.totalAssets > 0 ? tv.totalAssets : null;
+      const useAssets = denominatorMethod === 'TOTAL_ASSETS' && assetsValid !== null;
+      const denominator = useAssets ? assetsValid : capValid ?? assetsValid;
+      const activeMethodActual: 'MARKET_CAP' | 'TOTAL_ASSETS' = useAssets
+        ? 'TOTAL_ASSETS'
+        : capValid !== null
+          ? 'MARKET_CAP'
+          : 'TOTAL_ASSETS';
       const denominatorLabel =
-        tv.marketCap && tv.marketCap > 0 ? 'Capitalisation boursière' : 'Total Actif';
+        activeMethodActual === 'MARKET_CAP' ? 'Capitalisation boursière' : 'Total Actif';
       const debtRatio =
         denominator && tv.interestDebt !== null
           ? parseFloat(((tv.interestDebt / denominator) * 100).toFixed(2))
@@ -1099,6 +1406,14 @@ Réponds UNIQUEMENT en JSON valide :
         confidenceScore: 95,
         explanation: narrative.explanation,
         sources: ['TradingView CSEMA (Données financières officielles)', 'Référentiel sectoriel AAOIFI'],
+        denominatorComparison: this.buildShariaDenominatorComparison(
+          activeMethodActual,
+          capValid,
+          assetsValid,
+          tv.interestDebt,
+          tv.interestCash,
+          formatMAD
+        ),
       };
     }
 
@@ -1113,11 +1428,11 @@ ${pdfData
    - Produits financiers issus d'intérêts ou Riba (Synonymes PCGM : Intérêts perçus, Produits financiers, Produits de placements à revenu fixe)
    - Total des dettes portant intérêt (Synonymes PCGM : Emprunts obligataires, Dettes de financement, Emprunts bancaires, Dettes auprès des établissements de crédit)
    - Trésorerie et placements portant intérêt (Synonymes PCGM : Titres et valeurs de placement, Dépôts à terme, Placements de trésorerie)
-   - Capitalisation boursière (ou Total Actif à défaut, pour le calcul des ratios d'endettement)
+   - Capitalisation boursière ET Total Actif si disponibles dans les états financiers
 
 2. GESTION DU "JE NE SAIS PAS" (CRITIQUE) : Si une métrique est introuvable ou incertaine, retourne \`null\`. NE DEVINE JAMAIS UN CHIFFRE.
-3. DATE ET PÉRIODE PRÉCISE : Indique la période exacte du rapport (ex: "Annuel 2025", "Semestre 1 2025").
-4. SECTEUR D'ACTIVITÉ : Extrais le secteur exact (ex: "Télécommunications", "Banque", "Agroalimentaire").
+3. DATE ET PÉRIODE PRÉCISE : Indique la période exacte du rapport (ex: "Annuel 2025", "Semestre 1 2025"). Si l'historique N-1 est visible dans le document, ajoute-le dans "historicalYears".
+4. CITATIONS & TRAÇABILITÉ : Indique la page ou la note annexe PCGM exacte pour chaque poste extrait dans "citations".
 5. NE FAIS AUCUN CALCUL DE RATIO. Contente-toi d'extraire les montants bruts exacts.
 
 Réponds UNIQUEMENT en JSON valide respectant strictement cette structure :
@@ -1133,8 +1448,15 @@ Réponds UNIQUEMENT en JSON valide respectant strictement cette structure :
     "interestIncome": number | null,
     "interestDebt": number | null,
     "interestCash": number | null,
-    "marketCap": number | null
+    "marketCap": number | null,
+    "totalAssets": number | null
   },
+  "citations": [
+    { "metric": "string", "pageOrNote": "string", "excerpt": "string" }
+  ],
+  "historicalYears": [
+    { "fiscalYear": "string", "purificationRate": number | null, "debtRatio": number | null }
+  ],
   "summary": string,
   "sources": string[]
 }
@@ -1156,9 +1478,32 @@ Réponds UNIQUEMENT en JSON valide respectant strictement cette structure :
               interestIncome: { type: SchemaType.NUMBER, description: "Produits financiers issus d'intérêts ou Riba", nullable: true },
               interestDebt: { type: SchemaType.NUMBER, description: "Total des dettes portant intérêt (Emprunts)", nullable: true },
               interestCash: { type: SchemaType.NUMBER, description: "Trésorerie et placements portant intérêt", nullable: true },
-              marketCap: { type: SchemaType.NUMBER, description: "Capitalisation boursière ou Total Actif", nullable: true }
+              marketCap: { type: SchemaType.NUMBER, description: "Capitalisation boursière", nullable: true },
+              totalAssets: { type: SchemaType.NUMBER, description: "Total Actif du bilan", nullable: true }
             },
             required: ["totalRevenue", "interestIncome", "interestDebt", "interestCash", "marketCap"]
+          },
+          citations: {
+            type: SchemaType.ARRAY,
+            items: {
+              type: SchemaType.OBJECT,
+              properties: {
+                metric: { type: SchemaType.STRING },
+                pageOrNote: { type: SchemaType.STRING },
+                excerpt: { type: SchemaType.STRING },
+              },
+            },
+          },
+          historicalYears: {
+            type: SchemaType.ARRAY,
+            items: {
+              type: SchemaType.OBJECT,
+              properties: {
+                fiscalYear: { type: SchemaType.STRING },
+                purificationRate: { type: SchemaType.NUMBER, nullable: true },
+                debtRatio: { type: SchemaType.NUMBER, nullable: true },
+              },
+            },
           },
           summary: { type: SchemaType.STRING, description: "Résumé explicatif court." },
           sources: {
@@ -1192,11 +1537,42 @@ Réponds UNIQUEMENT en JSON valide respectant strictement cette structure :
 
     if (parsed) {
       const raw = parsed.rawFinancials || {};
-      const totalRevenue = parseNum(raw.totalRevenue);
+      const canMergeTv = !pdfData && tv && tv.status === 'success';
+      const tvMarketCap = canMergeTv && tv.marketCap && tv.marketCap > 0 ? tv.marketCap : null;
+      const tvTotalAssets = canMergeTv && tv.totalAssets && tv.totalAssets > 0 ? tv.totalAssets : null;
+
+      const rawTotalRevenue = parseNum(raw.totalRevenue);
+      const rawInterestDebt = parseNum(raw.interestDebt);
+      const rawInterestCash = parseNum(raw.interestCash);
+      const rawMarketCap = parseNum(raw.marketCap);
+      const rawTotalAssets = parseNum(raw.totalAssets);
+
+      const totalRevenue =
+        rawTotalRevenue ?? (canMergeTv && tv.totalRevenue && tv.totalRevenue > 0 ? tv.totalRevenue : null);
+      // Règle stricte : ne JAMAIS fabriquer interestIncome depuis TradingView
       const interestIncome = parseNum(raw.interestIncome);
-      const interestDebt = parseNum(raw.interestDebt);
-      const interestCash = parseNum(raw.interestCash);
-      const marketCap = parseNum(raw.marketCap);
+      const interestDebt = rawInterestDebt ?? (canMergeTv ? tv.interestDebt : null);
+      const interestCash = rawInterestCash ?? (canMergeTv ? tv.interestCash : null);
+      const effectiveMarketCap = rawMarketCap ?? tvMarketCap;
+      const effectiveTotalAssets = rawTotalAssets ?? tvTotalAssets;
+
+      const useTotalAssets = denominatorMethod === 'TOTAL_ASSETS' && effectiveTotalAssets !== null && effectiveTotalAssets > 0;
+      const marketCap = useTotalAssets
+        ? effectiveTotalAssets
+        : (effectiveMarketCap && effectiveMarketCap > 0 ? effectiveMarketCap : effectiveTotalAssets);
+      const activeMethodActual: 'MARKET_CAP' | 'TOTAL_ASSETS' = useTotalAssets
+        ? 'TOTAL_ASSETS'
+        : effectiveMarketCap && effectiveMarketCap > 0
+          ? 'MARKET_CAP'
+          : 'TOTAL_ASSETS';
+
+      const mergedTvFields =
+        canMergeTv &&
+        ((rawTotalRevenue === null && totalRevenue !== null) ||
+          (rawInterestDebt === null && interestDebt !== null) ||
+          (rawInterestCash === null && interestCash !== null) ||
+          (rawMarketCap === null && effectiveMarketCap !== null) ||
+          (rawTotalAssets === null && effectiveTotalAssets !== null));
 
       const hasCompleteNumbers =
         totalRevenue !== null &&
@@ -1213,7 +1589,35 @@ Réponds UNIQUEMENT en JSON valide respectant strictement cette structure :
         const cashRatio = (interestCash / marketCap) * 100;
 
         const strictCompliant = purificationRate <= 5.0 && debtRatio <= 33.33 && cashRatio <= 33.33;
-        const isHaramSector = isHaramIndustryOrSector(parsed.sector, undefined, parsed.ticker);
+        const isHaramSector = isHaramIndustryOrSector(parsed.sector, undefined, parsed.ticker || resolvedSymbol);
+
+        const safeCitations = Array.isArray(parsed.citations)
+          ? parsed.citations
+              .slice(0, 8)
+              .filter((c: any) => c && typeof c === 'object' && (c.metric || c.pageOrNote))
+              .map((c: any) => ({
+                metric: sanitizeAiTextField(c.metric, 80) || 'Poste financier',
+                pageOrNote: sanitizeAiTextField(c.pageOrNote, 80) || 'Document source',
+                excerpt: sanitizeAiTextField(c.excerpt, 240) || '',
+              }))
+          : undefined;
+
+        const safeHistoricalYears = Array.isArray(parsed.historicalYears)
+          ? parsed.historicalYears
+              .slice(0, 5)
+              .filter((h: any) => h && typeof h === 'object' && typeof h.fiscalYear === 'string')
+              .map((h: any) => ({
+                fiscalYear: sanitizeAiTextField(h.fiscalYear, 30),
+                purificationRate:
+                  typeof h.purificationRate === 'number' && Number.isFinite(h.purificationRate)
+                    ? parseFloat(h.purificationRate.toFixed(2))
+                    : null,
+                debtRatio:
+                  typeof h.debtRatio === 'number' && Number.isFinite(h.debtRatio)
+                    ? parseFloat(h.debtRatio.toFixed(2))
+                    : null,
+              }))
+          : undefined;
 
         const safeSources: string[] = Array.isArray(parsed.sources)
           ? parsed.sources
@@ -1229,6 +1633,10 @@ Réponds UNIQUEMENT en JSON valide respectant strictement cette structure :
               })
               .filter((s: string | null): s is string => Boolean(s))
           : ['Recherche Automatisée Web'];
+
+        if (mergedTvFields && !safeSources.some((s) => s.includes('TradingView'))) {
+          safeSources.push('TradingView CSEMA (Complément bilan MAD)');
+        }
 
         const clampedConfidence =
           typeof parsed.confidenceScore === 'number' && Number.isFinite(parsed.confidenceScore)
@@ -1266,6 +1674,16 @@ Réponds UNIQUEMENT en JSON valide respectant strictement cette structure :
           explanation:
             sanitizeAiTextField(parsed.explanation, 1500) || 'Analyse mathématique sans précision supplémentaire.',
           sources: safeSources.length > 0 ? safeSources : ['Recherche Automatisée Web'],
+          citations: safeCitations && safeCitations.length > 0 ? safeCitations : undefined,
+          historicalYears: safeHistoricalYears && safeHistoricalYears.length > 0 ? safeHistoricalYears : undefined,
+          denominatorComparison: this.buildShariaDenominatorComparison(
+            activeMethodActual,
+            effectiveMarketCap,
+            effectiveTotalAssets,
+            interestDebt,
+            interestCash,
+            formatMAD
+          ),
         };
       }
 
@@ -1280,14 +1698,17 @@ Réponds UNIQUEMENT en JSON valide respectant strictement cette structure :
 
     // Fallback hybride réel sur les états financiers TradingView CSEMA (sans jamais inventer les produits d'intérêts)
     if (tv && tv.status === 'success') {
-      const denominator =
-        tv.marketCap && tv.marketCap > 0
-          ? tv.marketCap
-          : tv.totalAssets && tv.totalAssets > 0
-            ? tv.totalAssets
-            : null;
+      const capValid = tv.marketCap && tv.marketCap > 0 ? tv.marketCap : null;
+      const assetsValid = tv.totalAssets && tv.totalAssets > 0 ? tv.totalAssets : null;
+      const useAssets = denominatorMethod === 'TOTAL_ASSETS' && assetsValid !== null;
+      const denominator = useAssets ? assetsValid : capValid ?? assetsValid;
+      const activeMethodActual: 'MARKET_CAP' | 'TOTAL_ASSETS' = useAssets
+        ? 'TOTAL_ASSETS'
+        : capValid !== null
+          ? 'MARKET_CAP'
+          : 'TOTAL_ASSETS';
       const denominatorLabel =
-        tv.marketCap && tv.marketCap > 0 ? 'Capitalisation boursière' : 'Total Actif';
+        activeMethodActual === 'MARKET_CAP' ? 'Capitalisation boursière' : 'Total Actif';
 
       if (
         tv.totalRevenue !== null &&
@@ -1342,6 +1763,14 @@ Réponds UNIQUEMENT en JSON valide respectant strictement cette structure :
           confidenceScore: balanceSheetOk ? 68 : 80,
           explanation: narrative.explanation,
           sources: ['TradingView CSEMA (États financiers en MAD)', 'Synthèse sectorielle Gemini 3.8 Flash'],
+          denominatorComparison: this.buildShariaDenominatorComparison(
+            activeMethodActual,
+            capValid,
+            assetsValid,
+            tv.interestDebt,
+            tv.interestCash,
+            formatMAD
+          ),
         };
       }
     }

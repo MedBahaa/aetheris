@@ -2,13 +2,54 @@ import { CompanyAnalysis, FundamentalDataSchema, DataSource } from '../schemas';
 import { BMCEBourseScraper } from '../scrapers/bmce-scraper';
 import { supabaseAdmin } from '../supabase-server';
 import { TechnicalEngine } from '../technical-engine';
-import { newsEngine } from '../news-engine';
+import { newsEngine, classifyNewsSourceType } from '../news-engine';
 import { GeminiService } from '../gemini';
 import { MarketListScraper } from '../scrapers/market-list-scraper';
 import { CasabourseScraper } from '../scrapers/casabourse-scraper';
 import { OfficialCasaScraper } from '../scrapers/official-casa-scraper';
 import { WafabourseScraper } from '../scrapers/wafabourse-scraper';
 import { TradingViewScraper } from '../scrapers/tradingview-scraper';
+import { IndexScraper } from '../scrapers/index-scraper';
+import { CacheService } from '../cache-service';
+import { SymbolMapper } from '../symbol-mapper';
+
+export type NewsEventCategory =
+  | 'PROFIT_WARNING'
+  | 'M_AND_A'
+  | 'CAPITAL_INCREASE'
+  | 'DIVIDEND'
+  | 'EARNINGS'
+  | 'GENERAL';
+
+/**
+ * Détecte la catégorie financière BVC d'une dépêche et son multiplicateur d'impact.
+ */
+export function classifyNewsEvent(
+  title: string,
+  content?: string
+): { category: NewsEventCategory; multiplier: number; label: string } {
+  const text = `${title || ''} ${content || ''}`
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  if (/(avertissement|profit warning|baisse du resultat|recul net|deficit|sanction ammc|perte nette)/.test(text)) {
+    return { category: 'PROFIT_WARNING', multiplier: 1.35, label: 'Profit Warning / Alerte Résultats' };
+  }
+  if (/(acquisition|fusion|\bopa\b|\bopr\b|prise de participation|cession strategique|rachat)/.test(text)) {
+    return { category: 'M_AND_A', multiplier: 1.30, label: 'Fusions & Acquisitions (M&A)' };
+  }
+  if (/(augmentation de capital|emprunt obligataire|emission obligataire|introduction en bourse|\bipo\b)/.test(text)) {
+    return { category: 'CAPITAL_INCREASE', multiplier: 1.25, label: 'Opération sur Capital / Dette' };
+  }
+  if (/(dividende|coupon|distribution exceptionnelle|assemblee generale)/.test(text)) {
+    return { category: 'DIVIDEND', multiplier: 1.20, label: 'Dividende & Distribution' };
+  }
+  if (/(resultats annuels|resultats semestriels|chiffre d'affaires|\brnpg\b|\bebitda\b|indicateurs trimestriels)/.test(text)) {
+    return { category: 'EARNINGS', multiplier: 1.20, label: 'Publication Résultats' };
+  }
+  return { category: 'GENERAL', multiplier: 1.0, label: 'Information Générale' };
+}
 
 /**
  * AGENT NEWS: Analyse de sentiment multi-sources
@@ -21,91 +62,142 @@ export const NewsWorker = {
       
       const allNews = rssNews.map(n => ({ 
         ...n, 
-        sourceType: (n.source.includes('AMMC')) ? 'OFFICIAL' : 
-                    (n.source.includes('Médias24') || n.source.includes('Bourse News') || n.link.includes('boursenews.ma')) ? 'SPECIALIZED' : 'GENERAL' 
+        sourceType: classifyNewsSourceType(n.source, n.link)
       }));
 
-      if (allNews.length > 0) {
-        // 2. Analyse Sémantique réelle via Gemini (Structured JSON)
-        const sentimentAnalysis = await GeminiService.analyzeNewsSentiment(company, allNews);
+      const totalFeeds = collectionMetrics.totalFeeds;
+      const successFeeds = collectionMetrics.successCount;
+      const collectionStatusVal =
+        totalFeeds === 0 || successFeeds === 0
+          ? ('FAILED' as const)
+          : successFeeds === totalFeeds
+            ? ('FULL' as const)
+            : ('PARTIAL' as const);
 
-        // BUG FIX #1: Guard against null/missing details array from AI
-        const safeDetails = sentimentAnalysis?.details ?? [];
-
-        // Calcul du Score Global avec Dépréciation Temporelle (Time Decay)
-        // Exclure explicitement les faux positifs marqués relevant === false
-        let totalWeight = 0;
-        let weightedScoreSum = 0;
-
-        allNews.forEach((n, i) => {
-          const articleId = `art-${i}`;
-          const detail = safeDetails.find((d: any) => d.articleId === articleId) || safeDetails[i];
-          if (!detail || detail.relevant === false) return;
-
-          const parsedTs = new Date(n.pubDate).getTime();
-          const ageInDays = Number.isFinite(parsedTs)
-            ? Math.max(0, (Date.now() - parsedTs) / (1000 * 60 * 60 * 24))
-            : 1;
-          const timeDecayWeight = Math.exp(-0.08 * ageInDays); // Demi-vie d'environ 8.6 jours
-          const sourceWeight = n.sourceType === 'OFFICIAL' ? 2.0 : n.sourceType === 'SPECIALIZED' ? 1.5 : 1.0;
-          
-          const weight = sourceWeight * timeDecayWeight;
-          const articleScore = typeof detail.score === 'number' && Number.isFinite(detail.score) ? detail.score : 0;
-
-          weightedScoreSum += articleScore * weight;
-          totalWeight += weight;
-        });
-
-        const globalScore = totalWeight > 0 ? (weightedScoreSum / totalWeight) : 0;
-
-        let globalSentiment: 'FORTEMENT_POSITIF' | 'POSITIF' | 'NEUTRE' | 'NEGATIF' | 'FORTEMENT_NEGATIF' = 'NEUTRE';
-        if (globalScore >= 0.6) {
-          globalSentiment = 'FORTEMENT_POSITIF';
-        } else if (globalScore >= 0.15) {
-          globalSentiment = 'POSITIF';
-        } else if (globalScore > -0.15) {
-          globalSentiment = 'NEUTRE';
-        } else if (globalScore >= -0.6) {
-          globalSentiment = 'NEGATIF';
-        } else {
-          globalSentiment = 'FORTEMENT_NEGATIF';
-        }
-
-        const totalFeeds = collectionMetrics.totalFeeds;
-        const successFeeds = collectionMetrics.successCount;
-        const collectionStatus = totalFeeds === 0 ? 'FAILED' as const :
-                                 successFeeds === totalFeeds ? 'FULL' as const : 'PARTIAL' as const;
-
+      if (allNews.length === 0) {
         return {
-          globalScore,
-          globalSentiment,
-          probableImpact: sentimentAnalysis?.impactSummary || 'Analyse indisponible.',
-          consolidatedSummary: sentimentAnalysis?.consolidatedSummary || '',
-          isAI: Boolean(sentimentAnalysis?.aiAvailable),
+          globalScore: 0,
+          globalSentiment: 'NEUTRE',
+          probableImpact: 'Aucun catalyseur majeur détecté.',
+          isAI: false,
           collectionStatus: {
-            status: collectionStatus,
+            status: collectionStatusVal,
             feedsSuccess: successFeeds,
             feedsTotal: totalFeeds,
-            articlesFound: allNews.length,
+            articlesFound: 0,
           },
-          news: allNews.map((n, i) => {
-            const articleId = `art-${i}`;
-            const detail = safeDetails.find((d: any) => d.articleId === articleId) || safeDetails[i];
-            const parsedTs = new Date(n.pubDate).getTime();
-            return {
-             id: articleId,
-             summary: n.title,
-             sentiment: detail?.sentiment || 'NEUTRE',
-             impact: detail?.impact || 'Court terme',
-             explanation: detail?.explanation || 'Analyse en attente.',
-             source: n.source,
-             date: Number.isFinite(parsedTs) ? new Date(parsedTs).toLocaleDateString('fr-FR') : 'Récent',
-             url: n.link,
-             fullContent: n.fullContent
-            };
-          })
+          news: [],
         };
       }
+
+      // 2. Analyse Sémantique réelle via Gemini (Structured JSON)
+      const sentimentAnalysis = await GeminiService.analyzeNewsSentiment(company, allNews);
+
+      // BUG FIX #1: Guard against null/missing details array from AI
+      const safeDetails = sentimentAnalysis?.details ?? [];
+      const detailById = new Map<string, any>();
+      for (const d of safeDetails) {
+        if (d && typeof d.articleId === 'string') {
+          detailById.set(d.articleId, d);
+        }
+      }
+
+      const validSentiments = new Set(['FORTEMENT_POSITIF', 'POSITIF', 'NEUTRE', 'NEGATIF', 'FORTEMENT_NEGATIF']);
+      const validImpacts = new Set(['Court terme', 'Moyen terme', 'Long terme']);
+
+      const relevantItems: Array<{
+        id: string;
+        article: (typeof allNews)[number];
+        detail: any;
+        parsedTs: number;
+        event: ReturnType<typeof classifyNewsEvent>;
+        corroboratingSourcesCount: number;
+      }> = [];
+
+      allNews.forEach((n, i) => {
+        const articleId = `art-${i}`;
+        const detail = detailById.size > 0 ? detailById.get(articleId) : safeDetails[i];
+        if (detail?.relevant === false) return;
+
+        relevantItems.push({
+          id: articleId,
+          article: n,
+          detail,
+          parsedTs: new Date(n.pubDate).getTime(),
+          event: classifyNewsEvent(n.title, n.fullContent || n.contentSnippet),
+          corroboratingSourcesCount: Math.max(1, n.corroboratingSourcesCount || 1),
+        });
+      });
+
+      // Calcul du Score Global avec Dépréciation Temporelle, corroboration multi-sources et multiplicateur d'événement
+      let totalWeight = 0;
+      let weightedScoreSum = 0;
+      const detectedEventsSet = new Set<string>();
+
+      for (const { article: n, detail, parsedTs, event, corroboratingSourcesCount } of relevantItems) {
+        if (event.category !== 'GENERAL') {
+          detectedEventsSet.add(event.label);
+        }
+        if (!detail) continue;
+
+        const ageInDays = Number.isFinite(parsedTs)
+          ? Math.max(0, (Date.now() - parsedTs) / (1000 * 60 * 60 * 24))
+          : 1;
+        const timeDecayWeight = Math.exp(-0.08 * ageInDays); // Demi-vie d'environ 8.6 jours
+        const sourceWeight = n.sourceType === 'OFFICIAL' ? 2.0 : n.sourceType === 'SPECIALIZED' ? 1.5 : 1.0;
+        const corroborationBoost = Math.min(1.2, 1 + 0.1 * Math.max(0, corroboratingSourcesCount - 1));
+
+        const weight = sourceWeight * timeDecayWeight * event.multiplier * corroborationBoost;
+        const rawScore = typeof detail.score === 'number' && Number.isFinite(detail.score) ? detail.score : 0;
+        const articleScore = Math.max(-1, Math.min(1, rawScore));
+
+        weightedScoreSum += articleScore * weight;
+        totalWeight += weight;
+      }
+
+      const rawGlobalScore = totalWeight > 0 ? (weightedScoreSum / totalWeight) : 0;
+      const globalScore = Math.max(-1, Math.min(1, rawGlobalScore));
+
+      let globalSentiment: 'FORTEMENT_POSITIF' | 'POSITIF' | 'NEUTRE' | 'NEGATIF' | 'FORTEMENT_NEGATIF' = 'NEUTRE';
+      if (globalScore >= 0.6) {
+        globalSentiment = 'FORTEMENT_POSITIF';
+      } else if (globalScore >= 0.15) {
+        globalSentiment = 'POSITIF';
+      } else if (globalScore > -0.15) {
+        globalSentiment = 'NEUTRE';
+      } else if (globalScore >= -0.6) {
+        globalSentiment = 'NEGATIF';
+      } else {
+        globalSentiment = 'FORTEMENT_NEGATIF';
+      }
+
+      return {
+        globalScore,
+        globalSentiment,
+        probableImpact: sentimentAnalysis?.impactSummary || 'Analyse indisponible.',
+        consolidatedSummary: sentimentAnalysis?.consolidatedSummary || '',
+        isAI: Boolean(sentimentAnalysis?.aiAvailable),
+        detectedEvents: detectedEventsSet.size > 0 ? Array.from(detectedEventsSet) : undefined,
+        collectionStatus: {
+          status: collectionStatusVal,
+          feedsSuccess: successFeeds,
+          feedsTotal: totalFeeds,
+          articlesFound: allNews.length,
+        },
+        news: relevantItems.map(({ id, article: n, detail, parsedTs, event, corroboratingSourcesCount }) => ({
+          id,
+          summary: n.title,
+          sentiment: validSentiments.has(detail?.sentiment) ? detail.sentiment : 'NEUTRE',
+          impact: validImpacts.has(detail?.impact) ? detail.impact : 'Court terme',
+          explanation: detail?.explanation || 'Analyse en attente.',
+          source: n.source,
+          date: Number.isFinite(parsedTs) ? new Date(parsedTs).toLocaleDateString('fr-FR') : 'Récent',
+          url: n.link,
+          fullContent: n.fullContent,
+          eventCategory: event.category,
+          corroboratingSourcesCount,
+        }))
+      };
     } catch (e) {
       console.error("News Worker Error:", e);
     }
@@ -125,6 +217,197 @@ export const NewsWorker = {
   }
 };
 
+function parsePositiveLocaleNum(s?: string | number | null): number | undefined {
+  if (typeof s === 'number') return Number.isFinite(s) && s > 0 ? s : undefined;
+  if (!s || s === '-' || s === 'N/A' || s.includes('INDISPONIBLE')) return undefined;
+  const noSpaces = s.replace(/[\s\u00A0\u202F]/g, '');
+  const m = noSpaces.match(/-?[\d.,]+/);
+  if (!m) return undefined;
+  let token = m[0];
+  if (token.includes('.') && token.includes(',')) {
+    if (token.lastIndexOf(',') > token.lastIndexOf('.')) {
+      token = token.replace(/\./g, '').replace(',', '.');
+    } else {
+      token = token.replace(/,/g, '');
+    }
+  } else if (token.includes(',')) {
+    token = token.replace(',', '.');
+  }
+  const n = parseFloat(token);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
+function parseSignedMetricPct(raw?: string): number | null {
+  if (!raw || raw === 'N/A' || raw === '-') return null;
+  const cleaned = raw.replace(/[\s\u00A0\u202F%]/g, '').replace(',', '.');
+  const m = cleaned.match(/-?\d+(?:\.\d+)?/);
+  if (!m) return null;
+  const num = parseFloat(m[0]);
+  return Number.isFinite(num) ? num : null;
+}
+
+export type MarketRegime = 'TRENDING' | 'RANGING' | 'HIGH_VOLATILITY';
+
+/**
+ * Identifie le régime technique courant du titre (Tendance, Range ou Haute Volatilité).
+ */
+export function detectMarketRegime(market: Partial<CompanyAnalysis>): MarketRegime {
+  if (market.atr?.atrPercent !== undefined && market.atr.atrPercent > 3.5) {
+    return 'HIGH_VOLATILITY';
+  }
+  const hasTrendMacd = market.macd?.trend === 'Haussier' || market.macd?.trend === 'Baissier';
+  if (
+    typeof market.sma20 === 'number' &&
+    typeof market.sma50 === 'number' &&
+    market.sma50 > 0 &&
+    Math.abs((market.sma20 - market.sma50) / market.sma50) >= 0.025 &&
+    hasTrendMacd
+  ) {
+    return 'TRENDING';
+  }
+  return 'RANGING';
+}
+
+/**
+ * Backtest glissant empirique sur les cours de clôture (TechnicalEngine multi-facteurs).
+ */
+export function backtestTechnicalSignals(
+  closes: number[],
+  horizonSessions: number = 5
+): CompanyAnalysis['strategyBacktest'] {
+  if (!Array.isArray(closes) || closes.length < 35 || horizonSessions < 1) {
+    return undefined;
+  }
+
+  const maxEnd = closes.length - horizonSessions - 1;
+  const effectiveStart = Math.max(20, maxEnd - 39);
+  const returns: number[] = [];
+
+  for (let i = effectiveStart; i <= maxEnd; i++) {
+    const slice = closes.slice(0, i + 1);
+    const sig = TechnicalEngine.calculate(slice);
+    const rsiVal = typeof sig.rsi.value === 'number' ? sig.rsi.value : 50;
+    let direction = 0;
+    if (sig.trend === 'Haussière' && rsiVal < 70) direction = 1;
+    else if (sig.trend === 'Baissière' && rsiVal > 30) direction = -1;
+    else continue;
+
+    const entry = closes[i];
+    const exit = closes[i + horizonSessions];
+    if (entry > 0 && exit > 0) {
+      returns.push(direction * ((exit - entry) / entry) * 100);
+    }
+  }
+
+  if (returns.length < 3) return undefined;
+
+  const sampleSize = returns.length;
+  const wins = returns.filter((r) => r > 0).length;
+  const avgReturn = returns.reduce((a, b) => a + b, 0) / sampleSize;
+  const worstLoss = Math.min(0, ...returns);
+
+  return {
+    sampleSize,
+    winRatePct: Number(((wins / sampleSize) * 100).toFixed(1)),
+    avgReturnPct: Number(avgReturn.toFixed(2)),
+    maxDrawdownPct: Number(Math.abs(worstLoss).toFixed(2)),
+    horizonSessions,
+  };
+}
+
+/**
+ * Score quantitatif de qualité fondamentale (0–100, Grade A–D) adapté aux valeurs BVC.
+ */
+export function computeFundamentalQualityScore(fundamentals: {
+  peRatio?: string;
+  dividendYield?: string;
+  roe?: string;
+  margin?: string;
+  revenueGrowth?: string;
+  profitGrowth?: string;
+  sectorBenchmark?: { medianPe: number | null };
+}): { score: number; grade: 'A' | 'B' | 'C' | 'D'; highlights: string[] } {
+  let score = 50;
+  const highlights: string[] = [];
+
+  const roe = parseSignedMetricPct(fundamentals.roe);
+  if (roe !== null) {
+    if (roe >= 15) {
+      score += 15;
+      highlights.push(`ROE élevé (${roe.toFixed(1)}%)`);
+    } else if (roe >= 10) {
+      score += 8;
+      highlights.push(`ROE solide (${roe.toFixed(1)}%)`);
+    } else if (roe < 5) {
+      score -= 10;
+      highlights.push(`Rentabilité des fonds propres faible (${roe.toFixed(1)}%)`);
+    }
+  }
+
+  const margin = parseSignedMetricPct(fundamentals.margin);
+  if (margin !== null) {
+    if (margin >= 15) {
+      score += 10;
+      highlights.push(`Marge robuste (${margin.toFixed(1)}%)`);
+    } else if (margin >= 8) {
+      score += 5;
+    } else if (margin < 0) {
+      score -= 12;
+      highlights.push(`Marge négative (${margin.toFixed(1)}%)`);
+    }
+  }
+
+  const pe = parseSignedMetricPct(fundamentals.peRatio);
+  if (pe !== null && pe > 0) {
+    const sectorMedian = fundamentals.sectorBenchmark?.medianPe;
+    if ((sectorMedian && sectorMedian > 0 && pe < sectorMedian) || pe < 15) {
+      score += 12;
+      highlights.push(`Valorisation attractive (PER ${pe.toFixed(1)}x)`);
+    } else if (pe > 28) {
+      score -= 10;
+      highlights.push(`Multiple PER élevé (${pe.toFixed(1)}x)`);
+    }
+  }
+
+  const div = parseSignedMetricPct(fundamentals.dividendYield);
+  if (div !== null) {
+    if (div >= 3.5 && div <= 10) {
+      score += 10;
+      highlights.push(`Rendement attractif (${div.toFixed(2)}%)`);
+    } else if (div > 0) {
+      score += 4;
+    }
+  }
+
+  const revG = parseSignedMetricPct(fundamentals.revenueGrowth);
+  if (revG !== null) {
+    if (revG > 5) {
+      score += 8;
+      highlights.push(`Croissance CA (+${revG.toFixed(1)}%)`);
+    } else if (revG < -5) {
+      score -= 8;
+      highlights.push(`Contraction CA (${revG.toFixed(1)}%)`);
+    }
+  }
+
+  const profG = parseSignedMetricPct(fundamentals.profitGrowth);
+  if (profG !== null) {
+    if (profG > 5) {
+      score += 10;
+      highlights.push(`Croissance RN (+${profG.toFixed(1)}%)`);
+    } else if (profG < -5) {
+      score -= 10;
+      highlights.push(`Baisse RN (${profG.toFixed(1)}%)`);
+    }
+  }
+
+  const clamped = Math.max(0, Math.min(100, Math.round(score)));
+  const grade: 'A' | 'B' | 'C' | 'D' =
+    clamped >= 75 ? 'A' : clamped >= 60 ? 'B' : clamped >= 45 ? 'C' : 'D';
+
+  return { score: clamped, grade, highlights };
+}
+
 /**
  * AGENT MARKET: Indicateurs techniques réels (Optimisé via Marché Live)
  * AUDIT FIX: Ajout filtre liquidité, volume intégré, labels honnêtes
@@ -134,10 +417,11 @@ export const MarketWorker = {
     try {
       console.log(`[MarketWorker] Analyse technique pour "${company}"...`);
       
-      // 1 & 2. Récupérer le PRIX ACTUEL et l'HISTORIQUE détaillé en parallèle (Gain de temps)
-      let [liveData, detailedHistory] = await Promise.all([
+      // 1 & 2. Récupérer le PRIX ACTUEL, l'HISTORIQUE détaillé et le MASI en parallèle (Gain de temps)
+      let [liveData, detailedHistory, masiData] = await Promise.all([
         MarketListScraper.getLiveStock(company),
-        WafabourseScraper.getStockHistoryDetailed(company)
+        WafabourseScraper.getStockHistoryDetailed(company),
+        IndexScraper.getMASI().catch(() => null),
       ]);
 
       let history = detailedHistory.closes;
@@ -151,7 +435,7 @@ export const MarketWorker = {
         // Élimine le message "Données historiques insuffisantes" du graphique
         try {
           const resolved = await BMCEBourseScraper.resolveStock(company);
-          if (resolved && resolved.uuid) {
+          if (resolved && resolved.uuid && supabaseAdmin) {
             // Vérifier s'il y a déjà assez de points historiques dans la DB
             const { count, error: countErr } = await supabaseAdmin
               .from('market_history')
@@ -190,14 +474,7 @@ export const MarketWorker = {
 
       console.log(`[MarketWorker] Live data match for "${company}": ${liveData ? 'OUI (' + liveData.symbol + ')' : 'NON (N/A)'}`);
 
-      const parseLocaleNum = (s?: string): number | undefined => {
-        if (!s || s === '-' || s === 'N/A') return undefined;
-        const clean = s.replace(/[\s\u00A0\u202F]/g, '').replace(',', '.');
-        const n = parseFloat(clean);
-        return Number.isFinite(n) && n > 0 ? n : undefined;
-      };
-
-      const currentPrice = parseLocaleNum(liveData?.price) || 0;
+      const currentPrice = parsePositiveLocaleNum(liveData?.price) || 0;
       
       // BUG FIX #5: Circuit breaker amélioré — vérifier les deux cas séparément
       // Si le prix LIVE est absent mais l'historique existe, on continue mais avec avertissement
@@ -234,15 +511,26 @@ export const MarketWorker = {
 
       // AUDIT FIX: Extraire la quantité de titres échangés pour le filtre de liquidité
       const volumeStr = liveData ? liveData.quantity : undefined;
-      const volumeNum = volumeStr ? parseInt(volumeStr.replace(/[\s\u00A0]/g, '').replace(',', ''), 10) : undefined;
+      const parsedVol = volumeStr ? parseInt(volumeStr.replace(/[\s\u00A0\u202F,.]/g, ''), 10) : NaN;
+      const volumeNum = Number.isFinite(parsedVol) && parsedVol >= 0 ? parsedVol : undefined;
 
-      // 3. Calcul via le moteur technique avec vrais OHLC intraday (si disponibles)
+      // 3. Calcul via le moteur technique avec vrais OHLC intraday, historique volumes et benchmark MASI
       const sessionOHLC = {
-        high: parseLocaleNum(liveData?.high),
-        low: parseLocaleNum(liveData?.low),
+        high: parsePositiveLocaleNum(liveData?.high),
+        low: parsePositiveLocaleNum(liveData?.low),
         close: currentPrice > 0 ? currentPrice : undefined,
       };
-      const tech = TechnicalEngine.calculate(prices, volumeNum, sessionOHLC);
+      const volumeHistory = detailedHistory.historyPoints
+        .map(pt => pt.volume)
+        .filter((v): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0);
+      const masiContext =
+        typeof liveData?.variationValue === 'number' && typeof masiData?.variationValue === 'number'
+          ? {
+              stockVariationPct: liveData.variationValue,
+              masiVariationPct: masiData.variationValue,
+            }
+          : undefined;
+      const tech = TechnicalEngine.calculate(prices, volumeNum, sessionOHLC, volumeHistory, masiContext);
       
       if (liveData || history.length > 0) {
         const displayPrice = liveData?.price || (history.length > 0 ? history[history.length-1].toString() : '0.0');
@@ -265,11 +553,23 @@ export const MarketWorker = {
         }
         if (liveData) signals.push(`Variation: ${liveData.variation}`);
         if (tech.volumeSignal) signals.push(`Volume: ${tech.volumeSignal}`);
+        if (tech.atr) signals.push(`ATR(14): ${tech.atr.atr14} MAD (${tech.atr.atrPercent}%)`);
+        if (tech.volumeBreakout?.isBreakout) {
+          signals.push(`🚀 Breakout Volume (${tech.volumeBreakout.ratio}x MM20)`);
+        } else if (tech.volumeBreakout?.isBollingerSqueeze) {
+          signals.push(`🗜️ Compression Bollinger (${tech.volumeBreakout.bollingerBandwidth}%)`);
+        }
+        if (tech.relativeStrengthMasi) {
+          signals.push(
+            `${tech.relativeStrengthMasi.label} (${tech.relativeStrengthMasi.alphaPct >= 0 ? '+' : ''}${tech.relativeStrengthMasi.alphaPct}%)`
+          );
+        }
         if (priceDiscrepancy) signals.push(priceDiscrepancy);
         signals.push(`📊 Points de données: ${tech.dataPointsUsed}`);
 
         // AUDIT FIX: Alerte liquidité
         const liquidityWarning = MarketWorker.checkLiquidity(volumeNum);
+        const strategyBacktest = backtestTechnicalSignals(prices);
 
         return {
           price: displayPrice,
@@ -295,6 +595,10 @@ export const MarketWorker = {
           } : undefined,
           signals,
           liquidityWarning,
+          atr: tech.atr,
+          volumeBreakout: tech.volumeBreakout,
+          relativeStrengthMasi: tech.relativeStrengthMasi,
+          strategyBacktest,
         };
       }
     } catch (e) {
@@ -314,7 +618,7 @@ export const MarketWorker = {
    * Certaines small caps traitent <100 titres/jour
    */
   checkLiquidity: (volume: number | undefined) => {
-    if (volume === undefined) {
+    if (typeof volume !== 'number' || !Number.isFinite(volume) || volume < 0) {
       return {
         isLiquid: true, // Défaut optimiste en l'absence de données
         message: 'Volume non disponible — Vérifiez la liquidité manuellement'
@@ -347,17 +651,27 @@ export const MarketWorker = {
  * AUDIT FIX: Ajout du signal VENDRE + logique multi-facteurs
  */
 export const StrategyWorker = {
+  detectMarketRegime,
+  backtestSignals: backtestTechnicalSignals,
+
   /**
-   * Scoring quantitatif symétrique [-100, +100]
+   * Scoring quantitatif symétrique [-100, +100] modulé par régime de marché
    * Chaque indicateur contribue de manière équilibrée. Élimine le biais haussier structurel.
    */
   synthesize: (news: Partial<CompanyAnalysis>, market: Partial<CompanyAnalysis>): Partial<CompanyAnalysis> => {
-    const rsiValue = typeof market.rsi === 'object' ? parseFloat(String(market.rsi.value)) : 50;
+    const rawRsiVal =
+      typeof market.rsi === 'object'
+        ? parseFloat(String(market.rsi.value))
+        : typeof market.rsi === 'string'
+          ? parseFloat(market.rsi)
+          : NaN;
+    const hasValidRsi = Number.isFinite(rawRsiVal);
     const macdTrend = market.macd?.trend || 'Indéterminé';
     const variation = market.variationValue || 0;
-    
-    // Circuit breaker — Refuser de décider sur des données manquantes
-    if (market.price === 'INDISPONIBLE' || market.price === '0.0') {
+    const numericPrice = parsePositiveLocaleNum(market.price) || 0;
+
+    // Circuit breaker — Refuser de décider sur des données manquantes ou nulles
+    if (numericPrice <= 0) {
       return {
         recommendedAction: 'ATTENDRE',
         confidenceLevel: 'Faible',
@@ -365,6 +679,11 @@ export const StrategyWorker = {
         riskExplication: 'Données insuffisantes pour une analyse fiable.'
       };
     }
+
+    const marketRegime = detectMarketRegime(market);
+    const macdWeight = marketRegime === 'TRENDING' ? 25 : 20;
+    const rsiOverboughtMultiplier = marketRegime === 'TRENDING' ? 0.7 : 1.0;
+    const decisionThreshold = marketRegime === 'HIGH_VOLATILITY' ? 35 : 30;
     
     // ═══════════════════════════════════════════════════
     // SCORING MULTI-FACTEURS SYMÉTRIQUE
@@ -398,34 +717,36 @@ export const StrategyWorker = {
     }
 
     // 2. RSI (Poids: 25 pts)
-    if (rsiValue > 70) {
-      const rsiScore = -Math.round(((rsiValue - 70) / 30) * 25);
+    if (!hasValidRsi) {
+      factors.push('RSI 0 (Indisponible)');
+    } else if (rawRsiVal > 70) {
+      const rsiScore = -Math.round(((rawRsiVal - 70) / 30) * 25 * rsiOverboughtMultiplier);
       score += rsiScore;
-      factors.push(`RSI ${rsiScore} (Surachat: ${rsiValue})`);
-    } else if (rsiValue < 30) {
+      factors.push(`RSI ${rsiScore} (Surachat: ${rawRsiVal})`);
+    } else if (rawRsiVal < 30) {
       // Survente = potentiel rebond, mais dangereux → score neutre-positif modéré
-      const rsiScore = Math.round(((30 - rsiValue) / 30) * 15); // Max +15 (pas +25, car couteau qui tombe)
+      const rsiScore = Math.round(((30 - rawRsiVal) / 30) * 15); // Max +15 (pas +25, car couteau qui tombe)
       score += rsiScore;
-      factors.push(`RSI +${rsiScore} (Survente: ${rsiValue}, rebond possible)`);
-    } else if (rsiValue > 55) {
-      const rsiScore = Math.round(((rsiValue - 50) / 20) * 15);
+      factors.push(`RSI +${rsiScore} (Survente: ${rawRsiVal}, rebond possible)`);
+    } else if (rawRsiVal > 55) {
+      const rsiScore = Math.round(((rawRsiVal - 50) / 20) * 15);
       score += rsiScore;
-      factors.push(`RSI +${rsiScore} (Momentum haussier: ${rsiValue})`);
-    } else if (rsiValue < 45) {
-      const rsiScore = -Math.round(((50 - rsiValue) / 20) * 15);
+      factors.push(`RSI +${rsiScore} (Momentum haussier: ${rawRsiVal})`);
+    } else if (rawRsiVal < 45) {
+      const rsiScore = -Math.round(((50 - rawRsiVal) / 20) * 15);
       score += rsiScore;
-      factors.push(`RSI ${rsiScore} (Momentum baissier: ${rsiValue})`);
+      factors.push(`RSI ${rsiScore} (Momentum baissier: ${rawRsiVal})`);
     } else {
-      factors.push(`RSI 0 (Zone neutre: ${rsiValue})`);
+      factors.push(`RSI 0 (Zone neutre: ${rawRsiVal})`);
     }
 
-    // 3. MACD (Poids: 25 pts)
+    // 3. MACD (Poids modulé par régime: 20 ou 25 pts)
     if (macdTrend === 'Haussier') {
-      score += 20;
-      factors.push(`MACD +20 (Haussier)`);
+      score += macdWeight;
+      factors.push(`MACD +${macdWeight} (Haussier)`);
     } else if (macdTrend === 'Baissier') {
-      score -= 20;
-      factors.push(`MACD -20 (Baissier)`);
+      score -= macdWeight;
+      factors.push(`MACD -${macdWeight} (Baissier)`);
     } else {
       factors.push(`MACD 0 (Indéterminé)`);
     }
@@ -443,40 +764,58 @@ export const StrategyWorker = {
       factors.push(`Variation ${varScore > 0 ? '+' : ''}${varScore} (${variation > 0 ? '+' : ''}${variation.toFixed(1)}%)`);
     }
 
+    // 5. FILTRE LIQUIDITÉ
+    const isIlliquid = Boolean(market.liquidityWarning && market.liquidityWarning.isLiquid === false);
+    if (isIlliquid) {
+      factors.push('Liquidité réduite');
+    }
+
     // ═══════════════════════════════════════════════════
-    // DÉCISION BASÉE SUR LE SCORE
+    // DÉCISION BASÉE SUR LE SCORE & RÉGIME
     // ═══════════════════════════════════════════════════
     const clampedScore = Math.max(-100, Math.min(100, score));
     const absScore = Math.abs(clampedScore);
-    const confidence = absScore >= 50 ? 'Élevé' : absScore >= 25 ? 'Moyen' : 'Faible';
+    let confidence: 'Faible' | 'Moyen' | 'Élevé' = absScore >= 50 ? 'Élevé' : absScore >= 25 ? 'Moyen' : 'Faible';
+    if (isIlliquid) {
+      confidence = 'Faible';
+    }
+    const liquidityNote = isIlliquid
+      ? ' ⚠️ Liquidité faible/illiquide : confiance plafonnée et ordres à cours limité recommandés.'
+      : '';
     const factorsStr = factors.join(' | ');
+    const hasSupport = Boolean(
+      market.support && !market.support.includes('N/A') && !market.support.includes('INDISPONIBLE')
+    );
 
-    if (clampedScore >= 30) {
+    if (clampedScore >= decisionThreshold) {
       return {
         recommendedAction: 'ACHETER',
         confidenceLevel: confidence,
-        strategyPlan: `Signal d'achat quantitatif. Score: +${clampedScore}/100. Facteurs: ${factorsStr}.`,
-        idealEntryPoint: `${market.support} - ${market.price}`,
-        riskExplication: `Score positif basé sur ${factors.length} indicateurs convergents. Stop loss sous le support recommandé.`
+        marketRegime,
+        strategyPlan: `Signal d'achat quantitatif [${marketRegime}]. Score: +${clampedScore}/100. Facteurs: ${factorsStr}.`,
+        idealEntryPoint: hasSupport ? `${market.support} - ${market.price}` : (market.price || 'MARKET'),
+        riskExplication: `Score positif basé sur ${factors.length} indicateurs convergents. Stop loss sous le support recommandé.${liquidityNote}`
       };
     }
 
-    if (clampedScore <= -30) {
+    if (clampedScore <= -decisionThreshold) {
       return {
         recommendedAction: 'VENDRE',
         confidenceLevel: confidence,
-        strategyPlan: `Signal de vente quantitatif. Score: ${clampedScore}/100. Facteurs: ${factorsStr}.`,
+        marketRegime,
+        strategyPlan: `Signal de vente quantitatif [${marketRegime}]. Score: ${clampedScore}/100. Facteurs: ${factorsStr}.`,
         idealEntryPoint: 'N/A (Signal de sortie)',
-        riskExplication: `Score négatif basé sur ${factors.length} indicateurs convergents. Réduire l'exposition recommandé.`
+        riskExplication: `Score négatif basé sur ${factors.length} indicateurs convergents. Réduire l'exposition recommandé.${liquidityNote}`
       };
     }
 
-    // Zone neutre [-30, +30]
+    // Zone neutre [-seuil, +seuil]
     return {
       recommendedAction: 'ATTENDRE',
       confidenceLevel: confidence,
-      strategyPlan: `Zone d'observation. Score: ${clampedScore > 0 ? '+' : ''}${clampedScore}/100. Aucun signal directionnel suffisant. Facteurs: ${factorsStr}.`,
-      riskExplication: `Momentum insuffisant pour une prise de position. Attendre une convergence plus marquée (seuil ±30).`
+      marketRegime,
+      strategyPlan: `Zone d'observation [${marketRegime}]. Score: ${clampedScore > 0 ? '+' : ''}${clampedScore}/100. Aucun signal directionnel suffisant. Facteurs: ${factorsStr}.`,
+      riskExplication: `Momentum insuffisant pour une prise de position. Attendre une convergence plus marquée (seuil ±${decisionThreshold}).${liquidityNote}`
     };
   }
 };
@@ -503,8 +842,22 @@ export const FundamentalWorker = {
         console.log(`[FundamentalWorker] Résolution DB: ${searchName} | Symbole: ${searchSymbol}`);
       }
 
-      // 1. Récupération des données TradingView Morocco en MAD natif
-      const tvData = await TradingViewScraper.getFundamentalData(searchName, searchSymbol);
+      // 0. Cache distribué Redis/Supabase (TTL 6h) pour éviter le re-scraping fondamental répétitif
+      const cacheKey = `aetheris:fundamental:${searchSymbol.toUpperCase()}`;
+      try {
+        const cachedFundamentals = await CacheService.getGeneric(cacheKey, 6 * 60 * 60 * 1000);
+        if (cachedFundamentals && cachedFundamentals.peRatio && cachedFundamentals.fundamentalQualityScore) {
+          return { fundamentals: cachedFundamentals };
+        }
+      } catch {
+        // Fallback live transparent
+      }
+
+      // 1. Récupération des données TradingView Morocco et médianes sectorielles en parallèle
+      const [tvData, sectorBenchmarks] = await Promise.all([
+        TradingViewScraper.getFundamentalData(searchName, searchSymbol),
+        TradingViewScraper.getSectorBenchmarks().catch(() => new Map()),
+      ]);
 
       // 2. Complément Casabourse (en cache 6h) dès que la croissance ou tout ratio est N/A
       let casaData: any = { peRatio: 'N/A', dividendYield: 'N/A', margin: 'N/A', revenueGrowth: 'N/A', profitGrowth: 'N/A', status: 'error' };
@@ -528,6 +881,7 @@ export const FundamentalWorker = {
 
       const needsCoreFallback =
         (tvData.peRatio === 'N/A' && (!casaData.peRatio || casaData.peRatio === 'N/A')) ||
+        (tvData.dividendYield === 'N/A' && (!casaData.dividendYield || casaData.dividendYield === 'N/A')) ||
         tvData.marketCap === 'N/A' ||
         tvData.roe === 'N/A' ||
         tvData.netProfit === 'N/A';
@@ -569,7 +923,7 @@ export const FundamentalWorker = {
           return casaVal;
         }
         // Priorité 4: BMCE Capital
-        if (bmceVal && bmceVal !== 'N/A') {
+        if (bmceData.status === 'success' && bmceVal && bmceVal !== 'N/A') {
           dataSources[field] = 'BMCE';
           return bmceVal;
         }
@@ -577,7 +931,10 @@ export const FundamentalWorker = {
         return 'N/A';
       };
 
-      const fundamentals = {
+      const sectorName = SymbolMapper.getSector(searchSymbol, searchName);
+      const peRawNum = parseSignedMetricPct(pickBest('peRatio', tvData.peRatio, casaData.peRatio, bmceData.peRatio));
+
+      const baseFundamentals = {
         peRatio: pickBest('peRatio', tvData.peRatio, casaData.peRatio, bmceData.peRatio),
         dividendYield: pickBest('dividendYield', tvData.dividendYield, casaData.dividendYield, bmceData.dividendYield),
         marketCap: pickBest('marketCap', tvData.marketCap, undefined, (bmceData.marketCap && bmceData.marketCap !== 'N/A') ? bmceData.marketCap : undefined),
@@ -586,14 +943,30 @@ export const FundamentalWorker = {
         margin: pickBest('margin', tvData.margin, casaData.margin, undefined),
         revenueGrowth: pickBest('revenueGrowth', tvData.revenueGrowth, casaData.revenueGrowth, undefined),
         profitGrowth: pickBest('profitGrowth', tvData.profitGrowth, casaData.profitGrowth, undefined),
-        sector: '', // Complété par l'orchestrateur
+        sector: sectorName, // Complété/confirmé par l'orchestrateur si besoin
         dataSources, // AUDIT FIX: Traçabilité
+      };
+
+      const sectorBenchmark = TradingViewScraper.computeSectorBenchmark(
+        sectorName,
+        peRawNum,
+        sectorBenchmarks
+      );
+      const fundamentalQualityScore = computeFundamentalQualityScore({
+        ...baseFundamentals,
+        sectorBenchmark,
+      });
+
+      const fundamentals = {
+        ...baseFundamentals,
+        sectorBenchmark,
+        fundamentalQualityScore,
       };
 
 
       // AUDIT FIX: Suppression du fallback IA hallucinatoire
       // Les données manquantes restent N/A. C'est honnête.
-      const missingFields = Object.entries(fundamentals)
+      const missingFields = Object.entries(baseFundamentals)
         .filter(([key, val]) => val === 'N/A' && !['sector', 'dataSources'].includes(key))
         .map(([key]) => key);
       
@@ -601,7 +974,7 @@ export const FundamentalWorker = {
         console.log(`[FundamentalWorker] ℹ️ Données manquantes pour "${searchName}": ${missingFields.join(', ')}. Affichées comme N/A (pas d'estimation IA).`);
       }
 
-      console.log(`[FundamentalWorker] 📊 Synthèse terminée pour ${searchName}. PER: ${fundamentals.peRatio}, ROE: ${fundamentals.roe}, Bénéfice: ${fundamentals.netProfit}`);
+      console.log(`[FundamentalWorker] 📊 Synthèse terminée pour ${searchName}. PER: ${fundamentals.peRatio}, ROE: ${fundamentals.roe}, Score Qualité: ${fundamentalQualityScore.score}/100 (${fundamentalQualityScore.grade})`);
       
       // 5. Validation Zod de sortie
       const validatedData = FundamentalDataSchema.safeParse(fundamentals);
@@ -609,7 +982,20 @@ export const FundamentalWorker = {
         console.warn("[FundamentalWorker] ⚠️ Validation Zod échouée pour les fondamentaux:", validatedData.error.format());
       }
       
-      return { fundamentals: validatedData.success ? validatedData.data : fundamentals };
+      const finalFundamentals = validatedData.success ? validatedData.data : fundamentals;
+      const validCoreCount = [
+        finalFundamentals.peRatio,
+        finalFundamentals.dividendYield,
+        finalFundamentals.marketCap,
+        finalFundamentals.roe,
+        finalFundamentals.netProfit,
+      ].filter((v) => v && v !== 'N/A').length;
+
+      if (validCoreCount >= 2) {
+        CacheService.setGeneric(cacheKey, finalFundamentals, 6 * 60 * 60 * 1000).catch(() => {});
+      }
+
+      return { fundamentals: finalFundamentals };
     } catch (e) {
       console.error("Fundamental Worker Error:", e);
     }
@@ -620,7 +1006,12 @@ export const FundamentalWorker = {
       fundamentals: {
         peRatio: 'N/A',
         dividendYield: 'N/A',
-        marketCap: 'N/A'
+        marketCap: 'N/A',
+        dataSources: {
+          peRatio: 'UNKNOWN',
+          dividendYield: 'UNKNOWN',
+          marketCap: 'UNKNOWN',
+        },
       }
     };
   }

@@ -364,8 +364,11 @@ export default function PortfolioPage() {
     }
   };
 
-  const handleOptimizePortfolio = async () => {
-    return await optimizePortfolioAction(holdingsStats);
+  const handleOptimizePortfolio = async (options?: { shariaOnly?: boolean; availableCashMAD?: number }) => {
+    const effectiveOptions = isVirtualMode
+      ? { ...options, availableCashMAD: options?.availableCashMAD ?? virtualBalance }
+      : options;
+    return await optimizePortfolioAction(holdingsStats, effectiveOptions);
   };
 
   const exportToCsv = (txs: any[], divs: any[]) => {
