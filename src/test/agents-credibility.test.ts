@@ -3,13 +3,15 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { TechnicalEngine } from '../lib/technical-engine';
 import { StrategyWorker } from '../lib/agents/worker-agents';
 import { newsEngine } from '../lib/news-engine';
-import { TradingViewScraper } from '../lib/scrapers/tradingview-scraper';
+import { TradingViewScraper, isHaramIndustryOrSector } from '../lib/scrapers/tradingview-scraper';
 import { parseFrenchPrice, validatePriceLevels } from '../lib/agent-engine';
-import { validatePortfolioOptimization } from '../lib/gemini';
+import { validatePortfolioOptimization, GeminiService } from '../lib/gemini';
+import { CacheService } from '../lib/cache-service';
 import { CompanyAnalysisSchema } from '../lib/schemas';
 
 describe('Agents & Orchestrator Credibility Suite', () => {
   afterEach(() => {
+    TradingViewScraper.clearCache();
     vi.restoreAllMocks();
   });
 
@@ -340,6 +342,116 @@ describe('Agents & Orchestrator Credibility Suite', () => {
         expect(strongNeg.data.globalSentiment).toBe('FORTEMENT_NEGATIF');
         expect(strongNeg.data.isAI).toBe(true);
       }
+    });
+  });
+
+  describe('Sharia Screener Hybrid Pipeline & Haram Classification', () => {
+    it('flags banks, insurers, leasing, and alcohol as Haram while preserving Real Estate under Finance', () => {
+      expect(isHaramIndustryOrSector('Finance', 'Regional Banks', 'ATW')).toBe(true);
+      expect(isHaramIndustryOrSector('Finance', 'Multi-Line Insurance', 'WAA')).toBe(true);
+      expect(isHaramIndustryOrSector('Finance', 'Finance/Rental/Leasing', 'EQD')).toBe(true);
+      expect(isHaramIndustryOrSector('Consumer Non-Durables', 'Beverages: Alcoholic', 'SBM')).toBe(true);
+      expect(isHaramIndustryOrSector('Non-Energy Minerals', 'Gold', 'BCP')).toBe(true);
+
+      // Immobilier et Foncières classés sous "Finance" sur TradingView ne doivent PAS être marqués Haram
+      expect(isHaramIndustryOrSector('Finance', 'Real Estate Development', 'ADH')).toBe(false);
+      expect(isHaramIndustryOrSector('Finance', 'Real Estate Investment Trusts', 'BAL')).toBe(false);
+      expect(isHaramIndustryOrSector('Communications', 'Wireless Telecommunications', 'IAM')).toBe(false);
+      expect(isHaramIndustryOrSector('Technology Services', 'Packaged Software', 'HPS')).toBe(false);
+    });
+
+    it('matches TradingView /morocco/scan balance sheet by ticker and company name in native MAD', async () => {
+      const mockUniverse = [
+        {
+          s: 'CSEMA:IAM',
+          d: ['IAM', 'Maroc Telecom SA', 'Communications', 'Wireless Telecommunications', 78151582219, 77454000000, 36681000000, 37649000000, 20128000000, 2112000000, null, 'MAD'],
+        },
+        {
+          s: 'CSEMA:ATW',
+          d: ['ATW', 'Attijariwafa Bank SA', 'Finance', 'Regional Banks', 134474887573, 825301980000, 47696456000, 48826774000, 97739425000, null, null, 'MAD'],
+        },
+      ];
+
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: mockUniverse }), { status: 200 })
+      );
+
+      const iamByName = await TradingViewScraper.getShariaBalanceSheet('Maroc Telecom');
+      expect(iamByName.status).toBe('success');
+      expect(iamByName.ticker).toBe('IAM');
+      expect(iamByName.marketCap).toBe(78151582219);
+      expect(iamByName.interestDebt).toBe(20128000000);
+      expect(iamByName.interestCash).toBe(2112000000);
+
+      // Uses 6h cache cleanly without second HTTP call
+      const atwByTicker = await TradingViewScraper.getShariaBalanceSheet('ATW');
+      expect(atwByTicker.status).toBe('success');
+      expect(atwByTicker.companyName).toBe('Attijariwafa Bank SA');
+    });
+
+    it('gracefully falls back to TradingView balance sheet without fabricating interestIncome when Grounding returns 429', async () => {
+      process.env.GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'test-key';
+      vi.spyOn(CacheService, 'getGeneric').mockResolvedValue(null);
+      vi.spyOn(CacheService, 'setGeneric').mockResolvedValue(undefined as any);
+
+      const mockUniverse = [
+        {
+          s: 'CSEMA:IAM',
+          d: ['IAM', 'Maroc Telecom SA', 'Communications', 'Wireless Telecommunications', 78151582219, 77454000000, 36681000000, 37649000000, 20128000000, 2112000000, null, 'MAD'],
+        },
+        {
+          s: 'CSEMA:ATW',
+          d: ['ATW', 'Attijariwafa Bank SA', 'Finance', 'Regional Banks', 134474887573, 825301980000, 47696456000, 48826774000, 97739425000, null, null, 'MAD'],
+        },
+      ];
+
+      vi.spyOn(global, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes('scanner.tradingview.com/morocco/scan')) {
+          return new Response(JSON.stringify({ data: mockUniverse }), { status: 200 });
+        }
+        if (url.includes('generativelanguage.googleapis.com')) {
+          const bodyStr = String(init?.body || '');
+          if (bodyStr.includes('googleSearch')) {
+            return new Response(JSON.stringify({ error: { code: 429, message: 'quota exceeded' } }), { status: 429 });
+          }
+          return new Response(
+            JSON.stringify({
+              candidates: [
+                {
+                  content: {
+                    parts: [
+                      {
+                        text: JSON.stringify({
+                          sector: 'Télécommunications',
+                          summary: 'Synthèse Sharia basée sur le bilan TradingView CSEMA.',
+                          explanation: 'Dette et trésorerie calculées en MAD ; produits financiers à confirmer via PDF AMMC.',
+                        }),
+                      },
+                    ],
+                  },
+                },
+              ],
+            }),
+            { status: 200 }
+          );
+        }
+        return new Response('{}', { status: 404 });
+      });
+
+      const iamResult = await GeminiService.analyzeShariaCompliance('IAM', undefined, 'IAM');
+      expect(iamResult.isHaramSector).toBe(false);
+      expect(iamResult.estimatedCompliance).toBe(true);
+      expect(iamResult.interestIncomeMissing).toBe(true);
+      expect(iamResult.purificationRate).toBe(0);
+      expect(iamResult.debtRatio).toBeCloseTo(25.75, 1);
+      expect(iamResult.cashRatio).toBeCloseTo(2.7, 1);
+      expect(iamResult.financialData.interestIncome).toContain('PDF AMMC');
+
+      const atwResult = await GeminiService.analyzeShariaCompliance('ATW', undefined, 'ATW');
+      expect(atwResult.isHaramSector).toBe(true);
+      expect(atwResult.isCompliant).toBe(false);
+      expect(atwResult.estimatedCompliance).toBe(false);
     });
   });
 });

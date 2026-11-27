@@ -1,9 +1,10 @@
 import 'server-only';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
-import { CompanyAnalysis, OrchestratorResult, Sentiment, Impact } from './schemas';
+import { CompanyAnalysis, OrchestratorResult, Sentiment, Impact, ShariaResult } from './schemas';
 import { InputSanitizer } from './input-sanitizer';
 import crypto from 'crypto';
 import { CacheService } from './cache-service';
+import { TradingViewScraper, isHaramIndustryOrSector } from './scrapers/tradingview-scraper';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -97,6 +98,11 @@ async function callGoogleAI(prompt: string, isJson: boolean = false, preferredMo
         
         console.warn(`[GoogleAI] ${modelName} attempt ${attempt}/${MAX_RETRIES_PER_MODEL} failed (${isQuota ? 'quota' : isTransient ? 'transient' : isNotFound ? 'not found' : e.message}).`);
         
+        // Si Google Search Grounding atteint son quota 429, inutile de réessayer sur d'autres modèles
+        if (useGrounding && isQuota) {
+          throw new Error('GROUNDING_QUOTA_EXCEEDED');
+        }
+
         // Quota exhausted or Model Not Found → skip to next model immediately
         if (isQuota || isNotFound) break;
         
@@ -938,8 +944,163 @@ NE DONNE PAS de recommandation d'achat ou de vente. Concentre-toi sur les FAITS 
     }
   }
 
-  static async analyzeShariaCompliance(query: string, pdfData?: { data: string, mimeType: string }) {
+  private static async generateShariaNarrative(params: {
+    companyName: string;
+    ticker: string;
+    sectorRaw: string;
+    industryRaw: string;
+    isHaram: boolean;
+    denominatorLabel: string;
+    denominator: number | null;
+    totalRevenue: number | null;
+    interestDebt: number | null;
+    interestCash: number | null;
+    debtRatio: number;
+    cashRatio: number;
+  }): Promise<{ sector: string; summary: string; explanation: string }> {
+    const defaultSector = params.industryRaw || params.sectorRaw || 'Non précisé';
+    const defaultSummary = params.isHaram
+      ? `${params.companyName} (${params.ticker}) exerce une activité principale financière conventionnelle ou proscrite (${defaultSector}) non conforme aux critères sectoriels AAOIFI.`
+      : `${params.companyName} (${params.ticker}) présente un ratio d'endettement de ${params.debtRatio.toFixed(2)}% et un ratio de trésorerie de ${params.cashRatio.toFixed(2)}% d'après son bilan TradingView CSEMA. Les produits financiers (Riba) du CPC restent à confirmer via le PDF AMMC ou la Saisie Manuelle.`;
+    const defaultExplanation = params.isHaram
+      ? `Le filtrage sectoriel AAOIFI exclut d'emblée le secteur "${defaultSector}". Aucun calcul de purification de dividende n'est applicable.`
+      : `Les ratios de bilan (${params.denominatorLabel}) ont été calculés de manière déterministe depuis les données TradingView CSEMA en MAD. Le flux de marché ne publiant pas la ventilation des produits d'intérêts au CPC, ce poste n'a pas été estimé et nécessite le rapport annuel AMMC.`;
+
+    if (!process.env.GEMINI_API_KEY && !process.env.MISTRAL_API_KEY) {
+      return { sector: defaultSector, summary: defaultSummary, explanation: defaultExplanation };
+    }
+
+    try {
+      const dataPayload = InputSanitizer.wrapUntrustedForPrompt(
+        'sharia_tradingview_financials',
+        JSON.stringify({
+          companyName: params.companyName,
+          ticker: params.ticker,
+          sectorRaw: params.sectorRaw,
+          industryRaw: params.industryRaw,
+          isHaramSector: params.isHaram,
+          denominatorLabel: params.denominatorLabel,
+          denominatorMAD: params.denominator,
+          totalRevenueMAD: params.totalRevenue,
+          interestDebtMAD: params.interestDebt,
+          interestCashMAD: params.interestCash,
+          debtRatioPct: params.debtRatio,
+          cashRatioPct: params.cashRatio,
+        }),
+        4000
+      );
+
+      const prompt = `
+Tu es un analyste expert en finance islamique (normes AAOIFI 2026) et comptabilité marocaine (PCGM).
+À partir UNIQUEMENT des données certifiées ci-dessous :
+${dataPayload}
+
+Règles strictes :
+1. Traduis ou précise le nom du secteur d'activité en français concis ("sector").
+2. Rédige une synthèse claire en français ("summary", max 2 phrases) sur la situation AAOIFI du titre.
+3. Rédige une explication technique ("explanation", max 3 phrases) en précisant si c'est un secteur illicite OU que seuls les ratios de bilan (Dette / Trésorerie) sont calculés tant que les produits d'intérêts (CPC) ne sont pas fournis.
+4. N'INVENTE JAMAIS de montant pour les produits d'intérêts ou le taux de purification.
+
+Réponds UNIQUEMENT en JSON valide :
+{
+  "sector": string,
+  "summary": string,
+  "explanation": string
+}
+`;
+      const text = await unifiedAICall(prompt, true, 'gemini-3.8-flash', undefined, false, undefined, undefined, 0.2);
+      const parsed = safeJsonParse(text);
+      if (parsed && typeof parsed === 'object') {
+        return {
+          sector: sanitizeAiTextField(parsed.sector, 80) || defaultSector,
+          summary: sanitizeAiTextField(parsed.summary, 1500) || defaultSummary,
+          explanation: sanitizeAiTextField(parsed.explanation, 1500) || defaultExplanation,
+        };
+      }
+    } catch (err: any) {
+      console.warn('[Gemini Sharia Narrative Fallback]:', err?.message || err);
+    }
+
+    return { sector: defaultSector, summary: defaultSummary, explanation: defaultExplanation };
+  }
+
+  static async analyzeShariaCompliance(
+    query: string,
+    pdfData?: { data: string; mimeType: string },
+    resolvedSymbol?: string
+  ): Promise<ShariaResult> {
     query = InputSanitizer.sanitizeCompanyName(query);
+
+    const formatMAD = (num: number) =>
+      new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(num) + ' MAD';
+
+    // Mode automatique (sans PDF) : récupérer d'abord le bilan réel TradingView CSEMA en MAD
+    const tv = !pdfData
+      ? await TradingViewScraper.getShariaBalanceSheet(query, resolvedSymbol)
+      : null;
+
+    if (tv && tv.status === 'success' && isHaramIndustryOrSector(tv.sector, tv.industry, tv.ticker)) {
+      const denominator =
+        tv.marketCap && tv.marketCap > 0
+          ? tv.marketCap
+          : tv.totalAssets && tv.totalAssets > 0
+            ? tv.totalAssets
+            : null;
+      const denominatorLabel =
+        tv.marketCap && tv.marketCap > 0 ? 'Capitalisation boursière' : 'Total Actif';
+      const debtRatio =
+        denominator && tv.interestDebt !== null
+          ? parseFloat(((tv.interestDebt / denominator) * 100).toFixed(2))
+          : 0;
+      const cashRatio =
+        denominator && tv.interestCash !== null
+          ? parseFloat(((tv.interestCash / denominator) * 100).toFixed(2))
+          : 0;
+
+      const narrative = await this.generateShariaNarrative({
+        companyName: tv.companyName,
+        ticker: tv.ticker,
+        sectorRaw: tv.sector,
+        industryRaw: tv.industry,
+        isHaram: true,
+        denominatorLabel,
+        denominator,
+        totalRevenue: tv.totalRevenue,
+        interestDebt: tv.interestDebt,
+        interestCash: tv.interestCash,
+        debtRatio,
+        cashRatio,
+      });
+
+      return {
+        companyName: tv.companyName,
+        ticker: tv.ticker,
+        sector: narrative.sector,
+        fiscalYear: 'Dernier bilan publié',
+        isCompliant: false,
+        estimatedCompliance: false,
+        isHaramSector: true,
+        dataQuality: 'UNVERIFIED',
+        isAIEstimated: false,
+        interestIncomeMissing: true,
+        purificationRate: 0,
+        debtRatio,
+        cashRatio,
+        dataWarning:
+          'Activité principale financière conventionnelle ou secteur proscrit détecté selon les normes AAOIFI.',
+        financialData: {
+          totalRevenue: tv.totalRevenue !== null ? formatMAD(tv.totalRevenue) : 'N/A',
+          interestIncome: 'N/A (Secteur illicite)',
+          interestDebt: tv.interestDebt !== null ? formatMAD(tv.interestDebt) : 'N/A',
+          interestCash: tv.interestCash !== null ? formatMAD(tv.interestCash) : 'N/A',
+          marketCap: denominator !== null ? formatMAD(denominator) : 'N/A',
+        },
+        summary: narrative.summary,
+        confidenceScore: 95,
+        explanation: narrative.explanation,
+        sources: ['TradingView CSEMA (Données financières officielles)', 'Référentiel sectoriel AAOIFI'],
+      };
+    }
 
     const prompt = `
 Tu es un analyste financier expert en Sharia Screener, finance islamique (normes AAOIFI 2026) et comptabilité marocaine (PCGM).
@@ -1009,52 +1170,50 @@ Réponds UNIQUEMENT en JSON valide respectant strictement cette structure :
         required: ["companyName", "ticker", "sector", "fiscalYear", "confidenceScore", "explanation", "rawFinancials", "summary", "sources"]
       };
 
+    let parsed: any = null;
     try {
       // Activate Search Grounding if no PDF is provided
       const useGrounding = !pdfData;
       const text = await unifiedAICall(prompt, true, 'gemini-3.8-flash', undefined, useGrounding, pdfData, shariaSchema, 0.2);
-      const parsed = safeJsonParse(text);
+      parsed = safeJsonParse(text);
+    } catch (groundingOrPdfErr: any) {
+      if (pdfData) {
+        console.error('Gemini Sharia PDF Error:', groundingOrPdfErr);
+        throw groundingOrPdfErr;
+      }
+      console.warn('[Gemini Sharia Grounding Unavailable, bascule sur TradingView CSEMA]:', groundingOrPdfErr?.message || groundingOrPdfErr);
+    }
 
-      if (parsed) {
-        // Extraction des valeurs brutes de l'IA (ou valeurs par défaut en cas d'échec)
-        const raw = parsed.rawFinancials || {};
-        
-        // Validation des nombres extraits
-        const parseNum = (val: any): number | null => {
-            if (val === null || val === undefined) return null;
-            const num = Number(val);
-            return Number.isFinite(num) && num >= 0 ? num : null;
-        };
+    const parseNum = (val: any): number | null => {
+      if (val === null || val === undefined) return null;
+      const num = Number(val);
+      return Number.isFinite(num) && num >= 0 ? num : null;
+    };
 
-        const totalRevenue = parseNum(raw.totalRevenue);
-        const interestIncome = parseNum(raw.interestIncome);
-        const interestDebt = parseNum(raw.interestDebt);
-        const interestCash = parseNum(raw.interestCash);
-        const marketCap = parseNum(raw.marketCap);
+    if (parsed) {
+      const raw = parsed.rawFinancials || {};
+      const totalRevenue = parseNum(raw.totalRevenue);
+      const interestIncome = parseNum(raw.interestIncome);
+      const interestDebt = parseNum(raw.interestDebt);
+      const interestCash = parseNum(raw.interestCash);
+      const marketCap = parseNum(raw.marketCap);
 
-        if (
-          totalRevenue === null || interestIncome === null ||
-          interestDebt === null || interestCash === null || marketCap === null || totalRevenue <= 0 || marketCap <= 0
-        ) {
-          throw new Error("Une ou plusieurs données financières (Revenus, Intérêts, Dettes, Capitalisation) sont introuvables ou incomplètes. L'IA a bloqué le calcul pour éviter des données erronées. Veuillez fournir le PDF ou utiliser la saisie manuelle avec le bilan officiel.");
-        }
+      const hasCompleteNumbers =
+        totalRevenue !== null &&
+        interestIncome !== null &&
+        interestDebt !== null &&
+        interestCash !== null &&
+        marketCap !== null &&
+        totalRevenue > 0 &&
+        marketCap > 0;
 
-        // CALCULS TYPESCRIPT DÉTERMINISTES (0% Hallucination)
+      if (hasCompleteNumbers) {
         const purificationRate = (interestIncome / totalRevenue) * 100;
         const debtRatio = (interestDebt / marketCap) * 100;
         const cashRatio = (interestCash / marketCap) * 100;
 
-        // REGLES STRICTES AAOIFI (< 5%, <= 33.33% dettes/trésorerie)
         const strictCompliant = purificationRate <= 5.0 && debtRatio <= 33.33 && cashRatio <= 33.33;
-
-        // VERIFICATION SECTEUR ILLICITE (Haram)
-        const sectorLower = (parsed.sector || '').toLowerCase();
-        const isHaramSector = ['banque', 'bank', 'assurance', 'insurance', 'alcool', 'alcohol', 'tabac', 'tobacco', 'jeux', 'gambling'].some(s => sectorLower.includes(s));
-
-        // Formateur MAD
-        const formatMAD = (num: number) => {
-            return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(num) + ' MAD';
-        };
+        const isHaramSector = isHaramIndustryOrSector(parsed.sector, undefined, parsed.ticker);
 
         const safeSources: string[] = Array.isArray(parsed.sources)
           ? parsed.sources
@@ -1088,17 +1247,17 @@ Réponds UNIQUEMENT en JSON valide respectant strictement cette structure :
           purificationRate: parseFloat(purificationRate.toFixed(2)),
           debtRatio: parseFloat(debtRatio.toFixed(2)),
           cashRatio: parseFloat(cashRatio.toFixed(2)),
-          // BUG FIX #7: The compliance verdict is deterministic BUT the input data
-          // is AI-estimated (Gemini cannot actually browse the internet in standard mode).
-          // Flagging this transparently is critical for a Halal compliance tool.
           isAIEstimated: !pdfData,
-          dataWarning: pdfData ? "Données extraites directement du PDF fourni." : "⚠️ AVERTISSEMENT : Les données financières ont été extraites via Google Search. Vérifiez toujours avec les rapports AMMC pour confirmer l'exactitude des montants.",
+          interestIncomeMissing: false,
+          dataWarning: pdfData
+            ? 'Données extraites directement du PDF fourni.'
+            : "⚠️ AVERTISSEMENT : Les données financières ont été extraites via Google Search. Vérifiez toujours avec les rapports AMMC pour confirmer l'exactitude des montants.",
           financialData: {
             totalRevenue: formatMAD(totalRevenue),
             interestIncome: formatMAD(interestIncome),
             interestDebt: formatMAD(interestDebt),
             interestCash: formatMAD(interestCash),
-            marketCap: formatMAD(marketCap)
+            marketCap: formatMAD(marketCap),
           },
           summary:
             sanitizeAiTextField(parsed.summary || parsed.description, 1500) ||
@@ -1106,13 +1265,89 @@ Réponds UNIQUEMENT en JSON valide respectant strictement cette structure :
           confidenceScore: clampedConfidence,
           explanation:
             sanitizeAiTextField(parsed.explanation, 1500) || 'Analyse mathématique sans précision supplémentaire.',
-          sources: safeSources.length > 0 ? safeSources : ['Recherche Automatisée Web']
+          sources: safeSources.length > 0 ? safeSources : ['Recherche Automatisée Web'],
         };
       }
-      throw new Error("Impossible d'extraire les données JSON de la réponse de l'IA.");
-    } catch (e: any) {
-      console.error("Gemini Sharia Screener Error:", e);
-      throw e;
+
+      if (pdfData) {
+        throw new Error(
+          "Une ou plusieurs données financières (Revenus, Intérêts, Dettes, Capitalisation) sont introuvables dans le PDF fourni. Complétez les chiffres manquants via la Saisie Manuelle."
+        );
+      }
+    } else if (pdfData) {
+      throw new Error("Impossible d'extraire les données JSON du PDF fourni.");
     }
+
+    // Fallback hybride réel sur les états financiers TradingView CSEMA (sans jamais inventer les produits d'intérêts)
+    if (tv && tv.status === 'success') {
+      const denominator =
+        tv.marketCap && tv.marketCap > 0
+          ? tv.marketCap
+          : tv.totalAssets && tv.totalAssets > 0
+            ? tv.totalAssets
+            : null;
+      const denominatorLabel =
+        tv.marketCap && tv.marketCap > 0 ? 'Capitalisation boursière' : 'Total Actif';
+
+      if (
+        tv.totalRevenue !== null &&
+        tv.totalRevenue > 0 &&
+        denominator !== null &&
+        denominator > 0 &&
+        tv.interestDebt !== null
+      ) {
+        const debtRatio = (tv.interestDebt / denominator) * 100;
+        const cashRatio = ((tv.interestCash ?? 0) / denominator) * 100;
+        const balanceSheetOk = debtRatio <= 33.33 && cashRatio <= 33.33;
+
+        const narrative = await this.generateShariaNarrative({
+          companyName: tv.companyName,
+          ticker: tv.ticker,
+          sectorRaw: tv.sector,
+          industryRaw: tv.industry,
+          isHaram: false,
+          denominatorLabel,
+          denominator,
+          totalRevenue: tv.totalRevenue,
+          interestDebt: tv.interestDebt,
+          interestCash: tv.interestCash ?? 0,
+          debtRatio: parseFloat(debtRatio.toFixed(2)),
+          cashRatio: parseFloat(cashRatio.toFixed(2)),
+        });
+
+        return {
+          companyName: tv.companyName,
+          ticker: tv.ticker,
+          sector: narrative.sector,
+          fiscalYear: 'Dernier bilan publié',
+          isCompliant: null,
+          estimatedCompliance: balanceSheetOk,
+          isHaramSector: false,
+          dataQuality: 'UNVERIFIED',
+          isAIEstimated: true,
+          interestIncomeMissing: true,
+          purificationRate: 0,
+          debtRatio: parseFloat(debtRatio.toFixed(2)),
+          cashRatio: parseFloat(cashRatio.toFixed(2)),
+          dataWarning:
+            "Capitalisation/Actif, Chiffre d'affaires, Dettes et Trésorerie proviennent des états financiers TradingView CSEMA (en MAD). Le montant exact des produits financiers (intérêts / CPC) n'est pas publié dans ce flux : importez le rapport annuel PDF (AMMC) ou complétez-le en Saisie Manuelle pour calculer le taux de purification.",
+          financialData: {
+            totalRevenue: formatMAD(tv.totalRevenue),
+            interestIncome: 'Non publié (PDF AMMC requis)',
+            interestDebt: formatMAD(tv.interestDebt),
+            interestCash: formatMAD(tv.interestCash ?? 0),
+            marketCap: formatMAD(denominator),
+          },
+          summary: narrative.summary,
+          confidenceScore: balanceSheetOk ? 68 : 80,
+          explanation: narrative.explanation,
+          sources: ['TradingView CSEMA (États financiers en MAD)', 'Synthèse sectorielle Gemini 3.8 Flash'],
+        };
+      }
+    }
+
+    throw new Error(
+      'Société introuvable dans les données BVC ou états financiers indisponibles. Importez le rapport annuel PDF ou utilisez la Saisie Manuelle.'
+    );
   }
 }

@@ -41,6 +41,33 @@ export default function PurificationPage() {
   // Dividend Calculator Input
   const [dividendAmount, setDividendAmount] = useState<string>('0');
   const [dividendType, setDividendType] = useState<'BRUT' | 'NET'>('BRUT');
+  const [prefillManualData, setPrefillManualData] = useState<Partial<ManualFormState> | null>(null);
+
+  const handlePrefillManual = () => {
+    if (!result) return;
+    const extractDigits = (val?: string) => {
+      if (!val) return '';
+      const cleaned = String(val)
+        .replace(/[\s\u00A0\u202F]/g, '')
+        .replace(/(MAD|DH)$/i, '')
+        .replace(',', '.');
+      const num = Number(cleaned);
+      return Number.isFinite(num) && num >= 0 ? String(num) : '';
+    };
+    setPrefillManualData({
+      companyName: result.companyName || '',
+      ticker: result.ticker || '',
+      totalRevenue: extractDigits(result.financialData?.totalRevenue),
+      interestIncome: '',
+      interestDebt: extractDigits(result.financialData?.interestDebt),
+      interestCash: extractDigits(result.financialData?.interestCash),
+      marketCap: extractDigits(result.financialData?.marketCap),
+    });
+    setActiveTab('MANUAL');
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
   
   // Perform AI Search
   const handleSearch = async (query: string, pdfFile: File | null) => {
@@ -210,7 +237,7 @@ export default function PurificationPage() {
   const numericDividend = Number(dividendAmount.replace(/\s/g, '').replace(',', '.')) || 0;
   
   // Purification Calculation
-  const canCalculate = !!result && result.purificationRate > 0 && !result.isHaramSector;
+  const canCalculate = !!result && !result.interestIncomeMissing && result.purificationRate > 0 && !result.isHaramSector;
   const purificationAmount = canCalculate ? Math.ceil(numericDividend * (result.purificationRate / 100)) : 0;
   const halalAmount = numericDividend > 0 ? numericDividend - purificationAmount : 0;
 
@@ -256,6 +283,7 @@ export default function PurificationPage() {
           <ManualCalculator 
             onCalculate={handleManualCalculate} 
             activeTab={activeTab} 
+            prefillData={prefillManualData}
           />
 
           <ResultDashboard
@@ -276,6 +304,7 @@ export default function PurificationPage() {
             confidenceScore={result?.confidenceScore}
             estimatedCompliance={result?.estimatedCompliance}
             isAIEstimated={result?.isAIEstimated}
+            onPrefillManual={handlePrefillManual}
           />
           
         </div>

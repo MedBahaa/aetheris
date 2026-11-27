@@ -22,6 +22,7 @@ interface ResultDashboardProps {
   confidenceScore?: number;
   estimatedCompliance?: boolean;
   isAIEstimated?: boolean;
+  onPrefillManual?: () => void;
 }
 
 function ConfidenceGauge({ score }: { score: number }) {
@@ -97,7 +98,8 @@ export default function ResultDashboard({
   explanation,
   confidenceScore,
   estimatedCompliance,
-  isAIEstimated
+  isAIEstimated,
+  onPrefillManual
 }: ResultDashboardProps) {
   const [copied, setCopied] = useState(false);
   const [methodologyOpen, setMethodologyOpen] = useState(false);
@@ -107,6 +109,7 @@ export default function ResultDashboard({
 
   const isUnverified = dataQuality === 'UNVERIFIED' || isAIEstimated;
   const effectiveCompliant = isManualResult ? result.isCompliant : (result.isCompliant ?? estimatedCompliance ?? null);
+  const isInterestMissing = !!result.interestIncomeMissing && !result.isHaramSector;
 
   const copyToClipboard = () => {
     if (!result || !canCalculate || !navigator.clipboard) return;
@@ -202,7 +205,7 @@ export default function ResultDashboard({
 
         <h2 className={`verdict-title ${verdictTone}`}>
           {result.isHaramSector ? 'SECTEUR ILLICITE' :
-           effectiveCompliant ? (isUnverified ? 'ESTIMATION : CONFORME' : 'CONFORME (HALAL)') :
+           effectiveCompliant ? (isInterestMissing ? 'BILAN CONFORME (CPC À VÉRIFIER)' : (isUnverified ? 'ESTIMATION : CONFORME' : 'CONFORME (HALAL)')) :
            effectiveCompliant === false ? (isUnverified ? 'ESTIMATION : NON CONFORME' : 'NON CONFORME') :
            'DONNÉES INSUFFISANTES'}
         </h2>
@@ -275,14 +278,18 @@ export default function ResultDashboard({
                 <td className="metric-name-cell">Revenus Illicites / Chiffre d&apos;Affaires</td>
                 <td className="limit-cell">&lt; 5%</td>
                 <td className="extracted-cell">
-                  Intérêts: <span className="val-white">{formatFinancialAmount(result.financialData.interestIncome)}</span><br />
+                  Intérêts: <span className="val-white">{isInterestMissing ? 'Non publié (PDF / CPC requis)' : formatFinancialAmount(result.financialData.interestIncome)}</span><br />
                   CA: <span className="val-white">{formatFinancialAmount(result.financialData.totalRevenue)}</span>
                 </td>
-                <td className="ratio-val-cell">{result.purificationRate.toFixed(2)}%</td>
+                <td className="ratio-val-cell">{isInterestMissing ? 'À vérifier' : `${result.purificationRate.toFixed(2)}%`}</td>
                 <td>
-                  <span className={`ratio-status-pill ${result.purificationRate <= 5 ? 'ok' : 'ko'}`}>
-                    {result.purificationRate <= 5 ? 'OK' : 'DÉPASSÉ'}
-                  </span>
+                  {isInterestMissing ? (
+                    <span className="ratio-status-pill warn">PDF REQUIS</span>
+                  ) : (
+                    <span className={`ratio-status-pill ${result.purificationRate <= 5 ? 'ok' : 'ko'}`}>
+                      {result.purificationRate <= 5 ? 'OK' : 'DÉPASSÉ'}
+                    </span>
+                  )}
                 </td>
               </tr>
               <tr>
@@ -324,18 +331,23 @@ export default function ResultDashboard({
               label: 'Revenus Illicites',
               val: result.purificationRate,
               limit: 5,
-              sub: `Intérêts ${formatFinancialAmount(result.financialData.interestIncome)} / CA ${formatFinancialAmount(result.financialData.totalRevenue)}`
+              isMissing: isInterestMissing,
+              sub: isInterestMissing
+                ? `Intérêts non publiés (PDF requis) / CA ${formatFinancialAmount(result.financialData.totalRevenue)}`
+                : `Intérêts ${formatFinancialAmount(result.financialData.interestIncome)} / CA ${formatFinancialAmount(result.financialData.totalRevenue)}`
             },
             {
               label: 'Endettement Bancaire',
               val: result.debtRatio,
               limit: 33.33,
+              isMissing: false,
               sub: `Dettes ${formatFinancialAmount(result.financialData.interestDebt)}`
             },
             {
               label: 'Trésorerie Placée',
               val: result.cashRatio,
               limit: 33.33,
+              isMissing: false,
               sub: `Cash ${formatFinancialAmount(result.financialData.interestCash)}`
             }
           ].map((metric, i) => {
@@ -349,10 +361,14 @@ export default function ResultDashboard({
                     <span className="ratio-card-sub">{metric.sub}</span>
                   </div>
                   <div className="ratio-card-right">
-                    <div className="hero-price mono">{metric.val.toFixed(2)}%</div>
-                    <span className={`ratio-status-pill ${isOk ? 'ok' : 'ko'}`}>
-                      {isOk ? 'CONFORME' : 'DÉPASSÉ'}
-                    </span>
+                    <div className="hero-price mono">{metric.isMissing ? 'À vérifier' : `${metric.val.toFixed(2)}%`}</div>
+                    {metric.isMissing ? (
+                      <span className="ratio-status-pill warn">PDF REQUIS</span>
+                    ) : (
+                      <span className={`ratio-status-pill ${isOk ? 'ok' : 'ko'}`}>
+                        {isOk ? 'CONFORME' : 'DÉPASSÉ'}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -360,6 +376,20 @@ export default function ResultDashboard({
           })}
         </div>
       </div>
+
+      {isInterestMissing && onPrefillManual && (
+        <div className="sharia-prefill-cta no-print">
+          <div className="prefill-cta-copy">
+            <h4 className="prefill-cta-title">COMPLÉTER LE RATIO DE PURIFICATION (CPC)</h4>
+            <p className="prefill-cta-desc">
+              Le chiffre d&apos;affaires, les dettes, la trésorerie et la capitalisation sont déjà récupérés. Saisissez uniquement les produits d&apos;intérêts du rapport annuel pour obtenir le taux exact.
+            </p>
+          </div>
+          <button type="button" onClick={onPrefillManual} className="sharia-prefill-btn">
+            COMPLÉTER LES INTÉRÊTS EN MODE MANUEL (4/5 CHAMPS PRÉ-REMPLIS)
+          </button>
+        </div>
+      )}
 
       {/* 7. SOURCES & TRACEABILITY */}
       {!isManualResult && sources && sources.length > 0 && (
@@ -726,7 +756,37 @@ export default function ResultDashboard({
           font-weight: 800;
         }
         .ratio-status-pill.ok { background: rgba(16, 185, 129, 0.18); color: #34d399; }
+        .ratio-status-pill.warn { background: rgba(245, 158, 11, 0.18); color: #fbbf24; }
         .ratio-status-pill.ko { background: rgba(244, 63, 94, 0.18); color: #fb7185; }
+
+        .sharia-prefill-cta {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1rem;
+          padding: 1.15rem 1.35rem;
+          border-radius: 14px;
+          background: rgba(245, 158, 11, 0.08);
+          border: 1px solid rgba(245, 158, 11, 0.28);
+        }
+        .prefill-cta-copy { display: flex; flex-direction: column; gap: 0.35rem; flex: 1; min-width: 240px; }
+        .prefill-cta-title { font-size: 12px; font-weight: 800; color: #fbbf24; margin: 0; letter-spacing: 0.05em; }
+        .prefill-cta-desc { font-size: 12px; color: #cbd5e1; margin: 0; line-height: 1.45; }
+        .sharia-prefill-btn {
+          min-height: 44px;
+          padding: 0.65rem 1.1rem;
+          border-radius: 10px;
+          border: 1px solid rgba(251, 191, 36, 0.45);
+          background: rgba(245, 158, 11, 0.18);
+          color: #fde68a;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 11px;
+          font-weight: 800;
+          cursor: pointer;
+          transition: transform 0.2s ease, background 0.2s ease;
+        }
+        .sharia-prefill-btn:hover { background: rgba(245, 158, 11, 0.28); transform: translateY(-1px); }
 
         .ratio-mobile-card { padding: 14px !important; }
         .ratio-card-row { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calculator } from 'lucide-react';
 
 export interface ManualFormState {
@@ -16,14 +16,29 @@ export interface ManualFormState {
 interface ManualCalculatorProps {
   onCalculate: (form: ManualFormState, denominatorType: 'MARKET_CAP' | 'TOTAL_ASSETS') => void;
   activeTab: 'AI_SEARCH' | 'MANUAL';
+  prefillData?: Partial<ManualFormState> | null;
 }
 
-export default function ManualCalculator({ onCalculate, activeTab }: ManualCalculatorProps) {
+export default function ManualCalculator({ onCalculate, activeTab, prefillData }: ManualCalculatorProps) {
   const [denominatorType, setDenominatorType] = useState<'MARKET_CAP' | 'TOTAL_ASSETS'>('MARKET_CAP');
   const [manualForm, setManualForm] = useState<ManualFormState>({
     companyName: '', ticker: '', totalRevenue: '', interestIncome: '',
     interestDebt: '', interestCash: '', marketCap: ''
   });
+
+  useEffect(() => {
+    if (!prefillData) return;
+    setDenominatorType('MARKET_CAP');
+    setManualForm({
+      companyName: prefillData.companyName ?? '',
+      ticker: prefillData.ticker ?? '',
+      totalRevenue: prefillData.totalRevenue ?? '',
+      interestIncome: prefillData.interestIncome ?? '',
+      interestDebt: prefillData.interestDebt ?? '',
+      interestCash: prefillData.interestCash ?? '',
+      marketCap: prefillData.marketCap ?? '',
+    });
+  }, [prefillData]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

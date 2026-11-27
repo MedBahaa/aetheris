@@ -51,6 +51,8 @@ export interface ShariaResult {
   dataWarning?: string;
   /** True when financial data was extracted by AI from web search (not from a user-provided PDF or manual input) */
   isAIEstimated?: boolean;
+  /** True when interest income (CPC Riba) is unavailable from public market feeds and requires PDF or Manual completion */
+  interestIncomeMissing?: boolean;
   purificationRate: number;
   debtRatio: number;
   cashRatio: number;

@@ -124,6 +124,7 @@ export async function POST(req: Request) {
 
           let result = null;
           let cachedCompanyId = null;
+          let resolvedSymbol: string | undefined = undefined;
 
           const dbClient = supabaseAdmin || supabase;
           const safeFilterQuery = InputSanitizer.sanitizePostgrestFilter(cleanQuery);
@@ -139,6 +140,7 @@ export async function POST(req: Request) {
               
             if (companyMatch) {
               cachedCompanyId = companyMatch.id;
+              resolvedSymbol = companyMatch.symbol;
               const sevenDaysAgo = new Date();
               sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
               
@@ -159,7 +161,7 @@ export async function POST(req: Request) {
           }
 
           if (!result) {
-            result = await GeminiService.analyzeShariaCompliance(cleanQuery, pdfData);
+            result = await GeminiService.analyzeShariaCompliance(cleanQuery, pdfData, resolvedSymbol);
             
             if (!pdfData) {
                if (!cachedCompanyId && result.ticker) {
@@ -180,8 +182,9 @@ export async function POST(req: Request) {
                );
                const isCacheableConfidence =
                  typeof result.confidenceScore === 'number' && result.confidenceScore >= 50;
+               const isCompleteOrHaram = !result.interestIncomeMissing || !!result.isHaramSector;
 
-               if (cachedCompanyId && isCacheableConfidence && !hasInjectionArtifact) {
+               if (cachedCompanyId && isCacheableConfidence && !hasInjectionArtifact && isCompleteOrHaram) {
                   await dbClient.from('analyses_cache').insert({
                     company_id: cachedCompanyId,
                     agent_type: 'SHARIA',
@@ -194,10 +197,15 @@ export async function POST(req: Request) {
           sendEvent({ step: 4, status: 'success', data: result });
         } catch (error: any) {
           console.error('[API sharia-screener Error]:', error);
+          const rawMsg = typeof error?.message === 'string' ? error.message : '';
+          const safeUserMsg =
+            rawMsg.startsWith('Société introuvable') || rawMsg.startsWith('Une ou plusieurs données financières')
+              ? rawMsg
+              : 'Erreur lors de la recherche des états financiers et du calcul de conformité Sharia.';
           sendEvent({
             step: 4,
             status: 'error',
-            message: 'Erreur lors de la recherche des états financiers et du calcul de conformité Sharia.'
+            message: safeUserMsg
           });
         } finally {
           if (step2Timer) clearTimeout(step2Timer);
