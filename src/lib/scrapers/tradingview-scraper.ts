@@ -14,17 +14,17 @@ export interface TradingViewFundamentalData {
 
 export class TradingViewScraper {
   /**
-   * Récupère les données fondamentales depuis TradingView (CSEMA) avec conversion USD/MAD.
+   * Récupère les données fondamentales depuis TradingView Morocco (CSEMA) en MAD natif,
+   * avec conversion sécurisée uniquement si un champ reste exprimé en devise étrangère.
    */
   static async getFundamentalData(company: string, symbolInput?: string): Promise<TradingViewFundamentalData> {
     const symbol = (symbolInput || SymbolMapper.resolve(company) || company).toUpperCase();
     console.log(`[TradingViewScraper] Récupération des fondamentaux pour : CSEMA:${symbol}...`);
 
     try {
-      // Requête pour l'action et pour obtenir le taux USD/MAD
       const postData = {
         symbols: {
-          tickers: [`CSEMA:${symbol}`, "FX_IDC:USDMAD"],
+          tickers: [`CSEMA:${symbol}`],
           query: { types: [] }
         },
         columns: [
@@ -37,11 +37,12 @@ export class TradingViewScraper {
           "net_income",
           "operating_margin",
           "total_revenue",
-          "revenue_growth_yoy"
+          "revenue_growth_yoy",
+          "fundamental_currency_code"
         ]
       };
 
-      const res = await fetch('https://scanner.tradingview.com/global/scan', {
+      const res = await fetch('https://scanner.tradingview.com/morocco/scan', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -57,46 +58,62 @@ export class TradingViewScraper {
 
       const parsed = await res.json();
       const rows = parsed.data || [];
-
       const stockRow = rows.find((r: any) => r.s === `CSEMA:${symbol}`);
-      const rateRow = rows.find((r: any) => r.s === "FX_IDC:USDMAD");
 
-      if (!stockRow) {
+      if (!stockRow || !Array.isArray(stockRow.d)) {
         throw new Error(`Symbole CSEMA:${symbol} introuvable dans TradingView`);
       }
 
       const d = stockRow.d;
-      const usdMadRate = rateRow?.d?.[0] || 10.0;
+      const fundamentalCurrency = typeof d[10] === 'string' ? d[10].toUpperCase() : 'MAD';
+      let fxMultiplier = 1.0;
 
-      // Correspondance des indices de colonnes :
-      // 0: name
-      // 1: close
-      // 2: market_cap_basic
-      // 3: price_earnings_ttm
-      // 4: dividends_yield
-      // 5: return_on_equity_fq
-      // 6: net_income
-      // 7: operating_margin
-      // 8: total_revenue
-      // 9: revenue_growth_yoy
+      // Si l'endpoint renvoyait exceptionnellement des montants en USD, récupérer le vrai taux numérique (colonne "close" index 1)
+      if (fundamentalCurrency === 'USD') {
+        try {
+          const fxRes = await fetch('https://scanner.tradingview.com/global/scan', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            body: JSON.stringify({
+              symbols: { tickers: ['FX_IDC:USDMAD'], query: { types: [] } },
+              columns: ['name', 'close']
+            }),
+            signal: AbortSignal.timeout(6000),
+          });
+          if (fxRes.ok) {
+            const fxJson = await fxRes.json();
+            const rateRow = (fxJson.data || []).find((r: any) => r.s === 'FX_IDC:USDMAD');
+            const numericRate = rateRow?.d?.[1];
+            fxMultiplier = typeof numericRate === 'number' && Number.isFinite(numericRate) && numericRate > 0 ? numericRate : 10.0;
+          } else {
+            fxMultiplier = 10.0;
+          }
+        } catch {
+          fxMultiplier = 10.0;
+        }
+      }
 
-      const pe = d[3] !== null && d[3] !== undefined ? d[3].toFixed(2) : 'N/A';
-      const divYield = d[4] !== null && d[4] !== undefined ? `${d[4].toFixed(2)} %` : 'N/A';
-      
-      // Conversion en MAD
-      const marketCapRaw = d[2] !== null && d[2] !== undefined ? Math.round(d[2] * usdMadRate) : null;
-      const marketCap = marketCapRaw ? marketCapRaw.toString() : 'N/A';
-      
-      const netProfitRaw = d[6] !== null && d[6] !== undefined ? Math.round(d[6] * usdMadRate) : null;
-      const netProfit = netProfitRaw 
+      const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+      const pe = isNum(d[3]) ? d[3].toFixed(2) : 'N/A';
+      const divYield = isNum(d[4]) ? `${d[4].toFixed(2)} %` : 'N/A';
+
+      const marketCapRaw = isNum(d[2]) && d[2] > 0 ? Math.round(d[2] * fxMultiplier) : null;
+      const marketCap = marketCapRaw !== null ? marketCapRaw.toString() : 'N/A';
+
+      const netProfitRaw = isNum(d[6]) ? Math.round(d[6] * fxMultiplier) : null;
+      const netProfit = netProfitRaw !== null
         ? `${netProfitRaw.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} MAD`
         : 'N/A';
 
-      const roe = d[5] !== null && d[5] !== undefined ? `${d[5].toFixed(2)}%` : 'N/A';
-      const margin = d[7] !== null && d[7] !== undefined ? `${d[7].toFixed(2)}%` : 'N/A';
-      const revenueGrowth = d[9] !== null && d[9] !== undefined ? `${d[9].toFixed(2)}%` : 'N/A';
+      const roe = isNum(d[5]) ? `${d[5].toFixed(2)}%` : 'N/A';
+      const margin = isNum(d[7]) ? `${d[7].toFixed(2)}%` : 'N/A';
+      const revenueGrowth = isNum(d[9]) ? `${d[9].toFixed(2)}%` : 'N/A';
 
-      console.log(`[TradingViewScraper] ✅ Données extraites pour ${symbol}`);
+      console.log(`[TradingViewScraper] ✅ Données extraites pour ${symbol} (${fundamentalCurrency})`);
       return {
         peRatio: pe,
         dividendYield: divYield,

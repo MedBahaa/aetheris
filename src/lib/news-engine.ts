@@ -65,6 +65,14 @@ const COMPANY_ALIASES: Record<string, string[]> = {
   'BCP': ['BANQUE POPULAIRE', 'BANQUE CENTRALE POPULAIRE'],
   'BANQUE POPULAIRE': ['BCP', 'BANQUE CENTRALE POPULAIRE'],
   'LABEL VIE': ['LBV', 'LABEL\'VIE', 'LABELVIE'],
+  'MARSA MAROC': ['MSA', 'SODEP'],
+  'MARSA MAROC (SODEP)': ['MSA', 'MARSA MAROC', 'SODEP'],
+  'ATLANTASANAD': ['ATH'],
+  'SANLAM MAROC': ['SAH', 'SANLAM', 'SAHAM'],
+  'CFG BANK': ['CFG'],
+  'CASH PLUS': ['CAP'],
+  'VICENNE': ['VCN'],
+  'CMGP GROUP': ['CMG', 'CMGP'],
   'COSUMAR': ['CSR'],
   'LAFARGEHOLCIM': ['LHM', 'LAFARGE', 'HOLCIM', 'LAFARGEHOLCIM MAROC'],
   'TAQA MOROCCO': ['TAQA', 'TQM'],
@@ -79,10 +87,10 @@ const COMPANY_ALIASES: Record<string, string[]> = {
   'MANAGEM': ['MNG'],
   'SAHAM ASSURANCE': ['SAH', 'SAHAM'],
   'WAFA ASSURANCE': ['WAA'],
-  'AUTO HALL': ['ATH'],
+  'AUTO HALL': ['AUH'],
   'AUTO NEJMA': ['NEJ', 'AUTONEJMA'],
   'SONASID': ['SID'],
-  'AFRIQUIA GAZ': ['GAZ', 'AFRIQUIA'],
+  'AFRIQUIA GAZ': ['AFI', 'AFG', 'AFRIQUIA'],
   'DELTA HOLDING': ['DHO', 'DELTA'],
   'CIH BANK': ['CIH'],
   'CDM': ['CREDIT DU MAROC'],
@@ -139,38 +147,42 @@ export class NewsEngine {
   }
 
   /**
-   * Génère les termes de recherche pour une société : nom complet + aliases connus
-   * Retourne des termes ordonnés par priorité (nom complet d'abord)
+   * Génère les termes de recherche pour une société : nom complet (sans parenthèses) + aliases connus
    */
   private getSearchTerms(companyName: string): { exact: string[]; aliases: string[] } {
-    const name = companyName.toUpperCase().trim();
-    
-    // Termes exacts : le nom complet tel quel
-    const exact = [name];
-    
-    // Aliases depuis le dictionnaire
-    const aliases: string[] = [];
-    
-    // Chercher les alias directs
-    if (COMPANY_ALIASES[name]) {
-      aliases.push(...COMPANY_ALIASES[name]);
-    }
-    
-    // Chercher aussi si le nom est un alias dans une autre entrée
-    for (const [mainName, aliasList] of Object.entries(COMPANY_ALIASES)) {
-      if (aliasList.some(a => a.toUpperCase() === name) && !exact.includes(mainName)) {
-        aliases.push(mainName);
+    const raw = companyName.toUpperCase().trim();
+    const baseName = raw.replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+    const parenMatches = Array.from(raw.matchAll(/\(([^)]+)\)/g)).map(m => m[1].trim()).filter(Boolean);
+
+    const exact = Array.from(new Set([baseName || raw, raw].filter(Boolean)));
+    const aliasSet = new Set<string>(parenMatches);
+
+    for (const candidate of [raw, baseName]) {
+      if (candidate && COMPANY_ALIASES[candidate]) {
+        COMPANY_ALIASES[candidate].forEach(a => aliasSet.add(a));
       }
     }
-    
+
+    for (const [mainName, aliasList] of Object.entries(COMPANY_ALIASES)) {
+      if (
+        aliasList.some(a => a.toUpperCase() === raw || a.toUpperCase() === baseName) &&
+        !exact.includes(mainName)
+      ) {
+        aliasSet.add(mainName);
+      }
+    }
+
+    const aliases = Array.from(aliasSet).filter(a => !exact.includes(a));
     return { exact, aliases };
   }
 
   /**
-   * Récupère et filtre les actualités pour une société donnée
-   * FILTRAGE STRICT : exige le nom complet de la société ou un alias connu
+   * Récupère les actualités triées et dédoublonnées avec les métriques exactes de collecte (thread-safe).
    */
-  async getNewsForCompany(companyName: string): Promise<NewsArticle[]> {
+  async getNewsWithMetrics(companyName: string): Promise<{
+    articles: NewsArticle[];
+    metrics: { successCount: number; totalFeeds: number };
+  }> {
     const articles: NewsArticle[] = [];
     const { exact, aliases } = this.getSearchTerms(companyName);
     
@@ -180,7 +192,8 @@ export class NewsEngine {
     console.log(`[NewsEngine] Recherche pour "${companyName}" avec termes: [${allTerms.join(', ')}]`);
 
     // Single ciblée boolean query on Google News to avoid multiple parallel requests
-    const termsGroup = [`"${companyName}"`, ...aliases.map(a => `"${a}"`)].join(' OR ');
+    const queryTerms = Array.from(new Set([exact[0], ...aliases]));
+    const termsGroup = queryTerms.map(t => `"${t}"`).join(' OR ');
     const queryStr = `(${termsGroup}) AND (Bourse OR Casablanca OR Maroc OR Action OR "résultats" OR "dividende")`;
     
     const companyFeeds = [
@@ -195,7 +208,6 @@ export class NewsEngine {
     const results = await Promise.allSettled(
       allFeeds.map(async feed => {
         try {
-          // Timeout de 8 secondes par feed pour éviter les blocages
           const FEED_TIMEOUT = 8000;
           const timeoutPromise = new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error(`Timeout ${FEED_TIMEOUT}ms`)), FEED_TIMEOUT)
@@ -208,13 +220,11 @@ export class NewsEngine {
             let actualTitle = item.title || '';
             let actualSource = feed.name;
 
-            // Google News ajoute " - Nom du Journal" à la fin de tous les titres.
             if (feed.name.includes('Google News') && actualTitle.includes(' - ')) {
               const parts = actualTitle.split(' - ');
               if (parts.length > 1) {
-                // Le vrai journal est la dernière partie
                 actualSource = parts.pop()?.trim() || feed.name;
-                actualTitle = parts.join(' - ').trim(); // On retire le nom du journal du titre
+                actualTitle = parts.join(' - ').trim();
               }
             }
 
@@ -239,15 +249,14 @@ export class NewsEngine {
       }
     });
 
-    // Tracker les métriques de collecte (seuls les feeds ayant retourné ≥1 article comptent comme succès)
     const successCount = results.filter(r => r.status === 'fulfilled' && (r.value as any[]).length > 0).length;
-    this.lastCollectionMetrics = {
+    const metrics = {
       successCount,
       totalFeeds: allFeeds.length,
     };
+    this.lastCollectionMetrics = metrics;
 
     // FILTRAGE STRICT par nom de société + bouclier anti-injection indirecte de prompt (OWASP LLM01)
-    // On exige que le NOM COMPLET ou un ALIAS CONNU apparaisse dans le titre ou snippet
     const filtered = articles.filter(article => {
       if (article.link && !InputSanitizer.sanitizeHttpUrl(article.link)) {
         return false;
@@ -260,14 +269,11 @@ export class NewsEngine {
 
       const fullText = rawCombined.toLowerCase();
       
-      // Vérifier le nom complet (ex: "maroc telecom")
       for (const term of allTerms) {
-        if (term.length <= 3) {
-          // Pour les termes courts (ex: IAM, BCP), exiger une correspondance mot entier
+        if (term.length <= 4) {
           const regex = new RegExp(`\\b${this.escapeRegex(term)}\\b`, 'i');
           if (regex.test(fullText)) return true;
         } else {
-          // Pour les termes longs, simple inclusion suffit
           if (fullText.includes(term)) return true;
         }
       }
@@ -277,11 +283,19 @@ export class NewsEngine {
 
     console.log(`[NewsEngine] ${articles.length} articles totaux → ${filtered.length} pertinents pour "${companyName}"`);
 
-    // 2. SCRAPING PROFOND (Optionnel pour les sources critiques)
-    // On ne scrape que les 5 articles les plus récents et pertinents pour éviter de ralentir le moteur
-    const topArticles = filtered.slice(0, 5);
-    const enriched = await Promise.all(
-      topArticles.map(async (article) => {
+    // 1. Trier par date décroissante AVANT tout découpage
+    const toTs = (d: string) => {
+      const t = new Date(d).getTime();
+      return Number.isFinite(t) ? t : 0;
+    };
+    const sorted = [...filtered].sort((a, b) => toTs(b.pubDate) - toTs(a.pubDate));
+
+    // 2. Dédoublonner par similarité de Jaccard AVANT le scraping profond
+    const uniqueTop = this.deduplicateArticles(sorted).slice(0, 15);
+
+    // 3. Scraping profond uniquement sur les 5 plus récents (tout en conservant jusqu'à 15 articles uniques)
+    const enrichedTop5 = await Promise.all(
+      uniqueTop.slice(0, 5).map(async (article) => {
         const sourceType = article.source.includes('AMMC') ? SourceType.OFFICIAL : 
                            (article.source.includes('Médias24') || article.source.includes('Bourse News') || article.link.includes('boursenews.ma')) ? SourceType.SPECIALIZED : SourceType.GENERAL;
         if (sourceType !== SourceType.GENERAL) {
@@ -295,11 +309,19 @@ export class NewsEngine {
       })
     );
 
-    // Dédoublonner par titre similaire
-    const unique = this.deduplicateArticles(enriched);
+    return {
+      articles: [...enrichedTop5, ...uniqueTop.slice(5)],
+      metrics,
+    };
+  }
 
-    // Tri par date
-    return unique.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime()).slice(0, 15);
+  /**
+   * Récupère et filtre les actualités pour une société donnée
+   * FILTRAGE STRICT : exige le nom complet de la société ou un alias connu
+   */
+  async getNewsForCompany(companyName: string): Promise<NewsArticle[]> {
+    const { articles } = await this.getNewsWithMetrics(companyName);
+    return articles;
   }
 
   /**

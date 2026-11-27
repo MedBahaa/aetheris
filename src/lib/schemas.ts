@@ -194,6 +194,7 @@ export const CompanyAnalysisSchema = z.object({
   idealEntryPoint: z.string().optional(),
   riskExplication: z.string().optional(),
   isPremiumSignal: z.boolean().optional(),
+  isAI: z.boolean().optional(),
   // Orchestrator Synthesis
   orchestrator: OrchestratorResultSchema.optional(),
   horizons: MultiHorizonSchema.optional(),

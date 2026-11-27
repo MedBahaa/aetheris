@@ -63,10 +63,16 @@ function classifySignal(signal: string | null | undefined): { type: 'bullish' | 
 }
 
 export default function TechnicalReport({ analysis }: TechnicalReportProps) {
-  const rsiValue = typeof analysis.rsi === 'object' ? analysis.rsi.value : '50';
+  const rsiRaw = typeof analysis.rsi === 'object' ? analysis.rsi.value : '50';
+  const rsiValue = rsiRaw === 'N/A' ? 'N/A' : String(rsiRaw);
+  const parsedRsi = Number(String(rsiValue).replace(',', '.'));
+  const rsiPct = Number.isFinite(parsedRsi) ? Math.max(0, Math.min(100, parsedRsi)) : 0;
   const rsiInterp = typeof analysis.rsi === 'object' ? analysis.rsi.interpretation : analysis.rsi;
   const dataQuality = analysis.dataQuality;
   const liquidityWarning = analysis.liquidityWarning;
+  const isAI = analysis.isAI ?? analysis.orchestrator?.isAI ?? false;
+  const formattedPrice = String(analysis.price || 'INDISPONIBLE').replace(/\s*MAD$/i, '').trim();
+  const showCurrency = formattedPrice !== 'INDISPONIBLE' && formattedPrice !== 'N/A' && formattedPrice !== 'N/A MAD';
 
   return (
     <div className="tech-analysis-root animate-fade-in">
@@ -83,7 +89,7 @@ export default function TechnicalReport({ analysis }: TechnicalReportProps) {
           <div className="live-price-box glass-heavy">
              <div className="price-info">
                 <span className="p-label mono-label">PRIX DE MARCHÉ</span>
-                <span className="p-val mono">{analysis.price} <span className="p-cur">MAD</span></span>
+                <span className="p-val mono">{formattedPrice}{showCurrency && <span className="p-cur">MAD</span>}</span>
              </div>
              <div className="price-indicator">
                 {analysis.variationValue !== undefined ? (
@@ -162,7 +168,7 @@ export default function TechnicalReport({ analysis }: TechnicalReportProps) {
                  <div className="rsi-gauge-track">
                     <div className="rsi-marker sell"></div>
                     <div className="rsi-marker buy"></div>
-                    <div className="rsi-fill" style={{ width: `${rsiValue}%` }}>
+                    <div className="rsi-fill" style={{ width: `${rsiPct}%` }}>
                        <div className="rsi-cursor"></div>
                     </div>
                  </div>
@@ -312,7 +318,7 @@ export default function TechnicalReport({ analysis }: TechnicalReportProps) {
             <Shield size={16} className="text-blue-400" />
             <span className="context-label mono-label" title="Analyse probabiliste basée sur la convergence technique.">SYNTHÈSE DE CONVERGENCE TECHNIQUE</span>
             <span className="mono" style={{ marginLeft: 'auto', padding: '0.2rem 0.6rem', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', color: '#fff' }}>
-              {analysis.orchestrator?.isAI ? '🤖 Synthèse IA' : '📊 Calcul quantitatif'}
+              {isAI ? '🤖 Synthèse IA' : '📊 Calcul quantitatif'}
             </span>
          </div>
          <p className="context-body">&ldquo;{analysis.marketSituation}&rdquo;</p>

@@ -31,7 +31,7 @@ export class MacroScraper {
       const symbols = ['BZ=F', 'GC=F', 'MAD=X'];
       const data: any = {};
 
-      await Promise.all(symbols.map(async (symbol) => {
+      await Promise.allSettled(symbols.map(async (symbol) => {
         const res = await fetch(`${YAHOO_API}/${symbol}?interval=1d&range=2d`, {
           cache: 'no-store',
           headers: {
@@ -39,16 +39,17 @@ export class MacroScraper {
           },
           signal: AbortSignal.timeout(8000),
         });
+        if (!res.ok) return;
         const json = await res.json();
-        
-        if (json.chart.result && json.chart.result.length > 0) {
+
+        if (json?.chart?.result && json.chart.result.length > 0) {
           const result = json.chart.result[0];
           const price = result.meta.regularMarketPrice;
           const prevClose = result.meta.chartPreviousClose;
-          
+
           let changePercent = 0;
           if (price && prevClose) {
-             changePercent = ((price - prevClose) / prevClose) * 100;
+            changePercent = ((price - prevClose) / prevClose) * 100;
           }
 
           const key = symbol === 'BZ=F' ? 'brent' : symbol === 'GC=F' ? 'gold' : 'usDmad';
@@ -60,23 +61,22 @@ export class MacroScraper {
       }));
 
       // 2. Données Institutionnelles (BKAM)
-      // LAST_VERIFIED: 07/08/2026 — Source: bkam.ma + HCP
-      // Taux directeur: maintenu à 2.25% lors du conseil du 23/06/2026
-      // Inflation: IPC annuel Juin 2026 = +0.3% (HCP, publié Juillet 2026)
-      // Prochaine réunion: 22/09/2026 (calendrier officiel BKAM 2026)
       const institutionalData = {
         keyRate: { value: 2.25, lastChange: '23/06/2026', lastUpdated: '2026-08-07' },
         inflation: { value: 0.3, period: 'Juin 2026 (Annuel)', lastUpdated: '2026-08-07' },
-        nextBAMMeeting: '22 Sept 2026',
+        nextBAMMeeting: 'Voir calendrier officiel BKAM',
         bamDataLastVerified: '2026-08-07'
       };
 
-      // Validation
-      if (data.brent && data.gold && data.usDmad) {
-        const finalData = {
-          brent: data.brent,
-          gold: data.gold,
-          usDmad: data.usDmad,
+      const brent = data.brent ?? this.cache?.brent;
+      const gold = data.gold ?? this.cache?.gold;
+      const usDmad = data.usDmad ?? this.cache?.usDmad;
+
+      if (brent || gold || usDmad) {
+        const finalData: MacroData = {
+          brent: brent ?? { price: 0, changePercent: 0 },
+          gold: gold ?? { price: 0, changePercent: 0 },
+          usDmad: usDmad ?? { price: 0, changePercent: 0 },
           ...institutionalData,
           timestamp: new Date().toISOString()
         };

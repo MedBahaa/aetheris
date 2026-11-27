@@ -56,6 +56,24 @@ function ConfidenceGauge({ score }: { score: number }) {
   );
 }
 
+function formatFinancialAmount(raw: string | number | undefined | null): string {
+  if (raw === undefined || raw === null) return 'N/A';
+  const str = String(raw).trim();
+  if (!str || str.toUpperCase() === 'N/A') return 'N/A';
+  const cleaned = str.replace(/[\s\u00A0\u202F]/g, '').replace(/(MAD|DH)$/i, '');
+  let normalized = cleaned;
+  if (normalized.includes('.') && normalized.includes(',')) {
+    normalized = normalized.replace(/\./g, '').replace(',', '.');
+  } else if (normalized.includes(',')) {
+    normalized = normalized.replace(',', '.');
+  }
+  const num = Number(normalized);
+  if (Number.isFinite(num)) {
+    return num.toLocaleString('fr-FR');
+  }
+  return str;
+}
+
 function ProvenanceIcon({ quality }: { quality?: string }) {
   if (quality === 'MANUAL') return <span title="Saisie manuelle" style={{ fontSize: '12px', cursor: 'help' }}>✏️</span>;
   if (quality === 'UNVERIFIED') return <span title="Extraction IA (non vérifiée)" style={{ fontSize: '12px', cursor: 'help' }}>🤖</span>;
@@ -257,8 +275,8 @@ export default function ResultDashboard({
                 <td className="metric-name-cell">Revenus Illicites / Chiffre d&apos;Affaires</td>
                 <td className="limit-cell">&lt; 5%</td>
                 <td className="extracted-cell">
-                  Intérêts: <span className="val-white">{Number(result.financialData.interestIncome).toLocaleString('fr-FR')}</span><br />
-                  CA: <span className="val-white">{Number(result.financialData.totalRevenue).toLocaleString('fr-FR')}</span>
+                  Intérêts: <span className="val-white">{formatFinancialAmount(result.financialData.interestIncome)}</span><br />
+                  CA: <span className="val-white">{formatFinancialAmount(result.financialData.totalRevenue)}</span>
                 </td>
                 <td className="ratio-val-cell">{result.purificationRate.toFixed(2)}%</td>
                 <td>
@@ -271,8 +289,8 @@ export default function ResultDashboard({
                 <td className="metric-name-cell">Dettes / Dénominateur (Cap./Actif)</td>
                 <td className="limit-cell">&lt; 33.33%</td>
                 <td className="extracted-cell">
-                  Dettes: <span className="val-white">{Number(result.financialData.interestDebt).toLocaleString('fr-FR')}</span><br />
-                  Dénom.: <span className="val-white">{Number(result.financialData.marketCap).toLocaleString('fr-FR')}</span>
+                  Dettes: <span className="val-white">{formatFinancialAmount(result.financialData.interestDebt)}</span><br />
+                  Dénom.: <span className="val-white">{formatFinancialAmount(result.financialData.marketCap)}</span>
                 </td>
                 <td className="ratio-val-cell">{result.debtRatio.toFixed(2)}%</td>
                 <td>
@@ -285,8 +303,8 @@ export default function ResultDashboard({
                 <td className="metric-name-cell">Trésorerie / Dénominateur</td>
                 <td className="limit-cell">&lt; 33.33%</td>
                 <td className="extracted-cell">
-                  Cash: <span className="val-white">{Number(result.financialData.interestCash).toLocaleString('fr-FR')}</span><br />
-                  Dénom.: <span className="val-white">{Number(result.financialData.marketCap).toLocaleString('fr-FR')}</span>
+                  Cash: <span className="val-white">{formatFinancialAmount(result.financialData.interestCash)}</span><br />
+                  Dénom.: <span className="val-white">{formatFinancialAmount(result.financialData.marketCap)}</span>
                 </td>
                 <td className="ratio-val-cell">{result.cashRatio.toFixed(2)}%</td>
                 <td>
@@ -306,19 +324,19 @@ export default function ResultDashboard({
               label: 'Revenus Illicites',
               val: result.purificationRate,
               limit: 5,
-              sub: `Intérêts ${Number(result.financialData.interestIncome).toLocaleString('fr-FR')} / CA ${Number(result.financialData.totalRevenue).toLocaleString('fr-FR')}`
+              sub: `Intérêts ${formatFinancialAmount(result.financialData.interestIncome)} / CA ${formatFinancialAmount(result.financialData.totalRevenue)}`
             },
             {
               label: 'Endettement Bancaire',
               val: result.debtRatio,
               limit: 33.33,
-              sub: `Dettes ${Number(result.financialData.interestDebt).toLocaleString('fr-FR')}`
+              sub: `Dettes ${formatFinancialAmount(result.financialData.interestDebt)}`
             },
             {
               label: 'Trésorerie Placée',
               val: result.cashRatio,
               limit: 33.33,
-              sub: `Cash ${Number(result.financialData.interestCash).toLocaleString('fr-FR')}`
+              sub: `Cash ${formatFinancialAmount(result.financialData.interestCash)}`
             }
           ].map((metric, i) => {
             const isOk = metric.val <= metric.limit;
@@ -489,6 +507,15 @@ export default function ResultDashboard({
               <p className="calc-rounding-note">*Arrondi à l&apos;unité supérieure par précaution</p>
             </div>
           </div>
+
+          {!effectiveCompliant && !result.isHaramSector && (
+            <div className="calc-ai-warn">
+              <p>
+                <AlertTriangle size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '5px' }} />
+                Attention : ce titre dépasse un ou plusieurs seuils AAOIFI (dette/trésorerie &gt; 33.33% ou revenus illicites &gt; 5%). Selon les comités Sharia, la simple purification du dividende ne rend pas la détention du titre licite.
+              </p>
+            </div>
+          )}
 
           {isUnverified && (
             <div className="calc-ai-warn">

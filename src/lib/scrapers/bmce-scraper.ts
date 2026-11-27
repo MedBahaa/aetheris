@@ -373,7 +373,7 @@ export class BMCEBourseScraper {
   }
 
   /**
-   * Récupère les données fondamentales (Tab 3 - Statistiques) via HTTP
+   * Récupère les données fondamentales via HTTP (une seule requête, sans faux positif DERNIER -> RN)
    */
   static async getFundamentalData(companyName: string): Promise<FundamentalData> {
     const resolved = await this.resolveStock(companyName);
@@ -382,45 +382,39 @@ export class BMCEBourseScraper {
     const results: any = { peRatio: 'N/A', dividendYield: 'N/A', marketCap: 'N/A', netProfit: 'N/A', roe: 'N/A' };
 
     try {
-      // ÉTAPE 1 : Tab 3 pour Capitalisation et Dividendes
-      const urlTab3 = this.buildUrl(resolved.id, 'Tab3');
-      console.log(`[Fundamental] Fetch HTTP Tab3: ${urlTab3}`);
-      const $tab3 = await this.fetchPage(urlTab3);
-      
-      if ($tab3) {
-        $tab3('td, th, span, div.label').each((_, el) => {
-          const key = $tab3(el).text().trim();
-          const nextEl = $tab3(el).next();
-          const parentLast = $tab3(el).parent().children().last();
-          const val = (nextEl.length ? nextEl.text().trim() : parentLast.text().trim()) || '';
-          
-          if (key.includes('Capitalisation') && val) results.marketCap = val;
-          if ((key.includes('Rendement') || key.includes('Dividende')) && val) results.dividendYield = val;
-          if ((key.includes('Résultat net') || key.includes('RN')) && val) results.netProfit = val;
-        });
-      }
+      const url = this.buildUrl(resolved.id);
+      console.log(`[Fundamental] Fetch HTTP BMCE: ${url}`);
+      const $ = await this.fetchPage(url);
 
-      // ÉTAPE 2 : Tab 6 pour PER et ROE (Indicateurs & Rentabilité)
-      const urlTab6 = this.buildUrl(resolved.id, 'Tab6');
-      console.log(`[Fundamental] Fetch HTTP Tab6: ${urlTab6}`);
-      const $tab6 = await this.fetchPage(urlTab6);
-      
-      if ($tab6) {
-        $tab6('table tr').each((_, row) => {
-          const cells = $tab6(row).find('td, th');
+      if ($) {
+        $('td, th, span, div.label').each((_, el) => {
+          const key = $(el).text().trim();
+          const nextEl = $(el).next();
+          const parentLast = $(el).parent().children().last();
+          const val = (nextEl.length ? nextEl.text().trim() : parentLast.text().trim()) || '';
+          if (!val || val === '--' || val === '-') return;
+
+          if (/capitalisation/i.test(key)) results.marketCap = val;
+          if (/(rendement|dividende)/i.test(key)) results.dividendYield = val;
+          if (/^(r[ée]sultat\s*net|rnpg|r\.n\.p\.g)/i.test(key)) results.netProfit = val;
+        });
+
+        $('table tr').each((_, row) => {
+          const cells = $(row).find('td, th');
           if (cells.length >= 2) {
-            const label = $tab6(cells[0]).text().trim();
-            // On prend souvent l'avant-dernière ou dernière colonne pour la donnée la plus récente
-            const value = $tab6(cells[cells.length - 1]).text().trim() || $tab6(cells[1]).text().trim() || 'N/A';
-            
-            if (label.includes('P.E.R') || label.includes('PER')) results.peRatio = value;
-            if (label.includes('R.O.E') || label.includes('ROE')) results.roe = value;
+            const label = $(cells[0]).text().trim();
+            const value = $(cells[cells.length - 1]).text().trim() || $(cells[1]).text().trim() || 'N/A';
+            if (!value || value === '--' || value === '-') return;
+
+            if (/\bP\.?E\.?R\b/i.test(label)) results.peRatio = value;
+            if (/\bR\.?O\.?E\b/i.test(label)) results.roe = value;
           }
         });
       }
 
-      console.log(`[Fundamental] Données consolidées pour ${resolved.name}:`, JSON.stringify(results));
-      return { ...results, status: 'success' };
+      const hasAnyData = Object.values(results).some((v) => typeof v === 'string' && v !== 'N/A' && v.trim() !== '');
+      console.log(`[Fundamental] Données BMCE pour ${resolved.name} (${hasAnyData ? 'OK' : 'vide'}):`, JSON.stringify(results));
+      return { ...results, status: hasAnyData ? 'success' : 'error' };
 
     } catch (error: any) {
       console.error(`[Fundamental] Erreur:`, error.message);

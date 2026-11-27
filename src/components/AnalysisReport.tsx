@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { CompanyAnalysis, Sentiment } from '@/lib/schemas';
-import { TrendingUp, TrendingDown, Minus, Info, Calendar, Building2, ChevronDown, ChevronUp, Newspaper } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Info, Calendar, Building2, ChevronDown, ChevronUp, Newspaper, AlertTriangle } from 'lucide-react';
 
 interface AnalysisReportProps {
   analysis: CompanyAnalysis;
@@ -53,6 +53,26 @@ export default function AnalysisReport({ analysis }: AnalysisReportProps) {
         </div>
       </div>
 
+      {((analysis.dataQuality && analysis.dataQuality.warnings?.length > 0) || analysis.isAI === false) && (
+        <div className="analysis-dq-banner glass-heavy">
+          <div className="analysis-dq-hdr">
+            <AlertTriangle size={14} className="text-amber" />
+            <span className="mono-label">
+              {analysis.isAI === false ? 'MODE DÉGRADÉ — SYNTHÈSE QUANTITATIVE' : `QUALITÉ DES DONNÉES : ${analysis.dataQuality?.score ?? 50}/100`}
+            </span>
+          </div>
+          {analysis.dataQuality?.warnings?.length ? (
+            <div className="analysis-dq-list">
+              {analysis.dataQuality.warnings.map((w, i) => (
+                <span key={i} className="analysis-dq-msg">• {w}</span>
+              ))}
+            </div>
+          ) : (
+            <span className="analysis-dq-msg">Le modèle d&apos;IA générative était indisponible ; le sentiment affiché provient du calcul pondéré local.</span>
+          )}
+        </div>
+      )}
+
       {/* FUNDAMENTALS SUMMARY */}
       {analysis.fundamentals && (
         <div className="fundamentals-grid animate-fade-in">
@@ -92,7 +112,7 @@ export default function AnalysisReport({ analysis }: AnalysisReportProps) {
             <Newspaper size={18} className="text-emerald" />
             <h3 className="mono-label" title="Analyse narrative générée par Gemini AI basée sur l'actualité et les données fondamentales.">RÉCIT ANALYTIQUE CONSOLIDÉ</h3>
             <span className="mono" style={{ marginLeft: 'auto', padding: '0.2rem 0.6rem', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', color: '#fff' }}>
-              {analysis.orchestrator?.isAI ? '🤖 Synthèse IA' : '📊 Calcul quantitatif'}
+              {(analysis.isAI ?? analysis.orchestrator?.isAI ?? false) ? '🤖 Synthèse IA' : '📊 Calcul quantitatif'}
             </span>
           </div>
           <p className="narrative-body">
@@ -333,6 +353,19 @@ export default function AnalysisReport({ analysis }: AnalysisReportProps) {
 
 
         
+        .analysis-dq-banner {
+          padding: 1rem 1.5rem;
+          border-radius: 1rem;
+          border: 1px solid rgba(245, 158, 11, 0.2);
+          background: rgba(245, 158, 11, 0.04);
+          display: flex;
+          flex-direction: column;
+          gap: 0.45rem;
+        }
+        .analysis-dq-hdr { display: flex; align-items: center; gap: 0.6rem; color: #f59e0b; }
+        .analysis-dq-list { display: flex; flex-direction: column; gap: 0.25rem; }
+        .analysis-dq-msg { font-size: 0.85rem; color: #cbd5e1; line-height: 1.45; }
+        .text-amber { color: #f59e0b; }
         .text-emerald { color: var(--accent-emerald); }
 
         @media (max-width: 768px) {

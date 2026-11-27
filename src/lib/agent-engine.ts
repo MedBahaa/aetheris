@@ -24,6 +24,93 @@ import { MarketListScraper } from './scrapers/market-list-scraper';
 export type { CompanyAnalysis, AgentType, OrchestratorResult, Action, Sentiment, Confidence, Opportunity };
 
 /**
+ * Parse un cours/montant formaté à la française ou anglaise (ex: "1 850,50 MAD", "1.850,50", "98.45 MAD").
+ */
+export function parseFrenchPrice(raw?: string | number | null): number {
+  if (typeof raw === 'number') return Number.isFinite(raw) && raw > 0 ? raw : 0;
+  if (!raw || raw === 'N/A' || raw.includes('INDISPONIBLE')) return 0;
+  const noSpaces = raw.replace(/[\s\u00A0\u202F]/g, '');
+  const m = noSpaces.match(/-?[\d.,]+/);
+  if (!m) return 0;
+  let token = m[0];
+  if (token.includes('.') && token.includes(',')) {
+    if (token.lastIndexOf(',') > token.lastIndexOf('.')) {
+      token = token.replace(/\./g, '').replace(',', '.');
+    } else {
+      token = token.replace(/,/g, '');
+    }
+  } else if (token.includes(',')) {
+    token = token.replace(',', '.');
+  }
+  const num = parseFloat(token);
+  return Number.isFinite(num) && num > 0 ? num : 0;
+}
+
+/**
+ * Valide et recalcule TP / SL / R:R pour garantir la cohérence mathématique vis-à-vis de l'action et du cours.
+ */
+export function validatePriceLevels(
+  action: string | undefined,
+  currentPrice: number,
+  tp: string | undefined,
+  sl: string | undefined,
+  entry?: string | undefined
+): { tp: string; sl: string; riskRewardRatio?: string } {
+  if (currentPrice <= 0 || !tp || !sl) {
+    return { tp: tp || 'N/A', sl: sl || 'N/A' };
+  }
+
+  const tpVal = parseFrenchPrice(tp);
+  const slVal = parseFrenchPrice(sl);
+  const entryVal = parseFrenchPrice(entry) || currentPrice;
+
+  if (tpVal <= 0 || slVal <= 0) {
+    return { tp, sl };
+  }
+
+  let finalTp = tp;
+  let finalSl = sl;
+  let effectiveTp = tpVal;
+  let effectiveSl = slVal;
+
+  if (action === 'ACHETER') {
+    const tpOk = tpVal > currentPrice;
+    const slOk = slVal < currentPrice && slVal >= currentPrice * 0.70;
+    if (!tpOk) {
+      effectiveTp = currentPrice * 1.12;
+      finalTp = `${effectiveTp.toFixed(2)} MAD ⚠️ (recalculé: TP original incohérent)`;
+    }
+    if (!slOk) {
+      effectiveSl = currentPrice * 0.94;
+      finalSl = `${effectiveSl.toFixed(2)} MAD ⚠️ (recalculé: SL original incohérent)`;
+    }
+    if (!tpOk || !slOk) {
+      console.warn(`[Orchestrator] ⚠️ TP/SL incohérents pour ACHETER. TP=${tpVal}, SL=${slVal}, Prix=${currentPrice}. Recalcul automatique.`);
+    }
+  } else if (action === 'VENDRE') {
+    const tpOk = tpVal < currentPrice && tpVal >= currentPrice * 0.50;
+    const slOk = slVal > currentPrice && slVal <= currentPrice * 1.30;
+    if (!tpOk) {
+      effectiveTp = currentPrice * 0.90;
+      finalTp = `${effectiveTp.toFixed(2)} MAD ⚠️ (recalculé: TP original incohérent pour VENDRE)`;
+    }
+    if (!slOk) {
+      effectiveSl = currentPrice * 1.05;
+      finalSl = `${effectiveSl.toFixed(2)} MAD ⚠️ (recalculé: SL original incohérent pour VENDRE)`;
+    }
+    if (!tpOk || !slOk) {
+      console.warn(`[Orchestrator] ⚠️ TP/SL incohérents pour VENDRE. TP=${tpVal}, SL=${slVal}, Prix=${currentPrice}. Recalcul automatique.`);
+    }
+  }
+
+  const reward = Math.abs(effectiveTp - entryVal);
+  const risk = Math.abs(entryVal - effectiveSl);
+  const riskRewardRatio = risk > 0 && reward > 0 ? `1:${(reward / risk).toFixed(1)}` : undefined;
+
+  return { tp: finalTp, sl: finalSl, riskRewardRatio };
+}
+
+/**
  * ORCHESTRATEUR AETHERIS (Server-Only Core)
  * ✅ Combine + Nettoie + Structure + Analyse Critique + Cache
  * AUDIT FIX: Circuit breakers, Zod enforcement, data quality tracking, source transparency
@@ -32,11 +119,11 @@ export class AetherisOrchestrator {
   
   /**
    * AUDIT FIX: Rate limiting hybride (Supabase-backed + fallback mémoire)
-   * Survit aux cold starts et redéploiements serverless.
+   * Plafond global relevé (le throttling fin par utilisateur/IP est déjà géré dans actions.ts).
    */
   private static memoryRequestCount = 0;
   private static memoryWindowStart = Date.now();
-  private static readonly MAX_REQUESTS_PER_MINUTE = 15;
+  private static readonly MAX_REQUESTS_PER_MINUTE = 60;
 
   private static async checkRateLimit(): Promise<boolean> {
     try {
@@ -212,20 +299,31 @@ export class AetherisOrchestrator {
         }
         // ----------------------------------------------------
 
-        result = { ...result, ...newsData };
+        result = { ...result, ...newsData, isAI: Boolean(newsData.isAI) };
         dataQuality.sources.push('RSS');
         if (!newsData.news || newsData.news.length === 0) {
           dataQuality.warnings.push('Aucune actualité trouvée — Sentiment par défaut NEUTRE');
           dataQuality.score -= 20;
+        } else if (newsData.isAI === false) {
+          dataQuality.warnings.push('Synthèse IA sentiment indisponible — scores neutres par défaut');
+          dataQuality.score -= 30;
         }
       } 
       else if (type === 'TECHNICAL') {
         const marketData = await MarketWorker.analyze(searchName);
         const cleanedMarket = this.cleanMarketData(marketData);
-        result = { ...result, ...cleanedMarket };
+        result = {
+          ...result,
+          ...cleanedMarket,
+          globalSentiment:
+            cleanedMarket.technicalTrend === 'Haussière' ? 'POSITIF' :
+            cleanedMarket.technicalTrend === 'Baissière' ? 'NEGATIF' : 'NEUTRE',
+          probableImpact: cleanedMarket.marketSituation || 'Analyse technique quantitative calculée.',
+          isAI: false,
+        };
         dataQuality.sources.push('BMCE');
         
-        // AUDIT FIX: Dégrader le score si données techniques insuffisantes
+        // AUDIT FIX: Dégrader le score si données techniques insuffisantes ou illiquidité
         if (marketData.price === 'INDISPONIBLE') {
           dataQuality.score -= 60;
           dataQuality.warnings.push('Prix indisponible — Analyse technique impossible');
@@ -234,6 +332,10 @@ export class AetherisOrchestrator {
         if (marketData.signals?.some(s => s.includes('insuffisantes'))) {
           dataQuality.score -= 20;
           dataQuality.warnings.push('Historique limité — Indicateurs techniques dégradés');
+        }
+        if (marketData.liquidityWarning && !marketData.liquidityWarning.isLiquid) {
+          dataQuality.score -= 10;
+          dataQuality.warnings.push(marketData.liquidityWarning.message || 'Liquidité limitée sur ce titre');
         }
 
         // Appel à l'IA pour la synthèse de convergence technique
@@ -245,6 +347,7 @@ export class AetherisOrchestrator {
             result.recommendedAction = aiTech.finalAction;
             result.globalSentiment = aiTech.finalAction === 'ACHETER' ? 'POSITIF' : aiTech.finalAction === 'VENDRE' ? 'NEGATIF' : 'NEUTRE';
             result.probableImpact = aiTech.why;
+            result.isAI = true;
             
             // Enrichir orchestratorResult pour correspondre aux attentes globales
             result.orchestrator = {
@@ -254,8 +357,12 @@ export class AetherisOrchestrator {
               keyPoints: marketData.signals || [],
               opportunity: aiTech.finalAction === 'ACHETER' ? 'Oui' : aiTech.finalAction === 'VENDRE' ? 'Non' : 'À surveiller',
               risk: aiTech.finalAction === 'VENDRE' ? 'Élevé' : aiTech.finalAction === 'ACHETER' ? 'Faible' : 'Moyen',
-              riskExplication: 'Risque technique lié à la configuration des indicateurs.'
+              riskExplication: 'Risque technique lié à la configuration des indicateurs.',
+              isAI: true,
             };
+          } else {
+            dataQuality.score -= 15;
+            dataQuality.warnings.push('Synthèse IA technique indisponible — indicateurs quantitatifs uniquement');
           }
         }
       } 
@@ -265,6 +372,9 @@ export class AetherisOrchestrator {
         const fundamentalData = await FundamentalWorker.analyze(searchName, marketData.price, { name: resolvedName, symbol: searchTicker });
         result = { 
           ...result, 
+          globalSentiment: 'NEUTRE',
+          probableImpact: 'Analyse des ratios financiers et fondamentaux BVC.',
+          isAI: false,
           fundamentals: {
             ...fundamentalData.fundamentals,
             sector: sector
@@ -378,6 +488,11 @@ export class AetherisOrchestrator {
         
         if (orchestratorResult) {
           orchestratorResult.isAI = true;
+          if (horizons) {
+            (['shortTerm', 'mediumTerm', 'longTerm'] as const).forEach((h) => {
+              if (horizons[h]) horizons[h].isAI = true;
+            });
+          }
           // Si on a des horizons, on utilise le court terme comme plan par défaut pour la compatibilité
           strategyPlan = horizons?.shortTerm?.strategyPlan || (orchestratorResult as any).strategyPlan || null;
           
@@ -390,89 +505,95 @@ export class AetherisOrchestrator {
           const strategyData = StrategyWorker.synthesize(newsData, cleanedMarket);
           orchestratorResult = this.generateFinalOrchestration(searchName, newsData, cleanedMarket, strategyData);
           strategyPlan = strategyData.strategyPlan || null;
+          dataQuality.score -= 20;
+          dataQuality.warnings.push('Synthèse IA stratégique indisponible — bascule sur moteur quantitatif');
+        }
+
+        // Suivi qualité des données sur STRATEGY (fondamentaux, actualités, liquidité)
+        const fundFields = ['peRatio', 'dividendYield', 'marketCap', 'roe', 'netProfit'];
+        const missingFund = fundFields.filter(
+          (f) => !fundamentalData.fundamentals?.[f as keyof typeof fundamentalData.fundamentals] ||
+                 fundamentalData.fundamentals?.[f as keyof typeof fundamentalData.fundamentals] === 'N/A'
+        );
+        if (missingFund.length > 0) {
+          dataQuality.missingFields.push(...missingFund);
+          dataQuality.score -= missingFund.length * 5;
+          dataQuality.warnings.push(`Données fondamentales manquantes: ${missingFund.join(', ')}`);
+        }
+        if (newsData.news && newsData.news.length > 0 && newsData.isAI === false) {
+          dataQuality.score -= 15;
+          dataQuality.warnings.push('Synthèse IA des actualités indisponible — sentiment par défaut NEUTRE');
+        }
+        if (marketData.liquidityWarning && !marketData.liquidityWarning.isLiquid) {
+          dataQuality.score -= 10;
+          dataQuality.warnings.push(marketData.liquidityWarning.message || 'Liquidité limitée sur ce titre');
         }
         
         // Sécurité : S'assurer que les champs destinés à l'affichage sont des strings
-        if (typeof strategyPlan === 'object') {
+        if (typeof strategyPlan === 'object' && strategyPlan !== null) {
           strategyPlan = JSON.stringify(strategyPlan, null, 2);
         }
         
-        // AUDIT FIX: Post-traitement plus transparent pour les prix cibles
-        const sanitizePriceField = (val: string | undefined, type: 'TP' | 'SL', current: number) => {
+        // AUDIT FIX: Post-traitement transparent pour les prix cibles
+        const sanitizePriceField = (val: string | undefined, pType: 'TP' | 'SL', current: number) => {
           if (!val || val === 'N/A' || val.includes('...')) {
-            // AUDIT FIX: On calcule un défaut mais on le signale
             if (current <= 0) return 'N/A (prix de base indisponible)';
-            if (type === 'TP') return `${(current * 1.15).toFixed(2)} ⚠️ (défaut +15%, non validé techniquement)`;
-            return `${(current * 0.94).toFixed(2)} ⚠️ (défaut -6%, non validé techniquement)`;
+            if (pType === 'TP') return `${(current * 1.15).toFixed(2)} MAD ⚠️ (défaut +15%, non validé techniquement)`;
+            return `${(current * 0.94).toFixed(2)} MAD ⚠️ (défaut -6%, non validé techniquement)`;
           }
           return val;
         };
 
-        // AUDIT FIX: Validate that TP/SL are mathematically coherent with the action
-        const validatePriceLevels = (action: string | undefined, currentPrice: number, tp: string | undefined, sl: string | undefined): { tp: string; sl: string } => {
-          if (currentPrice <= 0 || !tp || !sl) return { tp: tp || 'N/A', sl: sl || 'N/A' };
-          
-          const parsePrice = (s: string) => {
-            const match = s.match(/([\d.,]+)/);
-            return match ? parseFloat(match[1].replace(',', '.')) : NaN;
-          };
-          
-          const tpVal = parsePrice(tp);
-          const slVal = parsePrice(sl);
-          
-          if (isNaN(tpVal) || isNaN(slVal)) return { tp, sl };
-          
-          if (action === 'ACHETER') {
-            const tpOk = tpVal > currentPrice;
-            const slOk = slVal < currentPrice && slVal > currentPrice * 0.70;
-            if (!tpOk || !slOk) {
-              console.warn(`[Orchestrator] ⚠️ TP/SL incohérents pour ACHETER. TP=${tpVal}, SL=${slVal}, Prix=${currentPrice}. Recalcul automatique.`);
-              return {
-                tp: !tpOk ? `${(currentPrice * 1.12).toFixed(2)} MAD ⚠️ (recalculé: TP original incohérent)` : tp,
-                sl: !slOk ? `${(currentPrice * 0.94).toFixed(2)} MAD ⚠️ (recalculé: SL original incohérent)` : sl
-              };
-            }
-          } else if (action === 'VENDRE') {
-            if (tpVal > currentPrice) {
-              return {
-                tp: `${(currentPrice * 0.90).toFixed(2)} MAD ⚠️ (recalculé: TP original incohérent pour VENDRE)`,
-                sl: slVal < currentPrice ? `${(currentPrice * 1.05).toFixed(2)} MAD ⚠️ (recalculé)` : sl
-              };
-            }
-          }
-          return { tp, sl };
-        };
+        const currentVal = parseFrenchPrice(cleanedMarket.price);
 
-        const currentVal = parseFloat(
-          (cleanedMarket.price || '0').replace(' MAD', '').replace('INDISPONIBLE', '0')
-        );
+        if (orchestratorResult) {
+          const rootValidated = validatePriceLevels(
+            orchestratorResult.finalAction,
+            currentVal,
+            orchestratorResult.takeProfit,
+            orchestratorResult.stopLoss,
+            orchestratorResult.idealEntryPoint
+          );
+          orchestratorResult.takeProfit = rootValidated.tp;
+          orchestratorResult.stopLoss = rootValidated.sl;
+          if (rootValidated.riskRewardRatio) {
+            orchestratorResult.riskRewardRatio = rootValidated.riskRewardRatio;
+          }
+        }
 
         if (horizons) {
-          // Sécuriser chaque horizon
+          // Sécuriser chaque horizon avec parseFrenchPrice + validatePriceLevels
           (['shortTerm', 'mediumTerm', 'longTerm'] as const).forEach(h => {
              const hData = horizons[h];
              if (hData) {
                hData.takeProfit = sanitizePriceField(hData.takeProfit, 'TP', currentVal);
                hData.stopLoss = sanitizePriceField(hData.stopLoss, 'SL', currentVal);
-               
-               // AUDIT FIX: Cross-validate TP/SL mathematical coherence
-               const validated = validatePriceLevels(hData.finalAction, currentVal, hData.takeProfit, hData.stopLoss);
+               hData.idealEntryPoint = hData.idealEntryPoint && hData.idealEntryPoint !== 'N/A' 
+                 ? hData.idealEntryPoint : (cleanedMarket.support && cleanedMarket.support !== 'N/A' ? cleanedMarket.support : (cleanedMarket.price || 'MARKET'));
+
+               const validated = validatePriceLevels(hData.finalAction, currentVal, hData.takeProfit, hData.stopLoss, hData.idealEntryPoint);
                hData.takeProfit = validated.tp;
                hData.stopLoss = validated.sl;
-
-               hData.idealEntryPoint = hData.idealEntryPoint && hData.idealEntryPoint !== 'N/A' 
-                 ? hData.idealEntryPoint : (cleanedMarket.support || cleanedMarket.price || 'MARKET');
+               if (validated.riskRewardRatio) {
+                 hData.riskRewardRatio = validated.riskRewardRatio;
+               }
              }
           });
         }
 
         let idealEntry = horizons?.shortTerm?.idealEntryPoint || orchestratorResult?.idealEntryPoint;
-        if (typeof idealEntry === 'object') {
+        if (typeof idealEntry === 'object' && idealEntry !== null) {
           idealEntry = JSON.stringify(idealEntry);
         }
 
         const fallbackEntry = (!cleanedMarket.support || cleanedMarket.support.includes('N/A')) 
-             ? 'MARKET' : `${cleanedMarket.support} - ${cleanedMarket.price}`;
+             ? (cleanedMarket.price || 'MARKET') : `${cleanedMarket.support} - ${cleanedMarket.price}`;
+
+        const resolvedAction = horizons?.shortTerm?.finalAction || orchestratorResult?.finalAction || 'ATTENDRE';
+        const resolvedConfidence =
+          horizons?.shortTerm?.confidenceLevel ||
+          orchestratorResult?.confidenceLevel ||
+          (orchestratorResult?.risk === 'Élevé' ? 'Faible' : 'Moyen');
 
         result = {
           ...result,
@@ -483,14 +604,16 @@ export class AetherisOrchestrator {
           horizons: horizons,
           strategyPlan: strategyPlan || 'Observation en cours.',
           idealEntryPoint: idealEntry || fallbackEntry,
-          riskExplication: (typeof orchestratorResult?.riskExplication === 'object' ? Object.values(orchestratorResult.riskExplication).join(' | ') : orchestratorResult?.riskExplication) || 'Risque de volatilité standard pour le secteur.',
-          recommendedAction: horizons?.shortTerm?.finalAction || orchestratorResult?.finalAction || 'ATTENDRE',
+          riskExplication: (typeof orchestratorResult?.riskExplication === 'object' && orchestratorResult.riskExplication !== null ? Object.values(orchestratorResult.riskExplication).join(' | ') : orchestratorResult?.riskExplication) || 'Risque de volatilité standard pour le secteur.',
+          recommendedAction: resolvedAction,
+          confidenceLevel: resolvedConfidence as Confidence,
+          isAI: Boolean(orchestratorResult?.isAI),
           isPremiumSignal: isPremium,
           fibonacci: (cleanedMarket as any).fibonacci || undefined,
         };
 
-        // Sécurité ultime pour les enums globaux
-        if (!['POSITIF', 'NEGATIF', 'NEUTRE'].includes(result.globalSentiment as string)) {
+        // Sécurité ultime pour les 5 valeurs de SentimentSchema (ne jamais écraser FORTEMENT_POSITIF/NEGATIF)
+        if (!['FORTEMENT_POSITIF', 'POSITIF', 'NEUTRE', 'NEGATIF', 'FORTEMENT_NEGATIF'].includes(result.globalSentiment as string)) {
           result.globalSentiment = 'NEUTRE';
         }
         if (!['ACHETER', 'ATTENDRE', 'VENDRE'].includes(result.recommendedAction as string)) {
@@ -537,7 +660,8 @@ export class AetherisOrchestrator {
             globalSentiment: 'NEUTRE',
             probableImpact: 'Impact inconnu suite à une corruption des données IA.',
             recommendedAction: 'ATTENDRE',
-            globalScore: 50,
+            globalScore: 0,
+            isAI: false,
             confidenceLevel: 'Moyen',
             news: [],
             signals: ['Erreur de format IA - Signaux non disponibles'],
@@ -608,28 +732,35 @@ export class AetherisOrchestrator {
       contradiction = "Divergence détectée : Le sentiment d'actualité est négatif mais la tendance technique est haussière. Signal contradictoire.";
     }
 
-    const currentPrice = parseFloat((market.price || '0').replace(' MAD', '').replace(',', '.').replace('INDISPONIBLE', '0'));
+    const currentPrice = parseFrenchPrice(market.price);
     const rsiStr = typeof market.rsi === 'object' ? `RSI à ${market.rsi.value} (${market.rsi.interpretation})` : 'RSI non disponible';
     const sentimentStr = news.globalSentiment || 'NEUTRE';
     const isBuy = strategy.recommendedAction === 'ACHETER';
     const isSell = strategy.recommendedAction === 'VENDRE';
     
-    // AUDIT FIX: Prix cibles cohérents ou N/A si prix = 0
-    let tp: string, sl: string;
+    // AUDIT FIX: Prix cibles cohérents ou N/A si prix = 0, et R:R mathématique réel
+    let tp: string, sl: string, riskRewardRatio = 'N/A';
     if (currentPrice > 0) {
-      tp = isBuy ? `${(currentPrice * 1.1).toFixed(2)} MAD ⚠️ (estimation +10%)` : 
-           isSell ? 'N/A (Signal de sortie)' :
-           `${(currentPrice * 1.08).toFixed(2)} MAD ⚠️ (estimation +8%)`;
-      sl = isBuy ? `${(currentPrice * 0.95).toFixed(2)} MAD ⚠️ (estimation -5%)` :
-           isSell ? `${(currentPrice * 1.03).toFixed(2)} MAD (Invalidation si rebond)` :
-           `${(currentPrice * 0.94).toFixed(2)} MAD ⚠️ (estimation -6%)`;
+      const tpNum = isBuy ? currentPrice * 1.10 : isSell ? currentPrice * 0.90 : currentPrice * 1.08;
+      const slNum = isBuy ? currentPrice * 0.95 : isSell ? currentPrice * 1.04 : currentPrice * 0.94;
+      tp = isBuy ? `${tpNum.toFixed(2)} MAD ⚠️ (estimation +10%)` : 
+           isSell ? `${tpNum.toFixed(2)} MAD ⚠️ (cible repli -10%)` :
+           `${tpNum.toFixed(2)} MAD ⚠️ (estimation +8%)`;
+      sl = isBuy ? `${slNum.toFixed(2)} MAD ⚠️ (estimation -5%)` :
+           isSell ? `${slNum.toFixed(2)} MAD (invalidation +4%)` :
+           `${slNum.toFixed(2)} MAD ⚠️ (estimation -6%)`;
+      const reward = Math.abs(tpNum - currentPrice);
+      const riskDiff = Math.abs(currentPrice - slNum);
+      if (riskDiff > 0) {
+        riskRewardRatio = `1:${(reward / riskDiff).toFixed(1)}`;
+      }
     } else {
       tp = 'N/A (prix de base indisponible)';
       sl = 'N/A (prix de base indisponible)';
     }
     
     const resolvedEntry = (!market.support || market.support.includes('N/A') || market.support.includes('INDISPONIBLE')) 
-      ? 'MARKET' : market.support;
+      ? (market.price && !market.price.includes('INDISPONIBLE') ? market.price : 'MARKET') : market.support;
 
     // AUDIT FIX: Texte construit à partir des données réelles (plus de templates génériques)
     const buildSituation = () => {
@@ -656,25 +787,28 @@ export class AetherisOrchestrator {
       return points;
     };
 
+    const isIlliquid = Boolean(market.liquidityWarning && !market.liquidityWarning.isLiquid);
+    const computedRisk: Confidence = (isSell || isIlliquid) ? 'Élevé' : (contradiction || !isBuy) ? 'Moyen' : 'Faible';
+
     return {
       currentSituation: buildSituation(),
       keyPoints: buildKeyPoints(),
       opportunity: strategy.recommendedAction === 'ACHETER' ? 'Oui' : 
                    strategy.recommendedAction === 'VENDRE' ? 'Non' : 'À surveiller',
-      risk: (contradiction ? 'Moyen' : 'Faible') as Confidence,
+      risk: computedRisk,
       finalAction: (strategy.recommendedAction || 'ATTENDRE') as Action,
       why: strategy.strategyPlan || `Analyse basée sur les données disponibles. Sentiment: ${sentimentStr}, ${rsiStr}.`,
       contradictionDetected: contradiction,
       idealEntryPoint: resolvedEntry,
       takeProfit: tp,
       stopLoss: sl,
-      riskRewardRatio: currentPrice > 0 ? '1:2.0' : 'N/A',
+      riskRewardRatio,
+      confidenceLevel: strategy.confidenceLevel || 'Moyen',
       isAI: false
     };
   }
 
   private static cleanMarketData(data: Partial<CompanyAnalysis>): Partial<CompanyAnalysis> {
-    // AUDIT FIX: Ne pas nettoyer si le prix est INDISPONIBLE (circuit breaker)
     if (data.price === 'INDISPONIBLE') {
       return {
         ...data,
@@ -684,29 +818,16 @@ export class AetherisOrchestrator {
       };
     }
 
-    const sanitize = (val: string | undefined) => {
-      if (!val) return '0';
-      const clean = val.replace(/\s/g, '');
-      // Si on a à la fois un point et une virgule, le point est le millier (ex: 1.200,50)
-      if (clean.includes('.') && clean.includes(',')) {
-        return clean.replace(/\./g, '').replace(',', '.');
-      }
-      // Si on a seulement une virgule, c'est la décimale (ex: 785,10)
-      if (clean.includes(',')) {
-        return clean.replace(',', '.');
-      }
-      return clean;
+    const formatOrNA = (val: string | undefined): string => {
+      const n = parseFrenchPrice(val);
+      return n > 0 ? `${n.toFixed(2)} MAD` : 'N/A';
     };
-
-    const cleanPrice = sanitize(data.price);
-    const cleanSupport = sanitize(data.support);
-    const cleanResistance = sanitize(data.resistance);
 
     return {
       ...data,
-      price: data.price ? `${cleanPrice} MAD` : 'N/A',
-      support: data.support ? `${cleanSupport} MAD` : 'N/A',
-      resistance: data.resistance ? `${cleanResistance} MAD` : 'N/A',
+      price: data.price ? formatOrNA(data.price) : 'N/A',
+      support: formatOrNA(data.support),
+      resistance: formatOrNA(data.resistance),
     };
   }
 

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { CompanyAnalysis } from '@/lib/schemas';
-import { AlertCircle, CheckCircle2, Zap, ChevronDown, ChevronUp, BarChart3, Newspaper, Activity, ShieldCheck, Target, Crosshair, Clock } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, Zap, ChevronDown, ChevronUp, BarChart3, Newspaper, Activity, ShieldCheck, Target, Crosshair, Clock } from 'lucide-react';
 import AetherisChart from './AetherisChart';
 import AnalysisReport from './AnalysisReport';
 import TechnicalReport from './TechnicalReport';
@@ -22,6 +22,9 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
   if (!data) return null;
 
   const isBuy = data.finalAction === 'ACHETER';
+  const isSell = data.finalAction === 'VENDRE';
+  const actionClass = isBuy ? 'buy' : isSell ? 'sell' : 'wait';
+  const isAI = data.isAI ?? analysis.orchestrator?.isAI ?? analysis.isAI ?? false;
   const horizonLabel = {
     shortTerm: 'COURT TERME (1-5J)',
     mediumTerm: 'MOYEN TERME (2-4 SEM)',
@@ -30,45 +33,72 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
 
   const parseVal = (s?: string) => {
     if (!s) return NaN;
-    const m = s.match(/[\d.,]+/);
-    return m ? parseFloat(m[0].replace(',', '.')) : NaN;
+    const cleaned = String(s).replace(/[\s\u00A0\u202F]/g, '').replace(/(MAD|DH|%)/gi, '');
+    const m = cleaned.match(/-?[\d.,]+/);
+    if (!m) return NaN;
+    let numStr = m[0];
+    if (numStr.includes('.') && numStr.includes(',')) {
+      numStr = numStr.replace(/\./g, '').replace(',', '.');
+    } else if (numStr.includes(',')) {
+      numStr = numStr.replace(',', '.');
+    }
+    const n = parseFloat(numStr);
+    return Number.isFinite(n) ? n : NaN;
   };
   const tpVal = parseVal(data.takeProfit);
   const slVal = parseVal(data.stopLoss);
   const entryVal = parseVal(data.idealEntryPoint) || parseVal(analysis.price);
-  const computedRR = (entryVal && tpVal && slVal && slVal < entryVal && entryVal > 0)
-    ? ((tpVal - entryVal) / (entryVal - slVal))
-    : null;
+  let computedRR: number | null = null;
+  if (entryVal > 0 && tpVal > 0 && slVal > 0) {
+    if (isSell && tpVal < entryVal && slVal > entryVal) {
+      computedRR = (entryVal - tpVal) / (slVal - entryVal);
+    } else if (!isSell && tpVal > entryVal && slVal < entryVal) {
+      computedRR = (tpVal - entryVal) / (entryVal - slVal);
+    }
+  }
   const rrDisplay = computedRR !== null ? `1:${computedRR.toFixed(1)}` : (data.riskRewardRatio || 'N/A');
   const rrPct = computedRR !== null ? Math.min(100, Math.max(5, (computedRR / 4) * 100)) : 50;
 
+  const rawConf = typeof analysis.confidenceLevel === 'object'
+    ? JSON.stringify(analysis.confidenceLevel)
+    : (analysis.confidenceLevel || 'Moyen');
+  const confSegments = rawConf === 'Élevé' ? 5 : rawConf === 'Moyen' ? 3 : 1;
+  const confColor = rawConf === 'Élevé' ? 'emerald' : rawConf === 'Moyen' ? 'amber' : 'rose';
+
+  const rawRisk = typeof data.risk === 'object'
+    ? JSON.stringify(data.risk)
+    : (data.risk || 'Moyen');
+  const riskColor = rawRisk === 'Faible' ? 'emerald' : rawRisk === 'Élevé' ? 'rose' : 'amber';
+
   return (
     <>
-      {/* SÉLECTEUR D'HORIZON — Nouveau */}
-      <div className="horizon-switcher glass-heavy">
-        {(['shortTerm', 'mediumTerm', 'longTerm'] as const).map((h) => (
-          <button 
-            key={h}
-            onClick={() => setActiveHorizon(h)}
-            className={`horizon-btn ${activeHorizon === h ? 'active' : ''}`}
-          >
-            <Clock size={12} />
-            <span>{horizonLabel[h].split(' ')[0]}</span>
-            <span className="h-sub">{horizonLabel[h].split(' ')[1]}</span>
-          </button>
-        ))}
-      </div>
+      {/* SÉLECTEUR D'HORIZON — Masqué si horizons absent */}
+      {horizons && (
+        <div className="horizon-switcher glass-heavy">
+          {(['shortTerm', 'mediumTerm', 'longTerm'] as const).map((h) => (
+            <button 
+              key={h}
+              onClick={() => setActiveHorizon(h)}
+              className={`horizon-btn ${activeHorizon === h ? 'active' : ''}`}
+            >
+              <Clock size={12} />
+              <span>{horizonLabel[h].split(' ')[0]}</span>
+              <span className="h-sub">{horizonLabel[h].split(' ')[1]}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* BLOC 1 — Résumé Rapide Premium */}
       <div className="hero-stats-new">
-        <div className={`recommendation-card glass-heavy ${isBuy ? 'buy' : 'wait'}`}>
+        <div className={`recommendation-card glass-heavy ${actionClass}`}>
           <div className="card-ambient-glow"></div>
           <div className="recommendation-content">
             <div className="expert-header">
               <ShieldCheck size={12} className="expert-icon" />
               <span className="mono-label">DÉCISION EXÉCUTIVE STRATÉGIQUE</span>
               <span className="mono" style={{ marginLeft: 'auto', padding: '0.2rem 0.6rem', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>
-                {data.isAI ? '🤖 Synthèse IA' : '📊 Calcul quantitatif'}
+                {isAI ? '🤖 Synthèse IA' : '📊 Calcul quantitatif'}
               </span>
             </div>
             
@@ -89,8 +119,8 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
               <div className="rationale-box">
                 <p className="why-text">&ldquo;{typeof data.why === 'object' ? JSON.stringify(data.why) : data.why}&rdquo;</p>
                 <div className="expert-seal">
-                  {data.isAI ? <BarChart3 size={11} /> : <Zap size={11} />}
-                  <span className="mono-label">{data.isAI ? 'ANALYSTE IA SENIOR' : 'MOTEUR AETHERIS CORE'}</span>
+                  {isAI ? <BarChart3 size={11} /> : <Zap size={11} />}
+                  <span className="mono-label">{isAI ? 'ANALYSTE IA SENIOR' : 'MOTEUR AETHERIS CORE'}</span>
                 </div>
               </div>
             </div>
@@ -103,16 +133,15 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
               <div className="gauge-header">
                 <span className="gauge-label mono-label">INDEX DE CONFIANCE ALPHA</span>
 
-                <span className={`gauge-value mono ${analysis.confidenceLevel === 'Élevé' ? 'emerald' : 'amber'}`}>
-                  {typeof analysis.confidenceLevel === 'object' ? JSON.stringify(analysis.confidenceLevel) : analysis.confidenceLevel}
+                <span className={`gauge-value mono ${confColor}`}>
+                  {rawConf}
                 </span>
               </div>
               <div className="segmented-bar">
                 {[1, 2, 3, 4, 5].map((seg) => {
-                  const isActive = analysis.confidenceLevel === 'Élevé' ? seg <= 5 : seg <= 3;
-                  const status = analysis.confidenceLevel === 'Élevé' ? 'emerald' : 'amber';
+                  const isActive = seg <= confSegments;
                   return (
-                    <div key={seg} className={`segment ${isActive ? 'active' : ''} ${status}`}></div>
+                    <div key={seg} className={`segment ${isActive ? 'active' : ''} ${confColor}`}></div>
                   );
                 })}
               </div>
@@ -122,12 +151,12 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
               <div className="gauge-header">
                 <span className="gauge-label mono-label">VECTEUR DE RISQUE ESTIMÉ</span>
 
-                <span className={`gauge-value mono ${data.risk === 'Faible' ? 'emerald' : 'amber'}`}>
-                  {typeof data.risk === 'object' ? JSON.stringify(data.risk) : data.risk}
+                <span className={`gauge-value mono ${riskColor}`}>
+                  {rawRisk}
                 </span>
               </div>
               <div className="risk-scale">
-                 <div className={`risk-glow-dot ${data.risk === 'Faible' ? 'emerald' : 'amber'}`}></div>
+                 <div className={`risk-glow-dot ${riskColor}`}></div>
                  <div className="scale-line"></div>
                  <div className="scale-notches">
                     <span className="mono">BAS</span>
@@ -144,6 +173,30 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
         <div className="alert-ribbon glass animate-pulse">
            <AlertCircle size={16} className="amber-icon" />
            <p className="mono-small"><strong>NOTE DE CONTEXTE :</strong> {typeof data.contradictionDetected === 'object' ? JSON.stringify(data.contradictionDetected) : data.contradictionDetected}</p>
+        </div>
+      )}
+
+      {analysis.liquidityWarning && !analysis.liquidityWarning.isLiquid && (
+        <div className="dq-orch-banner glass-heavy">
+          <div className="dq-orch-header">
+            <AlertTriangle size={14} className="amber-icon" />
+            <span className="mono-label">ALERTE LIQUIDITÉ</span>
+          </div>
+          <p className="dq-orch-msg">{analysis.liquidityWarning.message}</p>
+        </div>
+      )}
+
+      {analysis.dataQuality && analysis.dataQuality.warnings?.length > 0 && (
+        <div className="dq-orch-banner glass-heavy">
+          <div className="dq-orch-header">
+            <AlertTriangle size={14} className="amber-icon" />
+            <span className="mono-label">QUALITÉ DES DONNÉES : {analysis.dataQuality.score}/100</span>
+          </div>
+          <div className="dq-orch-list">
+            {analysis.dataQuality.warnings.map((w, i) => (
+              <span key={i} className="dq-orch-msg">• {w}</span>
+            ))}
+          </div>
         </div>
       )}
 
@@ -181,7 +234,7 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
 
                <div className="val-box">
                   <span className="c-val mono text-emerald">{typeof data.takeProfit === 'object' ? JSON.stringify(data.takeProfit) : data.takeProfit || 'N/A'}</span>
-                  <span className="target-tick">▲</span>
+                  <span className="target-tick">{isSell ? '▼' : '▲'}</span>
                </div>
             </div>
             <div className="t-coord sl">
@@ -189,7 +242,7 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
 
                <div className="val-box">
                   <span className="c-val mono text-rose">{typeof data.stopLoss === 'object' ? JSON.stringify(data.stopLoss) : data.stopLoss || 'N/A'}</span>
-                  <span className="target-tick down">▼</span>
+                  <span className="target-tick down">{isSell ? '▲' : '▼'}</span>
                </div>
             </div>
             <div className="t-coord rrr">
@@ -316,6 +369,7 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
         .recommendation-card { position: relative; overflow: hidden; border-radius: 1.5rem; padding: 2rem; border: 1px solid var(--border-glass); background: rgba(0,0,0,0.1); }
         .card-ambient-glow { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.1; pointer-events: none; }
         .buy .card-ambient-glow { background: radial-gradient(circle at 5% 5%, var(--accent-emerald) 0%, transparent 50%); }
+        .sell .card-ambient-glow { background: radial-gradient(circle at 5% 5%, #f43f5e 0%, transparent 50%); }
         .wait .card-ambient-glow { background: radial-gradient(circle at 5% 5%, #f59e0b 0%, transparent 50%); }
         
         .expert-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; }
@@ -334,6 +388,7 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
            line-height: 1;
         }
         .buy .badge-main-text { color: var(--accent-emerald); filter: drop-shadow(0 0 15px rgba(16, 185, 129, 0.3)); }
+        .sell .badge-main-text { color: #f43f5e; filter: drop-shadow(0 0 15px rgba(244, 63, 94, 0.3)); }
         .wait .badge-main-text { color: #f59e0b; filter: drop-shadow(0 0 15px rgba(245, 158, 11, 0.3)); }
 
         .tactical-badge { display: flex; flex-direction: column; gap: 6px; padding: 1.25rem 1.75rem; border-radius: 1.25rem; border: 1px solid rgba(255, 255, 255, 0.08); background: rgba(0,0,0,0.2); min-width: 200px; }
@@ -352,17 +407,24 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
         .gauge-value { font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05rem; }
         .gauge-value.emerald { color: var(--accent-emerald); }
         .gauge-value.amber { color: #f59e0b; }
+        .gauge-value.rose { color: #f43f5e; }
 
         .segmented-bar { display: flex; gap: 6px; }
         .segment { height: 4px; flex: 1; border-radius: 100px; background: rgba(255,255,255,0.03); transition: all 0.5s var(--ease); }
         .segment.active.emerald { background: var(--accent-emerald); box-shadow: 0 0 10px var(--accent-emerald); }
         .segment.active.amber { background: #f59e0b; box-shadow: 0 0 10px #f59e0b; }
+        .segment.active.rose { background: #f43f5e; box-shadow: 0 0 10px #f43f5e; }
 
         .risk-scale { position: relative; height: 16px; margin-top: 0.75rem; }
         .scale-line { width: 100%; height: 2px; background: rgba(255,255,255,0.03); border-radius: 100px; position: absolute; top: 7px; }
         .risk-glow-dot { position: absolute; top: 2px; width: 12px; height: 12px; border-radius: 50%; z-index: 2; transition: all 1s ease; }
         .risk-glow-dot.emerald { background: var(--accent-emerald); left: 15%; }
-        .risk-glow-dot.amber { background: #f59e0b; left: 55%; }
+        .risk-glow-dot.amber { background: #f59e0b; left: 50%; }
+        .risk-glow-dot.rose { background: #f43f5e; left: 85%; }
+        .dq-orch-banner { padding: 1rem 1.5rem; border-radius: 1rem; border: 1px solid rgba(245, 158, 11, 0.2); background: rgba(245, 158, 11, 0.04); display: flex; flex-direction: column; gap: 0.45rem; }
+        .dq-orch-header { display: flex; align-items: center; gap: 0.6rem; color: #f59e0b; }
+        .dq-orch-list { display: flex; flex-direction: column; gap: 0.25rem; }
+        .dq-orch-msg { font-size: 0.85rem; color: #cbd5e1; margin: 0; line-height: 1.45; }
         .scale-notches { display: flex; justify-content: space-between; margin-top: 20px; font-size: 7px; color: #334155; font-weight: 900; }
 
         /* Tactical Board */

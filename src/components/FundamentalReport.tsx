@@ -106,10 +106,20 @@ export default function FundamentalReport({ analysis }: FundamentalReportProps) 
             <div className="m-val-row">
               <div style={{ display: 'flex', alignItems: 'center' }}>
                 <span className="m-val mono">
-                  {fundamentals.marketCap && fundamentals.marketCap !== 'N/A' 
-                    ? `${String(fundamentals.marketCap).replace(/\B(?=(\d{3})+(?!\d))/g, " ")}` 
-                    : 'N/A'}
-                  <span className="m-cur">MAD</span>
+                  {(() => {
+                    const rawCap = fundamentals.marketCap;
+                    if (!rawCap || rawCap === 'N/A') return 'N/A';
+                    const cleanCap = String(rawCap).replace(/\s*MAD$/i, '').trim();
+                    const formattedCap = /^\d+$/.test(cleanCap)
+                      ? cleanCap.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+                      : cleanCap;
+                    return (
+                      <>
+                        {formattedCap}
+                        <span className="m-cur">MAD</span>
+                      </>
+                    );
+                  })()}
                 </span>
                 {(analysis as any).fundamentals?.dataSources?.marketCap && (analysis as any).fundamentals.dataSources.marketCap !== 'UNKNOWN' && (
                   <span style={{ fontSize: '9px', padding: '2px 6px', background: 'rgba(16, 185, 129, 0.1)', color: 'rgba(16, 185, 129, 0.7)', borderRadius: '4px', marginLeft: '6px', letterSpacing: '0.05em' }}>
@@ -213,8 +223,22 @@ export default function FundamentalReport({ analysis }: FundamentalReportProps) 
       <div className="fund-footer glass-heavy">
         <TrendingUp size={16} className="text-emerald" />
         <p className="footer-text">
-          L'analyse fondamentale confirme un profil de type <strong>{parseFloat(fundamentals.peRatio || '0') < 15 ? 'Value' : 'Growth'}</strong>
-          {" "}pour cette valeur au sein du secteur <strong>{fundamentals.sector}</strong>.
+          {(() => {
+            const parsedPE = parseFloat(String(fundamentals.peRatio || '').replace(',', '.'));
+            if (Number.isFinite(parsedPE) && parsedPE > 0) {
+              return (
+                <>
+                  L&apos;analyse fondamentale confirme un profil de type <strong>{parsedPE < 15 ? 'Value' : 'Growth'}</strong>
+                  {" "}pour cette valeur au sein du secteur <strong>{fundamentals.sector}</strong>.
+                </>
+              );
+            }
+            return (
+              <>
+                Les ratios actuels ne permettent pas encore de qualifier automatiquement le profil (Value/Growth) au sein du secteur <strong>{fundamentals.sector}</strong>.
+              </>
+            );
+          })()}
         </p>
       </div>
 

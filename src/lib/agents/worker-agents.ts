@@ -14,13 +14,10 @@ import { TradingViewScraper } from '../scrapers/tradingview-scraper';
  * AGENT NEWS: Analyse de sentiment multi-sources
  */
 export const NewsWorker = {
-  analyze: async (company: string): Promise<Partial<CompanyAnalysis>> => {
+  analyze: async (company: string): Promise<Partial<CompanyAnalysis> & { isAI?: boolean }> => {
     try {
-      // 1. Collecte multi-sources (RSS) boostée par les nouveaux headers
-      const rssNews = await newsEngine.getNewsForCompany(company);
-      
-      // Récupérer les métriques de collecte
-      const collectionMetrics = newsEngine.getLastCollectionMetrics();
+      // 1. Collecte multi-sources (RSS) boostée et thread-safe
+      const { articles: rssNews, metrics: collectionMetrics } = await newsEngine.getNewsWithMetrics(company);
       
       const allNews = rssNews.map(n => ({ 
         ...n, 
@@ -29,28 +26,31 @@ export const NewsWorker = {
       }));
 
       if (allNews.length > 0) {
-        // 2. Analyse Sémantique réelle via Gemini Flash (Structured JSON)
+        // 2. Analyse Sémantique réelle via Gemini (Structured JSON)
         const sentimentAnalysis = await GeminiService.analyzeNewsSentiment(company, allNews);
 
         // BUG FIX #1: Guard against null/missing details array from AI
         const safeDetails = sentimentAnalysis?.details ?? [];
 
         // Calcul du Score Global avec Dépréciation Temporelle (Time Decay)
+        // Exclure explicitement les faux positifs marqués relevant === false
         let totalWeight = 0;
         let weightedScoreSum = 0;
 
         allNews.forEach((n, i) => {
           const articleId = `art-${i}`;
-          // AUDIT FIX: Match by articleId instead of index to prevent misalignment
           const detail = safeDetails.find((d: any) => d.articleId === articleId) || safeDetails[i];
-          if (!detail) return;
+          if (!detail || detail.relevant === false) return;
 
-          const ageInDays = Math.max(0, (Date.now() - new Date(n.pubDate).getTime()) / (1000 * 60 * 60 * 24));
+          const parsedTs = new Date(n.pubDate).getTime();
+          const ageInDays = Number.isFinite(parsedTs)
+            ? Math.max(0, (Date.now() - parsedTs) / (1000 * 60 * 60 * 24))
+            : 1;
           const timeDecayWeight = Math.exp(-0.08 * ageInDays); // Demi-vie d'environ 8.6 jours
           const sourceWeight = n.sourceType === 'OFFICIAL' ? 2.0 : n.sourceType === 'SPECIALIZED' ? 1.5 : 1.0;
           
           const weight = sourceWeight * timeDecayWeight;
-          const articleScore = typeof detail.score === 'number' ? detail.score : 0;
+          const articleScore = typeof detail.score === 'number' && Number.isFinite(detail.score) ? detail.score : 0;
 
           weightedScoreSum += articleScore * weight;
           totalWeight += weight;
@@ -65,13 +65,12 @@ export const NewsWorker = {
           globalSentiment = 'POSITIF';
         } else if (globalScore > -0.15) {
           globalSentiment = 'NEUTRE';
-        } else if (globalScore >= -0.6) {  // BUG FIX: >= -0.6 so -0.6 itself is NEGATIF not FORTEMENT_NEGATIF
+        } else if (globalScore >= -0.6) {
           globalSentiment = 'NEGATIF';
         } else {
           globalSentiment = 'FORTEMENT_NEGATIF';
         }
 
-        // BUG FIX #2: feedsTotal=0 with successCount=0 should NOT be 'FULL'
         const totalFeeds = collectionMetrics.totalFeeds;
         const successFeeds = collectionMetrics.successCount;
         const collectionStatus = totalFeeds === 0 ? 'FAILED' as const :
@@ -82,6 +81,7 @@ export const NewsWorker = {
           globalSentiment,
           probableImpact: sentimentAnalysis?.impactSummary || 'Analyse indisponible.',
           consolidatedSummary: sentimentAnalysis?.consolidatedSummary || '',
+          isAI: Boolean(sentimentAnalysis?.aiAvailable),
           collectionStatus: {
             status: collectionStatus,
             feedsSuccess: successFeeds,
@@ -91,6 +91,7 @@ export const NewsWorker = {
           news: allNews.map((n, i) => {
             const articleId = `art-${i}`;
             const detail = safeDetails.find((d: any) => d.articleId === articleId) || safeDetails[i];
+            const parsedTs = new Date(n.pubDate).getTime();
             return {
              id: articleId,
              summary: n.title,
@@ -98,7 +99,7 @@ export const NewsWorker = {
              impact: detail?.impact || 'Court terme',
              explanation: detail?.explanation || 'Analyse en attente.',
              source: n.source,
-             date: new Date(n.pubDate).toLocaleDateString('fr-FR'),
+             date: Number.isFinite(parsedTs) ? new Date(parsedTs).toLocaleDateString('fr-FR') : 'Récent',
              url: n.link,
              fullContent: n.fullContent
             };
@@ -112,6 +113,7 @@ export const NewsWorker = {
     return { 
       globalSentiment: 'NEUTRE', 
       probableImpact: 'Aucun catalyseur majeur détecté.',
+      isAI: false,
       collectionStatus: {
         status: 'FAILED' as const,
         feedsSuccess: 0,
@@ -187,8 +189,15 @@ export const MarketWorker = {
       }
 
       console.log(`[MarketWorker] Live data match for "${company}": ${liveData ? 'OUI (' + liveData.symbol + ')' : 'NON (N/A)'}`);
-      
-      const currentPrice = liveData ? parseFloat(liveData.price.replace(',', '.').replace(/\s/g, '')) : 0;
+
+      const parseLocaleNum = (s?: string): number | undefined => {
+        if (!s || s === '-' || s === 'N/A') return undefined;
+        const clean = s.replace(/[\s\u00A0\u202F]/g, '').replace(',', '.');
+        const n = parseFloat(clean);
+        return Number.isFinite(n) && n > 0 ? n : undefined;
+      };
+
+      const currentPrice = parseLocaleNum(liveData?.price) || 0;
       
       // BUG FIX #5: Circuit breaker amélioré — vérifier les deux cas séparément
       // Si le prix LIVE est absent mais l'historique existe, on continue mais avec avertissement
@@ -207,12 +216,12 @@ export const MarketWorker = {
       }
 
       const prices = [...history];
-      if (currentPrice > 0 && !prices.some(p => Math.abs(p - currentPrice) < 0.01)) {
+      const lastHistoryClose = prices.length > 0 ? prices[prices.length - 1] : null;
+      if (currentPrice > 0 && (lastHistoryClose === null || Math.abs(lastHistoryClose - currentPrice) >= 0.01)) {
         prices.push(currentPrice);
       }
 
       // AUDIT FIX: Validation croisée des prix (Live vs Historique)
-      // Détecte les anomalies de scraping (ex: variation prise comme prix)
       let priceDiscrepancy: string | undefined;
       if (currentPrice > 0 && history.length > 0) {
         const lastHistoryPrice = history[history.length - 1];
@@ -227,8 +236,13 @@ export const MarketWorker = {
       const volumeStr = liveData ? liveData.quantity : undefined;
       const volumeNum = volumeStr ? parseInt(volumeStr.replace(/[\s\u00A0]/g, '').replace(',', ''), 10) : undefined;
 
-      // 3. Calcul via le moteur technique (AUDIT FIX: volume passé)
-      const tech = TechnicalEngine.calculate(prices, volumeNum);
+      // 3. Calcul via le moteur technique avec vrais OHLC intraday (si disponibles)
+      const sessionOHLC = {
+        high: parseLocaleNum(liveData?.high),
+        low: parseLocaleNum(liveData?.low),
+        close: currentPrice > 0 ? currentPrice : undefined,
+      };
+      const tech = TechnicalEngine.calculate(prices, volumeNum, sessionOHLC);
       
       if (liveData || history.length > 0) {
         const displayPrice = liveData?.price || (history.length > 0 ? history[history.length-1].toString() : '0.0');
@@ -489,23 +503,42 @@ export const FundamentalWorker = {
         console.log(`[FundamentalWorker] Résolution DB: ${searchName} | Symbole: ${searchSymbol}`);
       }
 
-      // 1. Récupération des données TradingView en premier (rapide et geoblock-free)
+      // 1. Récupération des données TradingView Morocco en MAD natif
       const tvData = await TradingViewScraper.getFundamentalData(searchName, searchSymbol);
 
-      // 2. Si TradingView a échoué ou si les données clés manquent, on fait les autres scrapers en fallback
-      let bmceData: any = { peRatio: 'N/A', dividendYield: 'N/A', marketCap: 'N/A', netProfit: 'N/A', roe: 'N/A', status: 'error' };
+      // 2. Complément Casabourse (en cache 6h) dès que la croissance ou tout ratio est N/A
       let casaData: any = { peRatio: 'N/A', dividendYield: 'N/A', margin: 'N/A', revenueGrowth: 'N/A', profitGrowth: 'N/A', status: 'error' };
+      let bmceData: any = { peRatio: 'N/A', dividendYield: 'N/A', marketCap: 'N/A', netProfit: 'N/A', roe: 'N/A', status: 'error' };
       let officialData: any = { netProfit: 'N/A', roe: 'N/A', status: 'error' };
 
-      if (tvData.status === 'error' || tvData.peRatio === 'N/A' || tvData.marketCap === 'N/A') {
-        console.log(`[FundamentalWorker] ⚠️ Données TradingView incomplètes pour ${searchSymbol}. Lancement des fallbacks...`);
-        const [bmcePromise, casaPromise, officialPromise] = await Promise.allSettled([
+      const tvHasMissingAny =
+        tvData.status === 'error' ||
+        tvData.peRatio === 'N/A' ||
+        tvData.dividendYield === 'N/A' ||
+        tvData.marketCap === 'N/A' ||
+        tvData.netProfit === 'N/A' ||
+        tvData.roe === 'N/A' ||
+        tvData.margin === 'N/A' ||
+        tvData.revenueGrowth === 'N/A' ||
+        tvData.profitGrowth === 'N/A';
+
+      if (tvHasMissingAny) {
+        casaData = await CasabourseScraper.getFundamentalData(searchName, searchSymbol);
+      }
+
+      const needsCoreFallback =
+        (tvData.peRatio === 'N/A' && (!casaData.peRatio || casaData.peRatio === 'N/A')) ||
+        tvData.marketCap === 'N/A' ||
+        tvData.roe === 'N/A' ||
+        tvData.netProfit === 'N/A';
+
+      if (needsCoreFallback) {
+        console.log(`[FundamentalWorker] ⚠️ Données cœur incomplètes pour ${searchSymbol}. Lancement des fallbacks BMCE/Official...`);
+        const [bmcePromise, officialPromise] = await Promise.allSettled([
           BMCEBourseScraper.getFundamentalData(searchName),
-          CasabourseScraper.getFundamentalData(searchName, searchSymbol),
           OfficialCasaScraper.getFundamentalData(searchSymbol)
         ]);
         if (bmcePromise.status === 'fulfilled') bmceData = bmcePromise.value;
-        if (casaPromise.status === 'fulfilled') casaData = casaPromise.value;
         if (officialPromise.status === 'fulfilled') officialData = officialPromise.value;
       }
 

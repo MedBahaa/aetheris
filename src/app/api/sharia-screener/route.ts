@@ -94,8 +94,17 @@ export async function POST(req: Request) {
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
+        let streamClosed = false;
+        let step2Timer: ReturnType<typeof setTimeout> | undefined;
+        let step3Timer: ReturnType<typeof setTimeout> | undefined;
+
         const sendEvent = (data: any) => {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+          if (streamClosed) return;
+          try {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+          } catch {
+            streamClosed = true;
+          }
         };
 
         try {
@@ -105,11 +114,11 @@ export async function POST(req: Request) {
             sendEvent({ step: 1, message: "Recherche des états financiers officiels sur le web..." });
           }
           
-          const step2Timer = setTimeout(() => {
+          step2Timer = setTimeout(() => {
              sendEvent({ step: 2, message: "Analyse comptable et Extraction des montants bruts..." });
           }, 2500);
 
-          const step3Timer = setTimeout(() => {
+          step3Timer = setTimeout(() => {
              sendEvent({ step: 3, message: "Calculs des Ratios AAOIFI et du Taux de Purification..." });
           }, 5000);
 
@@ -181,12 +190,8 @@ export async function POST(req: Request) {
                }
             }
           }
-          
-          clearTimeout(step2Timer);
-          clearTimeout(step3Timer);
 
           sendEvent({ step: 4, status: 'success', data: result });
-          controller.close();
         } catch (error: any) {
           console.error('[API sharia-screener Error]:', error);
           sendEvent({
@@ -194,8 +199,17 @@ export async function POST(req: Request) {
             status: 'error',
             message: 'Erreur lors de la recherche des états financiers et du calcul de conformité Sharia.'
           });
-          controller.close();
+        } finally {
+          if (step2Timer) clearTimeout(step2Timer);
+          if (step3Timer) clearTimeout(step3Timer);
+          if (!streamClosed) {
+            streamClosed = true;
+            try { controller.close(); } catch {}
+          }
         }
+      },
+      cancel() {
+        // Client disconnected cleanly
       }
     });
 

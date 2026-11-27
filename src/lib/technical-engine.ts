@@ -33,12 +33,18 @@ const MIN_POINTS_SMA20 = 20;
 const MIN_POINTS_SMA50 = 50;
 const MIN_POINTS_MACD = 33; // 26 (slow) + 9 (signal) - 2
 
+export interface SessionOHLC {
+  high?: number;
+  low?: number;
+  close?: number;
+}
+
 export class TechnicalEngine {
   /**
    * Calcule les indicateurs techniques à partir d'un historique de prix
-   * AUDIT FIX: Calculs honnêtes avec labels réels et seuils minimum
+   * AUDIT FIX: Calculs honnêtes avec labels réels, seuils minimum et vrais OHLC intraday pour les Pivots
    */
-  static calculate(prices: number[], volume?: number): TechnicalSignals {
+  static calculate(prices: number[], volume?: number, sessionOHLC?: SessionOHLC): TechnicalSignals {
     const lastPrice = prices[prices.length - 1] || 0;
     const dataPointsUsed = prices.length;
 
@@ -132,14 +138,35 @@ export class TechnicalEngine {
     const lastBb = bbValues[bbValues.length - 1] || { upper: 0, middle: 0, lower: 0 };
 
     // 6. Points Pivots (Standard)
-    // AUDIT FIX: Utiliser uniquement les données de la DERNIÈRE SÉANCE
-    // Au lieu de calculer H/L/C sur 20 jours, on prend les 1-2 derniers points
-    // pour approximer la dernière séance (H/L/C intra-day non disponibles)
-    const lastSessionPrices = prices.slice(-2); // Approximation : avant-dernier et dernier prix
-    const sessionHigh = Math.max(...lastSessionPrices); 
-    const sessionLow = Math.min(...lastSessionPrices);
-    const sessionClose = lastPrice;
-    
+    // Utiliser les vraies données OHLC intraday si valides, sinon fenêtre glissante 5 séances
+    // pour éviter que Support = Pivot = Résistance sur une séance plate.
+    const hasValidIntradayOHLC =
+      typeof sessionOHLC?.high === 'number' &&
+      typeof sessionOHLC?.low === 'number' &&
+      Number.isFinite(sessionOHLC.high) &&
+      Number.isFinite(sessionOHLC.low) &&
+      sessionOHLC.high > 0 &&
+      sessionOHLC.low > 0 &&
+      sessionOHLC.high > sessionOHLC.low;
+
+    let sessionHigh: number;
+    let sessionLow: number;
+    let sessionClose: number;
+
+    if (hasValidIntradayOHLC) {
+      sessionHigh = sessionOHLC!.high!;
+      sessionLow = sessionOHLC!.low!;
+      sessionClose =
+        typeof sessionOHLC?.close === 'number' && Number.isFinite(sessionOHLC.close) && sessionOHLC.close > 0
+          ? sessionOHLC.close
+          : lastPrice;
+    } else {
+      const recentWindow = prices.slice(-5);
+      sessionHigh = Math.max(...recentWindow);
+      sessionLow = Math.min(...recentWindow);
+      sessionClose = lastPrice;
+    }
+
     const PP = (sessionHigh + sessionLow + sessionClose) / 3;
     const R1 = (2 * PP) - sessionLow;
     const S1 = (2 * PP) - sessionHigh;
