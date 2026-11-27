@@ -273,12 +273,33 @@ describe('PortfolioService', () => {
     });
 
     it('runs automatic IPO check only in the 10:00 AM Casablanca window once per day', () => {
-      // 09:05 UTC = 10:05 Casablanca (UTC+1) -> true
-      const tenAmCasa = new Date('2026-11-17T09:05:00Z');
+      function createCasablancaDate(isoDate: string, hour: number, minute: number): Date {
+        const hh = String(hour).padStart(2, '0');
+        const mm = String(minute).padStart(2, '0');
+        const candidate = new Date(`${isoDate}T${hh}:${mm}:00Z`);
+        const parts = new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Africa/Casablanca',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        }).formatToParts(candidate);
+
+        const actualHour = Number(parts.find((p) => p.type === 'hour')?.value ?? hour) % 24;
+        const actualMinute = Number(parts.find((p) => p.type === 'minute')?.value ?? minute);
+
+        let diffMinutes = actualHour * 60 + actualMinute - (hour * 60 + minute);
+        if (diffMinutes > 720) diffMinutes -= 1440;
+        if (diffMinutes < -720) diffMinutes += 1440;
+
+        return new Date(candidate.getTime() - diffMinutes * 60_000);
+      }
+
+      // 10:05 Africa/Casablanca wall-clock time -> true
+      const tenAmCasa = createCasablancaDate('2026-11-17', 10, 5);
       expect(MarketListScraper.shouldRunDaily10AmIpoCheck(tenAmCasa)).toBe(true);
 
-      // 13:30 UTC = 14:30 Casablanca -> false (outside 10:00 AM window)
-      const twoPmCasa = new Date('2026-11-17T13:30:00Z');
+      // 14:30 Africa/Casablanca wall-clock time -> false (outside 10:00 AM window)
+      const twoPmCasa = createCasablancaDate('2026-11-17', 14, 30);
       expect(MarketListScraper.shouldRunDaily10AmIpoCheck(twoPmCasa)).toBe(false);
     });
   });

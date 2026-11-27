@@ -16,36 +16,57 @@ describe('Aetheris Phase 1-5 Platform & Security Upgrades', () => {
   });
 
   describe('BVC Market Session Clock (Africa/Casablanca)', () => {
+    function createCasablancaDate(isoDate: string, hour: number, minute: number): Date {
+      const hh = String(hour).padStart(2, '0');
+      const mm = String(minute).padStart(2, '0');
+      const candidate = new Date(`${isoDate}T${hh}:${mm}:00Z`);
+      const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Africa/Casablanca',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).formatToParts(candidate);
+
+      const actualHour = Number(parts.find((p) => p.type === 'hour')?.value ?? hour) % 24;
+      const actualMinute = Number(parts.find((p) => p.type === 'minute')?.value ?? minute);
+
+      let diffMinutes = actualHour * 60 + actualMinute - (hour * 60 + minute);
+      if (diffMinutes > 720) diffMinutes -= 1440;
+      if (diffMinutes < -720) diffMinutes += 1440;
+
+      return new Date(candidate.getTime() - diffMinutes * 60_000);
+    }
+
     it('identifies OPEN session Mon-Fri between 09:30 and 15:40 Casablanca time', () => {
-      // 2026-11-27 is Friday; in November Casablanca is UTC+1 -> 09:30 UTC = 10:30 Casablanca
-      const res = getBvcMarketStatus(new Date('2026-11-27T09:30:00Z'));
+      // 2026-11-27 is Friday at 10:30 Africa/Casablanca wall-clock time
+      const res = getBvcMarketStatus(createCasablancaDate('2026-11-27', 10, 30));
       expect(res.status).toBe('OPEN');
       expect(res.isOpen).toBe(true);
       expect(res.label).toBe('SÉANCE BVC OUVERTE');
     });
 
     it('identifies PRE_OPEN session Mon-Fri between 09:00 and 09:29 Casablanca time', () => {
-      // 08:15 UTC = 09:15 Casablanca
-      const res = getBvcMarketStatus(new Date('2026-11-27T08:15:00Z'));
+      // 2026-11-27 is Friday at 09:15 Africa/Casablanca wall-clock time
+      const res = getBvcMarketStatus(createCasablancaDate('2026-11-27', 9, 15));
       expect(res.status).toBe('PRE_OPEN');
       expect(res.isOpen).toBe(false);
     });
 
     it('identifies CLOSED_AFTER_HOURS outside trading hours on weekdays', () => {
-      // 16:00 UTC = 17:00 Casablanca
-      const res = getBvcMarketStatus(new Date('2026-11-27T16:00:00Z'));
+      // 2026-11-27 is Friday at 17:00 Africa/Casablanca wall-clock time
+      const res = getBvcMarketStatus(createCasablancaDate('2026-11-27', 17, 0));
       expect(res.status).toBe('CLOSED_AFTER_HOURS');
       expect(res.isOpen).toBe(false);
     });
 
     it('identifies CLOSED_WEEKEND on Saturday and Sunday', () => {
-      // 2026-11-28 is Saturday
-      const sat = getBvcMarketStatus(new Date('2026-11-28T10:00:00Z'));
+      // 2026-11-28 is Saturday at 11:00 Africa/Casablanca wall-clock time
+      const sat = getBvcMarketStatus(createCasablancaDate('2026-11-28', 11, 0));
       expect(sat.status).toBe('CLOSED_WEEKEND');
       expect(sat.isOpen).toBe(false);
 
-      // 2026-11-29 is Sunday
-      const sun = getBvcMarketStatus(new Date('2026-11-29T10:00:00Z'));
+      // 2026-11-29 is Sunday at 11:00 Africa/Casablanca wall-clock time
+      const sun = getBvcMarketStatus(createCasablancaDate('2026-11-29', 11, 0));
       expect(sun.status).toBe('CLOSED_WEEKEND');
       expect(sun.isOpen).toBe(false);
     });
