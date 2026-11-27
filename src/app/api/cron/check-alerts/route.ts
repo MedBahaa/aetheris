@@ -7,8 +7,6 @@ import { Resend } from 'resend';
 
 export const dynamic = 'force-dynamic';
 
-const resend = new Resend(process.env.RESEND_API_KEY || '');
-
 function sanitizeGatewayError(message: string): string {
   let clean = message || '';
   for (const secret of [process.env.CALLMEBOT_API_KEY, process.env.TELEGRAM_BOT_TOKEN]) {
@@ -161,28 +159,34 @@ export async function GET(request: Request) {
           const targetEmail = userData?.user?.email;
 
           if (targetEmail) {
-            try {
-              await resend.emails.send({
-                from: 'Aetheris Terminal <onboarding@resend.dev>',
-                to: targetEmail,
-                subject: `🚨 Alerte Aetheris : ${safeSymbol} a déclenché une alerte`,
-                html: `
-                  <div style="font-family: sans-serif; padding: 20px; color: #1e293b;">
-                    <h2>Alerte de Prix : ${safeSymbol}</h2>
-                    <p>Bonjour,</p>
-                    <p>Votre alerte sur <strong>${safeSymbol}</strong> vient de se déclencher :</p>
-                    <div style="background-color: #f1f5f9; padding: 15px; border-left: 4px solid #3b82f6; margin: 20px 0;">
-                      <strong>${safeReason}</strong>
+            const resendApiKey = process.env.RESEND_API_KEY;
+            if (resendApiKey) {
+              try {
+                const resend = new Resend(resendApiKey);
+                await resend.emails.send({
+                  from: 'Aetheris Terminal <onboarding@resend.dev>',
+                  to: targetEmail,
+                  subject: `🚨 Alerte Aetheris : ${safeSymbol} a déclenché une alerte`,
+                  html: `
+                    <div style="font-family: sans-serif; padding: 20px; color: #1e293b;">
+                      <h2>Alerte de Prix : ${safeSymbol}</h2>
+                      <p>Bonjour,</p>
+                      <p>Votre alerte sur <strong>${safeSymbol}</strong> vient de se déclencher :</p>
+                      <div style="background-color: #f1f5f9; padding: 15px; border-left: 4px solid #3b82f6; margin: 20px 0;">
+                        <strong>${safeReason}</strong>
+                      </div>
+                      <p>Connectez-vous à votre terminal pour gérer votre position.</p>
+                      <br/>
+                      <p><small>L'équipe Aetheris Terminal</small></p>
                     </div>
-                    <p>Connectez-vous à votre terminal pour gérer votre position.</p>
-                    <br/>
-                    <p><small>L'équipe Aetheris Terminal</small></p>
-                  </div>
-                `,
-              });
-              console.log(`[Cron Check Alerts] Email envoyé pour ${alert.symbol}`);
-            } catch (emailError: any) {
-              console.error(`[Cron Check Alerts] Erreur envoi email:`, emailError.message);
+                  `,
+                });
+                console.log(`[Cron Check Alerts] Email envoyé pour ${alert.symbol}`);
+              } catch (emailError: any) {
+                console.error(`[Cron Check Alerts] Erreur envoi email:`, emailError.message);
+              }
+            } else {
+              console.warn('[Cron Check Alerts] RESEND_API_KEY non configuré, email ignoré.');
             }
           }
         }

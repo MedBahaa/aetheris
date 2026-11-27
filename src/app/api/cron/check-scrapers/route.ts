@@ -8,8 +8,6 @@ import { Resend } from 'resend';
 
 export const dynamic = 'force-dynamic';
 
-const resend = new Resend(process.env.RESEND_API_KEY || '');
-
 export async function GET(request: Request) {
   // 🔒 Protection Fail-Closed par en-tête Authorization: Bearer <CRON_SECRET>
   if (!verifyCronSecret(request)) {
@@ -71,8 +69,10 @@ export async function GET(request: Request) {
   if (failures.length > 0) {
     console.error(`[Scraper Health Check] 🚨 Échecs détectés :`, failures);
     
-    if (process.env.RESEND_API_KEY) {
+    const resendApiKey = process.env.RESEND_API_KEY;
+    if (resendApiKey) {
       try {
+        const resend = new Resend(resendApiKey);
         await resend.emails.send({
           from: 'Aetheris Monitor <alerts@resend.dev>',
           to: 'admin@aetheris.ma', // Mail d'alerte admin
