@@ -1,10 +1,37 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  User, Activity, Bell, Sparkles, CheckCircle2, AlertTriangle, 
-  RefreshCw, ArrowLeft, ShieldCheck, Mail, Send, Phone, Info,
-  ExternalLink, CreditCard, ChevronRight, HelpCircle, Zap, X, LogOut
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import {
+  User,
+  Bell,
+  BellRing,
+  Sparkles,
+  CheckCircle2,
+  AlertTriangle,
+  RefreshCw,
+  ArrowLeft,
+  ShieldCheck,
+  Mail,
+  Send,
+  Phone,
+  Info,
+  ExternalLink,
+  CreditCard,
+  Zap,
+  X,
+  LogOut,
+  KeyRound,
+  Briefcase,
+  LayoutGrid,
+  Scale,
+  Wallet,
+  Clock,
+  Check,
+  Lock,
+  Layers,
+  Award,
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
@@ -14,10 +41,19 @@ import {
   sendTestAlertAction,
   requestChannelVerificationAction,
   confirmChannelVerificationAction,
+  getAlertsAction,
+  getPortfolioTransactionsAction,
 } from '@/lib/portfolio-actions';
 import { cancelSubscriptionAction, activateSandboxSubscriptionAction } from '@/lib/stripe-actions';
-import { useRouter } from 'next/navigation';
+import { supabase, performCleanLogout } from '@/lib/supabase';
 import { PremiumPaywallModal } from '@/components/portfolio/PremiumPaywallModal';
+
+const CAPITAL_PRESETS = [
+  { label: '50 000 DH', value: '50000' },
+  { label: '100 000 DH', value: '100000' },
+  { label: '250 000 DH', value: '250000' },
+  { label: '500 000 DH', value: '500000' },
+];
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -25,12 +61,25 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testingAlert, setTestingAlert] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [mounted, setMounted] = useState(false);
-  
-  // Non-blocking toast state
-  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
-  // Form states
+  // Non-blocking toast banner
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Authenticated user & workspace overview states
+  const [authEmail, setAuthEmail] = useState('');
+  const [authProvider, setAuthProvider] = useState('email');
+  const [memberSince, setMemberSince] = useState<string | null>(null);
+  const [lastSignIn, setLastSignIn] = useState<string | null>(null);
+  const [virtualBalance, setVirtualBalance] = useState<number>(100000);
+  const [virtualInitialCapital, setVirtualInitialCapital] = useState<number>(100000);
+  const [openPositionsCount, setOpenPositionsCount] = useState<number>(0);
+  const [transactionsCount, setTransactionsCount] = useState<number>(0);
+  const [activeAlertsCount, setActiveAlertsCount] = useState<number>(0);
+
+  // Form & subscription states
   const [profile, setProfile] = useState<any>(null);
   const [newCapital, setNewCapital] = useState('0');
   const [telegramChatId, setTelegramChatId] = useState('');
@@ -47,7 +96,15 @@ export default function ProfilePage() {
   const [showPaywallModal, setShowPaywallModal] = useState(false);
   const [showCancelConfirmModal, setShowCancelConfirmModal] = useState(false);
 
-  // Client-only mounting guard to prevent SSR/Hydration errors in production
+  const showFeedback = useCallback((type: 'success' | 'error', text: string, durationMs = 4500) => {
+    setSaveMessage({ type, text });
+    if (durationMs > 0) {
+      setTimeout(() => {
+        setSaveMessage((prev) => (prev?.text === text ? null : prev));
+      }, durationMs);
+    }
+  }, []);
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -70,35 +127,83 @@ export default function ProfilePage() {
     try {
       if (showSpinner) setLoading(true);
 
-      // Load local cache if available for instant UI rendering
       try {
         const cached = localStorage.getItem('aetheris_user_profile');
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (parsed.newCapital !== undefined) setNewCapital(parsed.newCapital);
+          if (parsed.newCapital !== undefined) setNewCapital(String(parsed.newCapital));
           if (parsed.telegramChatId !== undefined) setTelegramChatId(parsed.telegramChatId);
           if (parsed.whatsappPhone !== undefined) setWhatsappPhone(parsed.whatsappPhone);
           if (parsed.alertChannel !== undefined) setAlertChannel(parsed.alertChannel);
           if (parsed.notificationEmail !== undefined) setNotificationEmail(parsed.notificationEmail);
           if (parsed.username !== undefined) setUsername(parsed.username);
         }
-      } catch (e) {}
+      } catch {
+        // Ignore invalid localStorage cache
+      }
 
-      const res = await getUserProfileAction();
-      if (res && res.success && res.data) {
-        const prof = res.data;
+      const [authRes, profileRes, alertsRes, txRes] = await Promise.allSettled([
+        supabase.auth.getUser(),
+        getUserProfileAction(),
+        getAlertsAction(),
+        getPortfolioTransactionsAction(false),
+      ]);
+
+      let resolvedUserEmail = '';
+      if (authRes.status === 'fulfilled') {
+        const user = authRes.value?.data?.user;
+        if (user) {
+          resolvedUserEmail = user.email || '';
+          setAuthEmail(resolvedUserEmail);
+          setAuthProvider(String(user.app_metadata?.provider || 'email'));
+          setMemberSince(user.created_at || null);
+          setLastSignIn(user.last_sign_in_at || null);
+        }
+      }
+
+      if (profileRes.status === 'fulfilled' && profileRes.value?.success && profileRes.value.data) {
+        const prof = profileRes.value.data;
         setProfile(prof);
-        if (prof.initial_capital) setNewCapital(prof.initial_capital.toString());
-        if (prof.telegram_chat_id) setTelegramChatId(prof.telegram_chat_id);
+        if (prof.initial_capital !== undefined && prof.initial_capital !== null) {
+          setNewCapital(String(prof.initial_capital));
+        }
+        setTelegramChatId(prof.telegram_chat_id || '');
         setTelegramVerified(Boolean(prof.telegram_verified));
-        if (prof.whatsapp_phone) setWhatsappPhone(prof.whatsapp_phone);
+        setWhatsappPhone(prof.whatsapp_phone || '');
         setWhatsappVerified(Boolean(prof.whatsapp_verified));
         if (prof.alert_channel) setAlertChannel(prof.alert_channel);
-        if (prof.notification_email) setNotificationEmail(prof.notification_email);
-        if (prof.username) setUsername(prof.username);
+        setNotificationEmail(prof.notification_email || resolvedUserEmail || '');
+        setUsername(prof.username || '');
         if (prof.subscription_tier) setSubscriptionTier(prof.subscription_tier);
-      } else {
-        console.warn('Profile load warning:', res?.error);
+        setVirtualBalance(Number(prof.virtual_balance ?? 100000));
+        setVirtualInitialCapital(Number(prof.virtual_initial_capital ?? 100000));
+      } else if (resolvedUserEmail) {
+        setNotificationEmail((prev) => prev || resolvedUserEmail);
+      }
+
+      if (alertsRes.status === 'fulfilled' && Array.isArray(alertsRes.value)) {
+        const count = alertsRes.value.filter(
+          (a) => a.sl_price !== null && a.sl_price !== undefined || a.tp_price !== null && a.tp_price !== undefined
+        ).length;
+        setActiveAlertsCount(count);
+      }
+
+      if (txRes.status === 'fulfilled' && Array.isArray(txRes.value)) {
+        const txs = txRes.value;
+        setTransactionsCount(txs.length);
+        const qtyMap = new Map<string, number>();
+        for (const tx of txs) {
+          const sym = String(tx.symbol || '').toUpperCase();
+          if (!sym) continue;
+          const prevQty = qtyMap.get(sym) || 0;
+          const delta = tx.type === 'SELL' ? -Number(tx.quantity || 0) : Number(tx.quantity || 0);
+          qtyMap.set(sym, prevQty + delta);
+        }
+        let openCount = 0;
+        qtyMap.forEach((qty) => {
+          if (qty > 0.0001) openCount += 1;
+        });
+        setOpenPositionsCount(openCount);
       }
     } catch (err) {
       console.error('Failed to load profile:', err);
@@ -117,13 +222,13 @@ export default function ProfilePage() {
           try {
             const res = await verifyStripeSessionAction(sessionId);
             if (res.success) {
-              setSaveMessage({ type: 'success', text: 'Paiement Stripe validé ! Bienvenue chez Aetheris Pro.' });
+              showFeedback('success', 'Paiement Stripe validé ! Bienvenue chez Aetheris Pro.', 6000);
               window.history.replaceState({}, document.title, window.location.pathname);
             } else {
-              setSaveMessage({ type: 'error', text: 'Échec de validation : ' + res.error });
+              showFeedback('error', 'Échec de validation : ' + res.error, 6000);
             }
           } catch (err: any) {
-            setSaveMessage({ type: 'error', text: 'Erreur réseau : ' + err.message });
+            showFeedback('error', 'Erreur réseau : ' + err.message, 6000);
           } finally {
             loadProfile();
           }
@@ -132,7 +237,7 @@ export default function ProfilePage() {
         loadProfile();
       }
     }
-  }, [mounted, loadProfile]);
+  }, [mounted, loadProfile, showFeedback]);
 
   const handleSaveProfile = async (e?: React.FormEvent, forceTier?: string) => {
     if (e) e.preventDefault();
@@ -141,17 +246,21 @@ export default function ProfilePage() {
       const cap = parseFloat(newCapital) || 0;
       const targetTier = forceTier !== undefined ? forceTier : subscriptionTier;
 
-      // Save locally to cache first
       try {
-        localStorage.setItem('aetheris_user_profile', JSON.stringify({
-          newCapital,
-          telegramChatId,
-          whatsappPhone,
-          alertChannel,
-          notificationEmail,
-          username
-        }));
-      } catch (e) {}
+        localStorage.setItem(
+          'aetheris_user_profile',
+          JSON.stringify({
+            newCapital,
+            telegramChatId,
+            whatsappPhone,
+            alertChannel,
+            notificationEmail,
+            username,
+          })
+        );
+      } catch {
+        // Ignore storage errors
+      }
 
       const payload = {
         initial_capital: cap,
@@ -159,27 +268,20 @@ export default function ProfilePage() {
         whatsapp_phone: whatsappPhone,
         alert_channel: alertChannel,
         notification_email: notificationEmail,
-        username: username
+        username: username,
       };
 
       const res = await upsertUserProfileAction(payload);
       if (res && !res.success) {
-        setSaveMessage({ type: 'error', text: res.error || 'Erreur lors de la sauvegarde' });
-        setTimeout(() => setSaveMessage(null), 4000);
+        showFeedback('error', res.error || 'Erreur lors de la sauvegarde', 5000);
         return;
       }
 
       setSubscriptionTier(targetTier);
-      
-      // Show smooth glass feedback
-      setSaveMessage({ type: 'success', text: 'Paramètres enregistrés et validés avec succès !' });
-      setTimeout(() => setSaveMessage(null), 4000);
-      
-      // Refresh silently without unmounting form
+      showFeedback('success', 'Paramètres enregistrés et validés avec succès !', 4500);
       loadProfile(false);
     } catch (err: any) {
-      setSaveMessage({ type: 'error', text: err.message || 'Erreur lors de la sauvegarde' });
-      setTimeout(() => setSaveMessage(null), 4000);
+      showFeedback('error', err.message || 'Erreur lors de la sauvegarde', 5000);
     } finally {
       setSaving(false);
     }
@@ -188,17 +290,15 @@ export default function ProfilePage() {
   const handleTestAlert = async () => {
     try {
       setTestingAlert(true);
-      setSaveMessage({ type: 'success', text: 'Envoi du test d\'alerte en cours...' });
+      showFeedback('success', "Envoi du test d'alerte en cours...", 4000);
       const res = await sendTestAlertAction();
       if (res && res.success) {
-        setSaveMessage({ type: 'success', text: res.message || 'Notification de test envoyée avec succès !' });
+        showFeedback('success', res.message || 'Notification de test envoyée avec succès !', 6000);
       } else {
-        setSaveMessage({ type: 'error', text: res?.error || 'Erreur lors de l\'envoi du test.' });
+        showFeedback('error', res?.error || "Erreur lors de l'envoi du test.", 6000);
       }
-      setTimeout(() => setSaveMessage(null), 6000);
     } catch (err: any) {
-      setSaveMessage({ type: 'error', text: err.message || 'Erreur lors de l\'envoi du test.' });
-      setTimeout(() => setSaveMessage(null), 6000);
+      showFeedback('error', err.message || "Erreur lors de l'envoi du test.", 6000);
     } finally {
       setTestingAlert(false);
     }
@@ -208,11 +308,11 @@ export default function ProfilePage() {
     try {
       setVerifyingChannel(`${channel}_REQ`);
       const res = await requestChannelVerificationAction(channel);
-      setSaveMessage({
-        type: res.success ? 'success' : 'error',
-        text: (res.success ? res.message : res.error) || 'Opération terminée.',
-      });
-      setTimeout(() => setSaveMessage(null), 6000);
+      showFeedback(
+        res.success ? 'success' : 'error',
+        (res.success ? res.message : res.error) || 'Opération terminée.',
+        6000
+      );
     } finally {
       setVerifyingChannel(null);
     }
@@ -223,16 +323,16 @@ export default function ProfilePage() {
     try {
       setVerifyingChannel(`${channel}_CONFIRM`);
       const res = await confirmChannelVerificationAction(channel, code);
-      setSaveMessage({
-        type: res.success ? 'success' : 'error',
-        text: (res.success ? res.message : res.error) || 'Opération terminée.',
-      });
+      showFeedback(
+        res.success ? 'success' : 'error',
+        (res.success ? res.message : res.error) || 'Opération terminée.',
+        6000
+      );
       if (res.success) {
         if (channel === 'TELEGRAM') setTelegramOtp('');
         else setWhatsappOtp('');
         loadProfile(false);
       }
-      setTimeout(() => setSaveMessage(null), 6000);
     } finally {
       setVerifyingChannel(null);
     }
@@ -242,19 +342,16 @@ export default function ProfilePage() {
     try {
       const sbRes = await activateSandboxSubscriptionAction();
       if (!sbRes.success) {
-        setSaveMessage({ type: 'error', text: sbRes.error || 'Veuillez utiliser le paiement Stripe officiel.' });
-        setTimeout(() => setSaveMessage(null), 4000);
+        showFeedback('error', sbRes.error || 'Veuillez utiliser le paiement Stripe officiel.', 5000);
         return;
       }
       setSubscriptionTier('premium');
       setShowPaywallModal(false);
-      setSaveMessage({ type: 'success', text: 'Abonnement activé avec succès ! Bienvenue chez Aetheris Pro.' });
-      setTimeout(() => setSaveMessage(null), 4000);
+      showFeedback('success', 'Abonnement activé avec succès ! Bienvenue chez Aetheris Pro.', 5000);
       loadProfile();
     } catch (err: any) {
       console.error(err);
-      setSaveMessage({ type: 'error', text: err.message || 'Erreur lors de la mise à niveau.' });
-      setTimeout(() => setSaveMessage(null), 4000);
+      showFeedback('error', err.message || 'Erreur lors de la mise à niveau.', 5000);
     }
   };
 
@@ -263,21 +360,125 @@ export default function ProfilePage() {
       setSaving(true);
       const cancelRes = await cancelSubscriptionAction();
       if (!cancelRes.success) {
-        throw new Error(cancelRes.error || 'Impossible de résilier l\'abonnement.');
+        throw new Error(cancelRes.error || "Impossible de résilier l'abonnement.");
       }
       setSubscriptionTier('free');
       setShowCancelConfirmModal(false);
-      setSaveMessage({ type: 'success', text: 'Abonnement résilié avec succès.' });
-      setTimeout(() => setSaveMessage(null), 4000);
+      showFeedback('success', 'Abonnement résilié avec succès.', 5000);
       loadProfile();
     } catch (err: any) {
       console.error(err);
-      setSaveMessage({ type: 'error', text: err.message || 'Erreur lors de la résiliation.' });
-      setTimeout(() => setSaveMessage(null), 4000);
+      showFeedback('error', err.message || 'Erreur lors de la résiliation.', 5000);
     } finally {
       setSaving(false);
     }
   };
+
+  const handlePasswordReset = async () => {
+    if (!authEmail) {
+      showFeedback('error', 'Aucune adresse email vérifiée associée à ce compte.', 4500);
+      return;
+    }
+    try {
+      setResettingPassword(true);
+      const { error } = await supabase.auth.resetPasswordForEmail(authEmail, {
+        redirectTo: `${window.location.origin}/login`,
+      });
+      if (error) {
+        showFeedback('error', error.message || "Impossible d'envoyer le lien de réinitialisation.", 5000);
+      } else {
+        showFeedback('success', `Email de réinitialisation envoyé à ${authEmail}.`, 6000);
+      }
+    } catch (err: any) {
+      showFeedback('error', err?.message || 'Erreur lors de la demande.', 5000);
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    await performCleanLogout('/login');
+  };
+
+  // Derived display metadata
+  const displayName = useMemo(() => {
+    if (username.trim()) return username.trim();
+    if (authEmail) return authEmail.split('@')[0];
+    return 'Investisseur Aetheris';
+  }, [username, authEmail]);
+
+  const avatarInitials = useMemo(() => {
+    const clean = displayName.replace(/[^a-zA-Z0-9\s._-]/g, ' ').trim();
+    const parts = clean.split(/[\s._-]+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    }
+    if (clean.length >= 2) {
+      return clean.slice(0, 2).toUpperCase();
+    }
+    return 'AE';
+  }, [displayName]);
+
+  const formattedMemberSince = useMemo(() => {
+    if (!memberSince) return 'Session active';
+    const d = new Date(memberSince);
+    if (Number.isNaN(d.getTime())) return 'Session active';
+    return d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  }, [memberSince]);
+
+  const formattedLastSignIn = useMemo(() => {
+    if (!lastSignIn) return 'À l’instant';
+    const d = new Date(lastSignIn);
+    if (Number.isNaN(d.getTime())) return 'Récente';
+    return d.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }, [lastSignIn]);
+
+  const capitalNum = Math.max(0, parseFloat(newCapital) || 0);
+  const isPro = subscriptionTier === 'premium';
+
+  const isEmailConfigured = Boolean((notificationEmail || authEmail).trim());
+  const isChannelOperational = useMemo(() => {
+    if (alertChannel === 'EMAIL') return isEmailConfigured;
+    if (alertChannel === 'TELEGRAM') return telegramVerified;
+    if (alertChannel === 'WHATSAPP') return whatsappVerified;
+    return isEmailConfigured && (telegramVerified || whatsappVerified);
+  }, [alertChannel, isEmailConfigured, telegramVerified, whatsappVerified]);
+
+  const readinessChecks = useMemo(
+    () => [
+      { key: 'email', label: 'Email vérifié', done: Boolean(authEmail) },
+      { key: 'pseudo', label: 'Pseudo défini', done: Boolean(username.trim()) },
+      { key: 'capital', label: 'Capital configuré', done: capitalNum > 0 },
+      { key: 'channel', label: 'Canal actif prêt', done: isChannelOperational },
+    ],
+    [authEmail, username, capitalNum, isChannelOperational]
+  );
+
+  const completionScore = useMemo(() => {
+    const doneCount = readinessChecks.filter((c) => c.done).length;
+    return Math.round((doneCount / readinessChecks.length) * 100);
+  }, [readinessChecks]);
+
+  const isEmailMismatch = Boolean(
+    authEmail &&
+      notificationEmail.trim() &&
+      notificationEmail.trim().toLowerCase() !== authEmail.trim().toLowerCase()
+  );
+
+  const telegramUnsavedChange = Boolean(
+    profile && telegramChatId.trim() !== String(profile.telegram_chat_id || '').trim()
+  );
+  const whatsappUnsavedChange = Boolean(
+    profile && whatsappPhone.trim() !== String(profile.whatsapp_phone || '').trim()
+  );
 
   // Safe SSR placeholder
   if (!mounted) {
@@ -301,12 +502,25 @@ export default function ProfilePage() {
             border: 2px solid rgba(16, 185, 129, 0.1);
             border-top: 2px solid #10b981;
             border-radius: 50%;
-            animation: spin 1s linear infinite;
+            animation: ssrSpin 1s linear infinite;
             box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
           }
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+          .mono-tiny {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+          }
+          .text-emerald {
+            color: #10b981;
+          }
+          @keyframes ssrSpin {
+            0% {
+              transform: rotate(0deg);
+            }
+            100% {
+              transform: rotate(360deg);
+            }
           }
         `}</style>
       </div>
@@ -315,13 +529,19 @@ export default function ProfilePage() {
 
   return (
     <div className="app-container">
-      <Sidebar history={[]} onSelect={() => {}} activeAgent="STRATEGY" onAgentChange={() => {}} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <Sidebar
+        history={[]}
+        onSelect={() => {}}
+        activeAgent="STRATEGY"
+        onAgentChange={() => {}}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+      />
       <Header onOpenSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
-      
+
       <main className="main-content">
         <div className="max-container">
-          
-          {/* Header Cyber/Terminal */}
+          {/* Header Top Bar */}
           <header className="terminal-header animate-fade-in">
             <div className="header-identity">
               <div className="identity-block">
@@ -329,21 +549,24 @@ export default function ProfilePage() {
                 <span className="mono-tiny text-emerald">AETHERIS COMPTE & ACCÈS</span>
               </div>
               <div className="title-row">
-                <h1 className="title-h1">Paramètres du Profil</h1>
-                <div className={`subscription-pill ${subscriptionTier === 'premium' ? 'premium' : ''}`}>
-                  {subscriptionTier === 'premium' ? '👑 PREMIUM' : '⭐ COMPTE GRATUIT'}
+                <h1 className="title-h1">Mon Espace</h1>
+                <div className={`subscription-pill ${isPro ? 'premium' : ''}`}>
+                  {isPro ? '👑 AETHERIS PRO' : '⭐ COMPTE GRATUIT'}
                 </div>
               </div>
+              <p className="header-subtitle">
+                Pilotez votre identité trader, votre capital de référence, vos canaux d&apos;alerte vérifiés et votre abonnement.
+              </p>
             </div>
-            
-            <button onClick={() => router.back()} className="back-btn">
+
+            <button type="button" onClick={() => router.back()} className="back-btn">
               <ArrowLeft size={14} /> <span>RETOUR</span>
             </button>
           </header>
 
-          {/* Smooth feedback alert banner */}
+          {/* Non-blocking feedback banner */}
           {saveMessage && (
-            <div className={`alert-banner ${saveMessage.type}`}>
+            <div className={`alert-banner ${saveMessage.type}`} role="status">
               {saveMessage.type === 'success' ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
               <span>{saveMessage.text}</span>
             </div>
@@ -351,403 +574,720 @@ export default function ProfilePage() {
 
           {loading ? (
             <div className="loading-container">
-              <RefreshCw className="animate-spin" size={28} />
+              <RefreshCw className="icon-spin" size={28} />
               <span className="mono-tiny">CHARGEMENT DES DONNÉES DU COMPTE...</span>
             </div>
           ) : (
-            <div className="profile-grid">
-              
-              {/* Formulaire des Paramètres */}
-              <div className="settings-panel">
-                <form onSubmit={handleSaveProfile} className="glass-card">
-                  <div className="card-header">
-                    <User size={18} className="text-emerald" />
-                    <h2>CONFIGURATION GÉNÉRALE</h2>
+            <>
+              {/* Executive Account Hero Banner */}
+              <section className={`account-hero animate-fade-in ${isPro ? 'is-pro' : ''}`} aria-label="Synthèse du compte">
+                <div className="hero-left">
+                  <div className={`avatar-circle ${isPro ? 'is-pro' : ''}`}>
+                    <span className="mono">{avatarInitials}</span>
                   </div>
-                  
-                  <div className="form-fields">
-                    
-                    {/* Username */}
-                    <div className="field-group">
-                      <label className="field-label">
-                        PSEUDO COMPÉTITION (PAPER TRADING)
-                      </label>
-                      <div className="input-wrapper">
-                        <span className="input-prefix">@</span>
-                        <input 
-                          type="text" 
-                          value={username} 
-                          onChange={e => setUsername(e.target.value)} 
-                          placeholder="Entrez votre pseudo" 
-                          className="terminal-input"
-                        />
-                      </div>
-                      <p className="field-help">Votre nom d'affichage public dans le classement hebdomadaire.</p>
+
+                  <div className="hero-identity">
+                    <div className="hero-name-row">
+                      <h2 className="hero-display-name">{displayName}</h2>
+                      <span className={`hero-tier-badge mono ${isPro ? 'pro' : 'free'}`}>
+                        {isPro ? 'MEMBRE PRO' : 'ACCÈS STANDARD'}
+                      </span>
                     </div>
 
-                    {/* Capital de Référence */}
-                    <div className="field-group">
-                      <label className="field-label">
-                        CAPITAL PORTFOLIO RÉEL (MAD)
-                      </label>
-                      <div className="input-wrapper">
-                        <input 
-                          type="number" 
-                          value={newCapital} 
-                          onChange={e => setNewCapital(e.target.value)} 
-                          placeholder="Ex: 100000" 
-                          className="terminal-input"
-                        />
-                        <span className="input-suffix">MAD</span>
-                      </div>
-                      <p className="field-help">Utilisé pour indexer les graphiques et allocations de votre portefeuille réel.</p>
+                    <div className="hero-meta-row">
+                      <span className="hero-meta-item">
+                        <Mail size={13} />
+                        <span>{authEmail || 'Session non identifiée'}</span>
+                      </span>
+                      <span className="hero-meta-sep">•</span>
+                      <span className="hero-meta-item">
+                        <Clock size={13} />
+                        <span>Membre depuis {formattedMemberSince}</span>
+                      </span>
                     </div>
+                  </div>
+                </div>
 
-                    {/* Alert Channel */}
-                    <div className="field-group">
-                      <label className="field-label">
-                        CANAL DE NOTIFICATION PRÉFÉRÉ
-                      </label>
-                      <div className="select-wrapper">
-                        <select 
-                          value={alertChannel} 
-                          onChange={e => setAlertChannel(e.target.value)}
-                          className="terminal-select"
-                        >
-                          <option value="EMAIL">📧 Email uniquement</option>
-                          <option value="TELEGRAM">✈️ Telegram Bot</option>
-                          <option value="WHATSAPP">💬 WhatsApp direct</option>
-                          <option value="ALL">🔥 Email + Telegram + WhatsApp</option>
-                        </select>
-                      </div>
-                      <p className="field-help">Canal d'alerte instantané pour les franchissements de seuils (Stop Loss / Take Profit).</p>
+                <div className="hero-right">
+                  <div className="readiness-box">
+                    <div className="readiness-top">
+                      <span className="readiness-label mono">ÉTAT DU PROFIL</span>
+                      <span className="readiness-pct mono">{completionScore}%</span>
                     </div>
+                    <div className="readiness-track" role="progressbar" aria-valuenow={completionScore} aria-valuemin={0} aria-valuemax={100}>
+                      <div className="readiness-fill" style={{ width: `${completionScore}%` }} />
+                    </div>
+                    <div className="readiness-pills">
+                      {readinessChecks.map((item) => (
+                        <span key={item.key} className={`readiness-chip ${item.done ? 'done' : 'todo'}`}>
+                          {item.done ? <Check size={10} /> : <span className="dot-pending" />}
+                          <span>{item.label}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
 
-                    {/* Notification Email Input */}
-                    {(alertChannel === 'EMAIL' || alertChannel === 'ALL') && (
-                      <div className="field-group animate-slide-down">
-                        <label className="field-label flex items-center gap-1.5 text-emerald-400">
-                          <Mail size={12} /> EMAIL DE RÉCEPTION DES ALERTES
-                        </label>
-                        <div className="input-wrapper">
-                          <input 
-                            type="email" 
-                            value={notificationEmail} 
-                            onChange={e => setNotificationEmail(e.target.value)} 
-                            placeholder="votre_email@exemple.com" 
-                            className="terminal-input emerald-focus"
-                          />
+                  <div className="quick-shortcuts">
+                    <Link href="/portfolio" className="shortcut-btn">
+                      <Briefcase size={13} />
+                      <span>Portefeuille</span>
+                    </Link>
+                    <Link href="/console" className="shortcut-btn">
+                      <LayoutGrid size={13} />
+                      <span>Console Alpha</span>
+                    </Link>
+                    <Link href="/purification" className="shortcut-btn">
+                      <Scale size={13} />
+                      <span>Purification</span>
+                    </Link>
+                  </div>
+                </div>
+              </section>
+
+              {/* 4-Card Account KPI Strip */}
+              <section className="account-kpi-grid animate-fade-in" aria-label="Indicateurs clés du compte">
+                <div className="kpi-tile">
+                  <div className="kpi-head">
+                    <span className="kpi-label mono">CAPITAL RÉEL</span>
+                    <Wallet size={15} className="kpi-icon emerald" />
+                  </div>
+                  <div className="kpi-value mono">{capitalNum.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD</div>
+                  <div className="kpi-sub">Base d&apos;indexation portefeuille</div>
+                </div>
+
+                <div className="kpi-tile">
+                  <div className="kpi-head">
+                    <span className="kpi-label mono">PAPER TRADING</span>
+                    <Award size={15} className="kpi-icon amber" />
+                  </div>
+                  <div className="kpi-value mono">{virtualBalance.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD</div>
+                  <div className="kpi-sub">
+                    Capital initial : {virtualInitialCapital.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD
+                  </div>
+                </div>
+
+                <div className="kpi-tile">
+                  <div className="kpi-head">
+                    <span className="kpi-label mono">POSITIONS RÉELLES</span>
+                    <Layers size={15} className="kpi-icon blue" />
+                  </div>
+                  <div className="kpi-value mono">
+                    {openPositionsCount} {openPositionsCount > 1 ? 'valeurs' : 'valeur'}
+                  </div>
+                  <div className="kpi-sub">{transactionsCount} transaction(s) enregistrée(s)</div>
+                </div>
+
+                <div className="kpi-tile">
+                  <div className="kpi-head">
+                    <span className="kpi-label mono">ALERTES SL / TP</span>
+                    <BellRing size={15} className="kpi-icon purple" />
+                  </div>
+                  <div className="kpi-value mono">
+                    {activeAlertsCount} {activeAlertsCount > 1 ? 'actives' : 'active'}
+                  </div>
+                  <div className="kpi-sub">
+                    Canal actif : {alertChannel} · {isChannelOperational ? 'Opérationnel' : 'À finaliser'}
+                  </div>
+                </div>
+              </section>
+
+              {/* Main 2-Column Workspace */}
+              <div className="profile-grid">
+                {/* Left Column */}
+                <div className="settings-panel">
+                  <form onSubmit={handleSaveProfile} className="settings-stack">
+                    {/* Card 1: Identité & Capital */}
+                    <section className="glass-card">
+                      <div className="card-header">
+                        <div className="card-title-group">
+                          <User size={18} className="text-emerald" />
+                          <div>
+                            <h2>IDENTITÉ &amp; CAPITAL DE RÉFÉRENCE</h2>
+                            <p className="card-sub">Paramètres utilisés par le classement Paper Trading et les graphiques de rendement</p>
+                          </div>
                         </div>
-                        <p className="field-help">Adresse email de destination pour vos alertes de Stop Loss & Take Profit.</p>
                       </div>
-                    )}
 
-                    {/* Telegram Section */}
-                    {(alertChannel === 'TELEGRAM' || alertChannel === 'ALL') && (
-                      <div className="dynamic-box telegram animate-slide-down">
-                        <div className="dynamic-box-header">
-                          <Send size={14} />
-                          <h3>CONFIGURATION DE TELEGRAM</h3>
-                          <a 
-                            href="https://t.me/AetherisAlertBot" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="integration-link purple"
-                          >
-                            DÉMARRER LE BOT <ExternalLink size={10} />
-                          </a>
-                        </div>
-                        
-                        <div className="input-wrapper">
-                          <input 
-                            type="text" 
-                            value={telegramChatId} 
-                            onChange={e => setTelegramChatId(e.target.value)} 
-                            placeholder="Votre Chat ID Telegram (ex: 182736452)" 
-                            className="terminal-input purple-focus"
-                          />
+                      <div className="form-fields">
+                        {/* Username */}
+                        <div className="field-group">
+                          <div className="field-label-row">
+                            <label htmlFor="profile-username" className="field-label">
+                              PSEUDO COMPÉTITION (PAPER TRADING)
+                            </label>
+                            <span className="preview-chip mono">Classement : @{displayName}</span>
+                          </div>
+                          <div className="input-wrapper">
+                            <span className="input-prefix">@</span>
+                            <input
+                              id="profile-username"
+                              type="text"
+                              value={username}
+                              onChange={(e) => setUsername(e.target.value)}
+                              placeholder="Entrez votre pseudo"
+                              className="terminal-input"
+                            />
+                          </div>
+                          <p className="field-help">
+                            Votre pseudonyme public dans le classement des performances BVC.
+                          </p>
                         </div>
 
-                        <div className="otp-verify-row">
-                          <span className={`otp-status-badge ${telegramVerified ? 'ok' : 'pending'}`}>
-                            {telegramVerified ? '✅ CANAL VÉRIFIÉ' : '⚠️ VÉRIFICATION OTP REQUISE'}
-                          </span>
-                          {!telegramVerified && telegramChatId.trim() && (
-                            <div className="otp-controls">
-                              <button
-                                type="button"
-                                onClick={() => handleRequestChannelOtp('TELEGRAM')}
-                                disabled={verifyingChannel !== null}
-                                className="integration-link purple otp-action-btn"
+                        {/* Capital de Référence */}
+                        <div className="field-group">
+                          <label htmlFor="profile-capital" className="field-label">
+                            CAPITAL PORTFOLIO RÉEL (MAD)
+                          </label>
+                          <div className="input-wrapper">
+                            <input
+                              id="profile-capital"
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={newCapital}
+                              onChange={(e) => setNewCapital(e.target.value)}
+                              placeholder="Ex: 100000"
+                              className="terminal-input"
+                            />
+                            <span className="input-suffix">MAD</span>
+                          </div>
+
+                          <div className="presets-row" role="group" aria-label="Paliers rapides de capital">
+                            {CAPITAL_PRESETS.map((preset) => {
+                              const isSelected = String(parseFloat(newCapital) || 0) === preset.value;
+                              return (
+                                <button
+                                  key={preset.value}
+                                  type="button"
+                                  onClick={() => setNewCapital(preset.value)}
+                                  className={`preset-chip mono ${isSelected ? 'active' : ''}`}
+                                >
+                                  {preset.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <p className="field-help">
+                            Base de référence utilisée pour calculer votre ROI net et vos allocations sectorielles.
+                          </p>
+                        </div>
+                      </div>
+                    </section>
+
+                    {/* Card 2: Centre de Notifications & Canaux */}
+                    <section className="glass-card">
+                      <div className="card-header">
+                        <div className="card-title-group">
+                          <Bell size={18} className="text-purple-accent" />
+                          <div>
+                            <h2>CENTRE DE NOTIFICATIONS &amp; CANAUX</h2>
+                            <p className="card-sub">Alertes instantanées de franchissement Stop-Loss et Take-Profit</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="form-fields">
+                        {/* Visual Channel Selector Cards */}
+                        <div className="field-group">
+                          <span className="field-label">CANAL DE DIFFUSION PRÉFÉRÉ</span>
+                          <div className="channel-grid" role="radiogroup" aria-label="Canal de notification">
+                            {[
+                              {
+                                id: 'EMAIL',
+                                title: 'Email Sécurisé',
+                                desc: 'Rapports & alertes SMTP',
+                                statusText: isEmailConfigured ? 'Actif' : 'Requis',
+                                statusClass: isEmailConfigured ? 'ok' : 'warn',
+                                icon: <Mail size={16} />,
+                              },
+                              {
+                                id: 'TELEGRAM',
+                                title: 'Telegram Bot',
+                                desc: 'Push ultra-rapide @AetherisAlertBot',
+                                statusText: telegramVerified ? 'Vérifié' : 'OTP requis',
+                                statusClass: telegramVerified ? 'ok' : 'warn',
+                                icon: <Send size={16} />,
+                              },
+                              {
+                                id: 'WHATSAPP',
+                                title: 'WhatsApp Direct',
+                                desc: 'Passerelle mobile chiffrée',
+                                statusText: whatsappVerified ? 'Vérifié' : 'OTP requis',
+                                statusClass: whatsappVerified ? 'ok' : 'warn',
+                                icon: <Phone size={16} />,
+                              },
+                              {
+                                id: 'ALL',
+                                title: 'Multi-Canaux',
+                                desc: 'Email + Telegram + WhatsApp',
+                                statusText: isPro ? 'Recommandé' : 'Complet',
+                                statusClass: 'accent',
+                                icon: <Zap size={16} />,
+                              },
+                            ].map((ch) => {
+                              const isSelected = alertChannel === ch.id;
+                              return (
+                                <button
+                                  key={ch.id}
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={isSelected}
+                                  onClick={() => setAlertChannel(ch.id)}
+                                  className={`channel-card ${isSelected ? 'selected' : ''}`}
+                                >
+                                  <div className="channel-card-top">
+                                    <span className={`channel-icon ${isSelected ? 'selected' : ''}`}>{ch.icon}</span>
+                                    <span className={`channel-pill mono ${ch.statusClass}`}>{ch.statusText}</span>
+                                  </div>
+                                  <div className="channel-card-title">{ch.title}</div>
+                                  <div className="channel-card-desc">{ch.desc}</div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Notification Email Input */}
+                        {(alertChannel === 'EMAIL' || alertChannel === 'ALL') && (
+                          <div className="field-group animate-slide-down">
+                            <label htmlFor="profile-email" className="field-label field-label-emerald">
+                              <Mail size={12} />
+                              <span>EMAIL DE RÉCEPTION DES ALERTES</span>
+                            </label>
+                            <div className="input-wrapper">
+                              <input
+                                id="profile-email"
+                                type="email"
+                                value={notificationEmail}
+                                onChange={(e) => setNotificationEmail(e.target.value)}
+                                placeholder="votre_email@exemple.com"
+                                className="terminal-input"
+                              />
+                            </div>
+                            {isEmailMismatch ? (
+                              <div className="email-sync-warning">
+                                <span>
+                                  Par sécurité, l&apos;adresse d&apos;alerte doit correspondre à l&apos;email vérifié du compte (
+                                  <strong>{authEmail}</strong>).
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setNotificationEmail(authEmail)}
+                                  className="sync-email-btn mono"
+                                >
+                                  SYNCHRONISER
+                                </button>
+                              </div>
+                            ) : (
+                              <p className="field-help">
+                                Synchronisée avec l&apos;adresse vérifiée de votre compte pour la livraison garantie des alertes SL/TP.
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Telegram Section */}
+                        {(alertChannel === 'TELEGRAM' || alertChannel === 'ALL') && (
+                          <div className="dynamic-box telegram animate-slide-down">
+                            <div className="dynamic-box-header">
+                              <Send size={14} />
+                              <h3>CONFIGURATION DE TELEGRAM</h3>
+                              <a
+                                href="https://t.me/AetherisAlertBot"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="integration-link purple"
                               >
-                                {verifyingChannel === 'TELEGRAM_REQ' ? 'ENVOI...' : 'ENVOYER CODE OTP'}
-                              </button>
+                                DÉMARRER LE BOT <ExternalLink size={10} />
+                              </a>
+                            </div>
+
+                            <div className="input-wrapper">
                               <input
                                 type="text"
-                                inputMode="numeric"
-                                maxLength={6}
-                                value={telegramOtp}
-                                onChange={(e) => setTelegramOtp(e.target.value.replace(/[^0-9]/g, ''))}
-                                placeholder="Code 6 chiffres"
-                                className="terminal-input purple-focus otp-code-input"
+                                value={telegramChatId}
+                                onChange={(e) => setTelegramChatId(e.target.value)}
+                                placeholder="Votre Chat ID Telegram (ex: 182736452)"
+                                className="terminal-input"
                               />
-                              <button
-                                type="button"
-                                onClick={() => handleConfirmChannelOtp('TELEGRAM')}
-                                disabled={verifyingChannel !== null || telegramOtp.length !== 6}
-                                className="integration-link emerald otp-action-btn"
-                              >
-                                {verifyingChannel === 'TELEGRAM_CONFIRM' ? '...' : 'VALIDER'}
-                              </button>
                             </div>
-                          )}
-                        </div>
 
-                        <div className="setup-guide">
-                          <h4>🛠️ Instructions rapides :</h4>
-                          <ol>
-                            <li>Cliquez sur <strong>Démarrer le Bot</strong> ci-dessus ou cherchez <strong>@AetherisAlertBot</strong> sur Telegram et cliquez sur <em>Démarrer</em>.</li>
-                            <li>Pour récupérer votre Chat ID, écrivez à <strong>@userinfobot</strong> ou tapez <code>/my_id</code> dans notre Bot.</li>
-                            <li>Collez le numéro à 9 ou 10 chiffres ci-dessus.</li>
-                          </ol>
-                        </div>
-                      </div>
-                    )}
+                            {telegramUnsavedChange && (
+                              <div className="unsaved-hint">
+                                Chat ID modifié localement — cliquez d&apos;abord sur <strong>Sauvegarder</strong> avant de demander un code OTP.
+                              </div>
+                            )}
 
-                    {/* WhatsApp Section */}
-                    {(alertChannel === 'WHATSAPP' || alertChannel === 'ALL') && (
-                      <div className="dynamic-box whatsapp animate-slide-down">
-                        <div className="dynamic-box-header">
-                          <Phone size={14} />
-                          <h3>AUTHENTIFICATION WHATSAPP</h3>
-                          <a 
-                            href="https://wa.me/34644975014?text=I%20allow%20callmebot%20to%20send%20me%20messages" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="integration-link emerald"
-                          >
-                            LIER MON COMPTE <ExternalLink size={10} />
-                          </a>
-                        </div>
-                        
-                        <div className="input-wrapper">
-                          <input 
-                            type="text" 
-                            value={whatsappPhone} 
-                            onChange={e => setWhatsappPhone(e.target.value)} 
-                            placeholder="Ex: 212661000000 (sans le +)" 
-                            className="terminal-input emerald-focus"
-                          />
-                        </div>
+                            <div className="otp-verify-row">
+                              <span className={`otp-status-badge ${telegramVerified && !telegramUnsavedChange ? 'ok' : 'pending'}`}>
+                                {telegramVerified && !telegramUnsavedChange
+                                  ? '✅ CANAL VÉRIFIÉ'
+                                  : '⚠️ VÉRIFICATION OTP REQUISE'}
+                              </span>
+                              {(!telegramVerified || telegramUnsavedChange) && telegramChatId.trim() && (
+                                <div className="otp-controls">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRequestChannelOtp('TELEGRAM')}
+                                    disabled={verifyingChannel !== null}
+                                    className="integration-link purple otp-action-btn"
+                                  >
+                                    {verifyingChannel === 'TELEGRAM_REQ' ? 'ENVOI...' : 'ENVOYER CODE OTP'}
+                                  </button>
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    maxLength={6}
+                                    value={telegramOtp}
+                                    onChange={(e) => setTelegramOtp(e.target.value.replace(/[^0-9]/g, ''))}
+                                    placeholder="Code 6 chiffres"
+                                    className="terminal-input otp-code-input"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleConfirmChannelOtp('TELEGRAM')}
+                                    disabled={verifyingChannel !== null || telegramOtp.length !== 6}
+                                    className="integration-link emerald otp-action-btn"
+                                  >
+                                    {verifyingChannel === 'TELEGRAM_CONFIRM' ? '...' : 'VALIDER'}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
 
-                        <div className="otp-verify-row">
-                          <span className={`otp-status-badge ${whatsappVerified ? 'ok' : 'pending'}`}>
-                            {whatsappVerified ? '✅ NUMÉRO VÉRIFIÉ' : '⚠️ VÉRIFICATION OTP REQUISE'}
-                          </span>
-                          {!whatsappVerified && whatsappPhone.trim() && (
-                            <div className="otp-controls">
-                              <button
-                                type="button"
-                                onClick={() => handleRequestChannelOtp('WHATSAPP')}
-                                disabled={verifyingChannel !== null}
-                                className="integration-link emerald otp-action-btn"
+                            <div className="setup-guide">
+                              <h4>Instructions rapides :</h4>
+                              <ol>
+                                <li>
+                                  Cliquez sur <strong>Démarrer le Bot</strong> ci-dessus ou cherchez{' '}
+                                  <strong>@AetherisAlertBot</strong> sur Telegram et cliquez sur <em>Démarrer</em>.
+                                </li>
+                                <li>
+                                  Pour récupérer votre Chat ID, écrivez à <strong>@userinfobot</strong> ou tapez{' '}
+                                  <code>/my_id</code> dans notre Bot.
+                                </li>
+                                <li>Enregistrez l&apos;ID puis validez le code OTP à 6 chiffres reçu sur Telegram.</li>
+                              </ol>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* WhatsApp Section */}
+                        {(alertChannel === 'WHATSAPP' || alertChannel === 'ALL') && (
+                          <div className="dynamic-box whatsapp animate-slide-down">
+                            <div className="dynamic-box-header">
+                              <Phone size={14} />
+                              <h3>AUTHENTIFICATION WHATSAPP</h3>
+                              <a
+                                href="https://wa.me/34644975014?text=I%20allow%20callmebot%20to%20send%20me%20messages"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="integration-link emerald"
                               >
-                                {verifyingChannel === 'WHATSAPP_REQ' ? 'ENVOI...' : 'ENVOYER CODE OTP'}
-                              </button>
+                                LIER MON COMPTE <ExternalLink size={10} />
+                              </a>
+                            </div>
+
+                            <div className="input-wrapper">
                               <input
                                 type="text"
-                                inputMode="numeric"
-                                maxLength={6}
-                                value={whatsappOtp}
-                                onChange={(e) => setWhatsappOtp(e.target.value.replace(/[^0-9]/g, ''))}
-                                placeholder="Code 6 chiffres"
-                                className="terminal-input emerald-focus otp-code-input"
+                                value={whatsappPhone}
+                                onChange={(e) => setWhatsappPhone(e.target.value)}
+                                placeholder="Ex: 212661000000 (sans le +)"
+                                className="terminal-input"
                               />
-                              <button
-                                type="button"
-                                onClick={() => handleConfirmChannelOtp('WHATSAPP')}
-                                disabled={verifyingChannel !== null || whatsappOtp.length !== 6}
-                                className="integration-link emerald otp-action-btn"
-                              >
-                                {verifyingChannel === 'WHATSAPP_CONFIRM' ? '...' : 'VALIDER'}
-                              </button>
                             </div>
-                          )}
-                        </div>
 
-                        <div className="setup-guide">
-                          <h4>🛠️ Instructions rapides :</h4>
-                          <ol>
-                            <li>Cliquez sur <strong>Lier mon compte</strong> ci-dessus pour envoyer le message d'autorisation pré-rempli à notre passerelle sécurisée.</li>
-                            <li>Enregistrez le numéro de la passerelle dans vos contacts pour voir les liens interactifs.</li>
-                            <li>Saisissez votre numéro au format international sans <code>+</code> ni <code>00</code> (ex: 212 pour le Maroc).</li>
-                          </ol>
+                            {whatsappUnsavedChange && (
+                              <div className="unsaved-hint">
+                                Numéro modifié localement — cliquez d&apos;abord sur <strong>Sauvegarder</strong> avant de demander un code OTP.
+                              </div>
+                            )}
+
+                            <div className="otp-verify-row">
+                              <span className={`otp-status-badge ${whatsappVerified && !whatsappUnsavedChange ? 'ok' : 'pending'}`}>
+                                {whatsappVerified && !whatsappUnsavedChange
+                                  ? '✅ NUMÉRO VÉRIFIÉ'
+                                  : '⚠️ VÉRIFICATION OTP REQUISE'}
+                              </span>
+                              {(!whatsappVerified || whatsappUnsavedChange) && whatsappPhone.trim() && (
+                                <div className="otp-controls">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRequestChannelOtp('WHATSAPP')}
+                                    disabled={verifyingChannel !== null}
+                                    className="integration-link emerald otp-action-btn"
+                                  >
+                                    {verifyingChannel === 'WHATSAPP_REQ' ? 'ENVOI...' : 'ENVOYER CODE OTP'}
+                                  </button>
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    maxLength={6}
+                                    value={whatsappOtp}
+                                    onChange={(e) => setWhatsappOtp(e.target.value.replace(/[^0-9]/g, ''))}
+                                    placeholder="Code 6 chiffres"
+                                    className="terminal-input otp-code-input"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleConfirmChannelOtp('WHATSAPP')}
+                                    disabled={verifyingChannel !== null || whatsappOtp.length !== 6}
+                                    className="integration-link emerald otp-action-btn"
+                                  >
+                                    {verifyingChannel === 'WHATSAPP_CONFIRM' ? '...' : 'VALIDER'}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="setup-guide">
+                              <h4>Instructions rapides :</h4>
+                              <ol>
+                                <li>
+                                  Cliquez sur <strong>Lier mon compte</strong> ci-dessus pour autoriser notre passerelle sécurisée.
+                                </li>
+                                <li>
+                                  Enregistrez votre numéro au format international sans <code>+</code> ni <code>00</code> (ex: 212661000000).
+                                </li>
+                                <li>Sauvegardez puis confirmez avec le code OTP à 6 chiffres envoyé sur WhatsApp.</li>
+                              </ol>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Save & Test Alert Bar */}
+                        <div className="form-actions-grid">
+                          <button type="submit" className="submit-btn" disabled={saving || testingAlert}>
+                            {saving ? (
+                              <>
+                                <RefreshCw className="icon-spin" size={14} />
+                                <span>ENREGISTREMENT...</span>
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle2 size={15} />
+                                <span>SAUVEGARDER LES PARAMÈTRES</span>
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleTestAlert}
+                            className="test-alert-btn"
+                            disabled={saving || testingAlert}
+                          >
+                            {testingAlert ? (
+                              <>
+                                <RefreshCw className="icon-spin" size={14} />
+                                <span>ENVOI DU TEST...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Zap size={14} />
+                                <span>TESTER L&apos;ALERTE</span>
+                              </>
+                            )}
+                          </button>
                         </div>
                       </div>
-                    )}
+                    </section>
+                  </form>
 
-                    {/* Action Buttons Grid */}
-                    <div className="form-actions-grid">
-                      <button 
-                        type="submit" 
-                        className="submit-btn"
-                        disabled={saving || testingAlert}
-                      >
-                        {saving ? (
-                          <>
-                            <RefreshCw className="animate-spin" size={14} />
-                            <span>ENREGISTREMENT...</span>
-                          </>
-                        ) : (
-                          <span>SAUVEGARDER LES PARAMÈTRES</span>
-                        )}
-                      </button>
-
-                      <button 
-                        type="button" 
-                        onClick={handleTestAlert}
-                        className="test-alert-btn"
-                        disabled={saving || testingAlert}
-                      >
-                        {testingAlert ? (
-                          <>
-                            <RefreshCw className="animate-spin" size={14} />
-                            <span>ENVOI DU TEST...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Zap size={14} />
-                            <span>TESTER L'ALERTE</span>
-                          </>
-                        )}
-                      </button>
+                  {/* Card 3: Sécurité & Session (outside form) */}
+                  <section className="glass-card security-card">
+                    <div className="card-header">
+                      <div className="card-title-group">
+                        <Lock size={18} className="text-blue-accent" />
+                        <div>
+                          <h2>SÉCURITÉ &amp; SESSION</h2>
+                          <p className="card-sub">Contrôle d&apos;accès, fournisseur d&apos;authentification et fermeture de session</p>
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Logout Button */}
+                    <div className="security-rows">
+                      <div className="security-row">
+                        <div className="sec-info">
+                          <span className="sec-label mono">ADRESSE DE CONNEXION</span>
+                          <span className="sec-value">{authEmail || 'Non renseignée'}</span>
+                        </div>
+                        <span className="provider-pill mono">
+                          {authProvider === 'email' ? 'EMAIL & MOT DE PASSE' : `OAUTH : ${authProvider.toUpperCase()}`}
+                        </span>
+                      </div>
+
+                      <div className="security-row">
+                        <div className="sec-info">
+                          <span className="sec-label mono">DERNIÈRE CONNEXION</span>
+                          <span className="sec-value">{formattedLastSignIn}</span>
+                        </div>
+                        {authProvider === 'email' && authEmail ? (
+                          <button
+                            type="button"
+                            onClick={handlePasswordReset}
+                            disabled={resettingPassword}
+                            className="sec-action-btn mono"
+                          >
+                            {resettingPassword ? (
+                              <>
+                                <RefreshCw size={13} className="icon-spin" />
+                                <span>ENVOI EN COURS...</span>
+                              </>
+                            ) : (
+                              <>
+                                <KeyRound size={13} />
+                                <span>RÉINITIALISER MOT DE PASSE</span>
+                              </>
+                            )}
+                          </button>
+                        ) : (
+                          <span className="sec-oauth-note">Géré par votre fournisseur OAuth</span>
+                        )}
+                      </div>
+                    </div>
+
                     <div className="profile-logout-section">
-                      <button 
-                        type="button" 
-                        onClick={async () => {
-                          const { performCleanLogout } = await import('@/lib/supabase');
-                          await performCleanLogout('/login');
-                        }}
+                      <button
+                        type="button"
+                        onClick={handleLogout}
+                        disabled={loggingOut}
                         className="profile-logout-btn"
                       >
-                        <LogOut size={15} />
-                        <span>SE DÉCONNECTER DU TERMINAL</span>
+                        {loggingOut ? <RefreshCw size={15} className="icon-spin" /> : <LogOut size={15} />}
+                        <span>{loggingOut ? 'DÉCONNEXION EN COURS...' : 'SE DÉCONNECTER DU TERMINAL'}</span>
                       </button>
                     </div>
+                  </section>
+                </div>
 
-                  </div>
-                </form>
-              </div>
+                {/* Right Column: Offre & Abonnement Pro */}
+                <aside className="premium-panel">
+                  <div className={`premium-card ${isPro ? 'premium-active' : ''}`}>
+                    <div className="premium-badge">
+                      <Sparkles size={14} />
+                      <span>OFFRE DE SERVICES AETHERIS</span>
+                    </div>
 
-              {/* Panneau Offre & Premium */}
-              <div className="premium-panel">
-                <div className={`premium-card ${subscriptionTier === 'premium' ? 'premium-active' : ''}`}>
-                  <div className="premium-badge">
-                    <Sparkles size={14} />
-                    <span>OFFRE DE SERVICES AETHERIS</span>
-                  </div>
+                    <h2 className="premium-title">
+                      {isPro ? 'Suite Institutionnelle Active' : "Basculez vers la puissance de l'IA"}
+                    </h2>
 
-                  <h2 className="premium-title">Basculez vers la puissance de l'IA</h2>
-                  
-                  {subscriptionTier === 'premium' ? (
-                    <div className="pro-active-box">
-                      <div className="pro-details-row">
-                        <span className="mono-tiny text-slate-500">PLAN ACTIF</span>
-                        <h3 className="pro-plan-title font-bold text-white">AETHERIS PRO</h3>
+                    {isPro ? (
+                      <div className="pro-active-box">
+                        <div className="pro-details-row">
+                          <span className="pro-detail-label mono">PLAN ACTIF</span>
+                          <h3 className="pro-plan-title">AETHERIS PRO</h3>
+                        </div>
+                        <div className="pro-details-row">
+                          <span className="pro-detail-label mono">FACTURATION</span>
+                          <p className="pro-plan-price mono">199.00 MAD / mois</p>
+                        </div>
+                        <div className="pro-details-row card-row">
+                          <span className="pro-detail-label mono">MODE DE PAIEMENT</span>
+                          <div className="c-details">
+                            <CreditCard size={13} className="payment-icon" />
+                            <span className="payment-text mono">Facturation Stripe Sécurisée</span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setShowCancelConfirmModal(true)}
+                          className="cancel-pro-btn mono"
+                        >
+                          RÉSILIER L&apos;ABONNEMENT PRO
+                        </button>
                       </div>
-                      <div className="pro-details-row">
-                        <span className="mono-tiny text-slate-500">FACTURATION</span>
-                        <p className="pro-plan-price font-bold text-emerald">199.00 MAD / mois</p>
+                    ) : (
+                      <div className="pro-inactive-box">
+                        <div className="pro-price-tag">
+                          <span className="price">199 MAD</span>
+                          <span className="period">/mois</span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setShowPaywallModal(true)}
+                          className="activate-pro-btn mono"
+                        >
+                          <Zap size={14} /> ACTIVER AETHERIS PRO
+                        </button>
                       </div>
-                      <div className="pro-details-row card-row">
-                        <span className="mono-tiny text-slate-500">MODE DE PAIEMENT</span>
-                        <div className="c-details">
-                          <CreditCard size={12} className="text-purple" />
-                          <span className="mono text-slate-300">Facturation Stripe Sécurisée</span>
+                    )}
+
+                    <div className="features-list">
+                      <h3 className="features-list-title">CAPACITÉS &amp; PRIVILÈGES :</h3>
+
+                      <div className="feature-row">
+                        <div className="feature-status check">✓</div>
+                        <div className="feature-desc">
+                          <h4>Marché Live BVC &amp; Palmarès Dividendes</h4>
+                          <p>Cours temps réel, rendements dividendes et suivi macroéconomique.</p>
                         </div>
                       </div>
-                      
-                      <button 
-                        type="button" 
-                        onClick={() => setShowCancelConfirmModal(true)}
-                        className="cancel-pro-btn mono"
-                      >
-                        RÉSILIER L'ABONNEMENT PRO
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="pro-inactive-box">
-                      <div className="pro-price-tag">
-                        <span className="price">199 MAD</span>
-                        <span className="period">/mois</span>
-                      </div>
-                      
-                      <button 
-                        type="button" 
-                        onClick={() => setShowPaywallModal(true)}
-                        className="activate-pro-btn mono"
-                      >
-                        <Zap size={14} /> ACTIVER AETHERIS PRO
-                      </button>
-                    </div>
-                  )}
 
-                  <div className="features-list">
-                    <h3 className="features-list-title">TABLEAU DES AVANTAGES :</h3>
-
-                    <div className="feature-row">
-                      <div className="feature-status check">✓</div>
-                      <div className="feature-desc">
-                        <h4>Graphiques du Portefeuille</h4>
-                        <p>Visualisation des plus-values, dividendes et PMP réels.</p>
+                      <div className="feature-row">
+                        <div className="feature-status check">✓</div>
+                        <div className="feature-desc">
+                          <h4>Portefeuille, Paper Trading &amp; Purification</h4>
+                          <p>Suivi PMP réel, portefeuille virtuel 100K MAD et ratio de purification AAOIFI.</p>
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="feature-row">
-                      <div className="feature-status check">✓</div>
-                      <div className="feature-desc">
-                        <h4>Mode Paper Trading & Classement</h4>
-                        <p>Simulation virtuelle avec capital fictif à 100K MAD.</p>
+                      <div className={`feature-row ${!isPro ? 'disabled' : ''}`}>
+                        <div className={`feature-status ${isPro ? 'premium-check' : 'lock'}`}>
+                          {isPro ? '✓' : '★'}
+                        </div>
+                        <div className="feature-desc">
+                          <h4>Orchestrateur Multi-Agents (Gemini 3.8 Flash)</h4>
+                          <p>Veille narrative, trading quant, fondamentale et consensus Alpha orchestré.</p>
+                        </div>
                       </div>
-                    </div>
 
-                    <div className={`feature-row ${subscriptionTier !== 'premium' ? 'disabled' : ''}`}>
-                      <div className={`feature-status ${subscriptionTier === 'premium' ? 'premium-check' : 'lock'}`}>
-                        {subscriptionTier === 'premium' ? '✓' : '✖'}
+                      <div className={`feature-row ${!isPro ? 'disabled' : ''}`}>
+                        <div className={`feature-status ${isPro ? 'premium-check' : 'lock'}`}>
+                          {isPro ? '✓' : '★'}
+                        </div>
+                        <div className="feature-desc">
+                          <h4>Robo-Advisor IA &amp; Optimiseur</h4>
+                          <p>Rééquilibrage sectoriel intelligent et gestion avancée du drawdown.</p>
+                        </div>
                       </div>
-                      <div className="feature-desc">
-                        <h4>Robo-Advisor IA & Optimiseur</h4>
-                        <p>Analyse de risque et génération de rapports d'arbitrage automatisés.</p>
+
+                      <div className={`feature-row ${!isPro ? 'disabled' : ''}`}>
+                        <div className={`feature-status ${isPro ? 'premium-check' : 'lock'}`}>
+                          {isPro ? '✓' : '★'}
+                        </div>
+                        <div className="feature-desc">
+                          <h4>Sharia Screener Automatique AAOIFI</h4>
+                          <p>Audit automatisé de la dette financière, trésorerie et revenus illicites.</p>
+                        </div>
+                      </div>
+
+                      <div className={`feature-row ${!isPro ? 'disabled' : ''}`}>
+                        <div className={`feature-status ${isPro ? 'premium-check' : 'lock'}`}>
+                          {isPro ? '✓' : '★'}
+                        </div>
+                        <div className="feature-desc">
+                          <h4>Alertes Prix Multi-Canaux Temps Réel</h4>
+                          <p>Notifications automatisées Stop-Loss / Take-Profit sur Telegram &amp; WhatsApp.</p>
+                        </div>
                       </div>
                     </div>
 
-                    <div className={`feature-row ${subscriptionTier !== 'premium' ? 'disabled' : ''}`}>
-                      <div className={`feature-status ${subscriptionTier === 'premium' ? 'premium-check' : 'lock'}`}>
-                        {subscriptionTier === 'premium' ? '✓' : '✖'}
+                    {!isPro && (
+                      <div className="premium-footer-banner">
+                        <Info size={14} style={{ flexShrink: 0 }} />
+                        <span>Activez Aetheris Pro pour débloquer les agents IA, le Robo-Advisor et le Sharia Screener automatique.</span>
                       </div>
-                      <div className="feature-desc">
-                        <h4>Fiches Valeurs Fondamentales</h4>
-                        <p>Accès illimité aux analyses fondamentales générées par l'agent IA.</p>
-                      </div>
-                    </div>
+                    )}
                   </div>
-
-                  {subscriptionTier !== 'premium' && (
-                    <div className="premium-footer-banner">
-                      <Info size={14} />
-                      <span>Activer le mode Premium pour débloquer les agents d'Intelligence Stratégique.</span>
-                    </div>
-                  )}
-
-                </div>
+                </aside>
               </div>
-
-            </div>
+            </>
           )}
-
         </div>
       </main>
 
@@ -758,10 +1298,13 @@ export default function ProfilePage() {
       />
 
       {showCancelConfirmModal && (
-        <div className="modal-overlay glass-heavy animate-fade-in" onClick={() => setShowCancelConfirmModal(false)}>
+        <div
+          className="modal-overlay glass-heavy animate-fade-in"
+          onClick={() => setShowCancelConfirmModal(false)}
+        >
           <div
-            className="modal-content glass-heavy cancel-modal-content animate-slide-up"
-            onClick={e => e.stopPropagation()}
+            className="modal-content glass-heavy cancel-modal-content cancel-slide-up"
+            onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
             aria-label="Résiliation Aetheris Pro"
@@ -781,13 +1324,14 @@ export default function ProfilePage() {
                 <X size={18} />
               </button>
             </div>
-            
+
             <div className="cancel-body">
               <p className="cancel-subtitle">
-                Êtes-vous sûr de vouloir résilier votre abonnement <strong className="cancel-strong">AETHERIS PRO</strong> ? 
-                En confirmant la résiliation, vous perdrez instantanément l&apos;accès aux privilèges suivants :
+                Êtes-vous sûr de vouloir résilier votre abonnement{' '}
+                <strong className="cancel-strong">AETHERIS PRO</strong> ? En confirmant la résiliation,
+                vous perdrez instantanément l&apos;accès aux privilèges suivants :
               </p>
-              
+
               <div className="cancel-features">
                 <div className="cancel-feature-item">
                   <span className="cancel-x">✖</span>
@@ -809,18 +1353,14 @@ export default function ProfilePage() {
                 </div>
               </div>
             </div>
-            
+
             <div className="cancel-actions">
-              <button 
-                type="button" 
-                onClick={confirmDowngrade} 
-                className="btn-danger-new mono"
-              >
+              <button type="button" onClick={confirmDowngrade} className="btn-danger-new mono">
                 RÉSILIER MON ACCÈS PRO
               </button>
-              <button 
-                type="button" 
-                onClick={() => setShowCancelConfirmModal(false)} 
+              <button
+                type="button"
+                onClick={() => setShowCancelConfirmModal(false)}
                 className="dismiss-btn mono"
               >
                 CONSERVER MON ABONNEMENT
@@ -839,44 +1379,37 @@ export default function ProfilePage() {
 
         .main-content {
           padding-top: calc(var(--header-height) + 1.5rem);
-          padding-bottom: 3rem;
+          padding-bottom: 3.5rem;
           min-height: 100vh;
         }
 
         .max-container {
-          max-width: var(--max-width);
+          max-width: 1320px;
           margin: 0 auto;
           padding: 0 1.5rem;
         }
 
-        /* Header Styles */
+        .mono {
+          font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Header Top Bar */
         .terminal-header {
           display: flex;
           justify-content: space-between;
           align-items: flex-end;
-          margin-bottom: 2rem;
-          padding-bottom: 1rem;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
-        .header-container {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 2rem;
-          gap: 1rem;
-        }
-
-        .header-title-group {
-          display: flex;
-          flex-direction: column;
-          gap: 0.5rem;
+          gap: 1.25rem;
+          flex-wrap: wrap;
+          margin-bottom: 1.5rem;
+          padding-bottom: 1.15rem;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
         }
 
         .header-identity {
           display: flex;
           flex-direction: column;
-          gap: 0.5rem;
+          gap: 0.45rem;
+          min-width: 0;
         }
 
         .identity-block {
@@ -885,13 +1418,21 @@ export default function ProfilePage() {
           gap: 0.5rem;
         }
 
-        .text-emerald {
+        :global(.text-emerald) {
           color: #10b981;
+        }
+
+        :global(.text-purple-accent) {
+          color: #c084fc;
+        }
+
+        :global(.text-blue-accent) {
+          color: #38bdf8;
         }
 
         .mono-tiny {
           font-family: 'JetBrains Mono', monospace;
-          font-size: 0.65rem;
+          font-size: 0.68rem;
           font-weight: 800;
           letter-spacing: 0.08em;
           text-transform: uppercase;
@@ -900,56 +1441,66 @@ export default function ProfilePage() {
         .title-row {
           display: flex;
           align-items: center;
-          gap: 1rem;
+          gap: 0.85rem;
+          flex-wrap: wrap;
         }
 
         .title-h1 {
           font-family: 'Outfit', sans-serif;
           font-weight: 900;
-          font-size: 1.65rem;
-          letter-spacing: -0.02em;
+          font-size: 2rem;
+          letter-spacing: -0.03em;
           margin: 0;
-          color: #fff;
+          color: #ffffff;
+        }
+
+        .header-subtitle {
+          margin: 0;
+          font-size: 0.9rem;
+          color: #94a3b8;
+          line-height: 1.45;
+          max-width: 680px;
         }
 
         .subscription-pill {
-          padding: 0.25rem 0.6rem;
+          padding: 0.3rem 0.7rem;
           border-radius: 9999px;
           background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          color: #94a3b8;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          color: #cbd5e1;
           font-family: 'JetBrains Mono', monospace;
-          font-size: 0.65rem;
-          font-weight: 700;
+          font-size: 0.66rem;
+          font-weight: 800;
         }
 
         .subscription-pill.premium {
-          background: rgba(168, 85, 247, 0.1);
-          border-color: rgba(168, 85, 247, 0.3);
-          color: #c084fc;
-          box-shadow: 0 0 10px rgba(168, 85, 247, 0.1);
+          background: rgba(168, 85, 247, 0.14);
+          border-color: rgba(168, 85, 247, 0.35);
+          color: #d8b4fe;
+          box-shadow: 0 0 12px rgba(168, 85, 247, 0.16);
         }
 
         .back-btn {
-          display: flex;
+          display: inline-flex;
           align-items: center;
           gap: 0.5rem;
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          padding: 0.6rem 1rem;
-          border-radius: 0.5rem;
-          color: #94a3b8;
+          min-height: 40px;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          padding: 0 1rem;
+          border-radius: 0.6rem;
+          color: #cbd5e1;
           font-family: 'JetBrains Mono', monospace;
-          font-size: 0.7rem;
+          font-size: 0.72rem;
           font-weight: 700;
           cursor: pointer;
           transition: all 0.2s ease;
         }
 
         .back-btn:hover {
-          background: rgba(255, 255, 255, 0.08);
-          border-color: rgba(255, 255, 255, 0.15);
-          color: #fff;
+          background: rgba(255, 255, 255, 0.09);
+          border-color: rgba(255, 255, 255, 0.2);
+          color: #ffffff;
         }
 
         /* Alert Banner */
@@ -957,9 +1508,9 @@ export default function ProfilePage() {
           display: flex;
           align-items: center;
           gap: 0.75rem;
-          padding: 1rem;
-          border-radius: 0.75rem;
-          margin-bottom: 2rem;
+          padding: 0.95rem 1.15rem;
+          border-radius: 0.85rem;
+          margin-bottom: 1.5rem;
           font-family: 'JetBrains Mono', monospace;
           font-size: 0.8rem;
           font-weight: 600;
@@ -967,15 +1518,15 @@ export default function ProfilePage() {
         }
 
         .alert-banner.success {
-          background: rgba(16, 185, 129, 0.06);
-          border: 1px solid rgba(16, 185, 129, 0.2);
+          background: rgba(16, 185, 129, 0.1);
+          border: 1px solid rgba(16, 185, 129, 0.28);
           color: #34d399;
         }
 
         .alert-banner.error {
-          background: rgba(244, 63, 94, 0.06);
-          border: 1px solid rgba(244, 63, 94, 0.2);
-          color: #fb7185;
+          background: rgba(244, 63, 94, 0.1);
+          border: 1px solid rgba(244, 63, 94, 0.28);
+          color: #fda4af;
         }
 
         /* Loading */
@@ -984,30 +1535,364 @@ export default function ProfilePage() {
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          gap: 1.5rem;
+          gap: 1.25rem;
           padding: 6rem 0;
-          color: #64748b;
+          color: #94a3b8;
+        }
+
+        :global(.icon-spin) {
+          animation: profileSpin 0.9s linear infinite;
+        }
+
+        @keyframes profileSpin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+
+        /* Executive Account Hero Banner */
+        .account-hero {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1.5rem;
+          flex-wrap: wrap;
+          padding: 1.35rem 1.5rem;
+          border-radius: 1.15rem;
+          background: linear-gradient(135deg, rgba(16, 185, 129, 0.07) 0%, rgba(15, 23, 42, 0.85) 60%, rgba(10, 14, 23, 0.92) 100%);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          margin-bottom: 1.1rem;
+        }
+
+        .account-hero.is-pro {
+          background: linear-gradient(135deg, rgba(168, 85, 247, 0.1) 0%, rgba(15, 23, 42, 0.88) 55%, rgba(16, 185, 129, 0.06) 100%);
+          border-color: rgba(168, 85, 247, 0.25);
+        }
+
+        .hero-left {
+          display: flex;
+          align-items: center;
+          gap: 1.1rem;
+          min-width: 0;
+          flex: 1 1 320px;
+        }
+
+        .avatar-circle {
+          width: 60px;
+          height: 60px;
+          border-radius: 18px;
+          background: rgba(16, 185, 129, 0.14);
+          border: 1px solid rgba(16, 185, 129, 0.35);
+          color: #34d399;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 1.25rem;
+          font-weight: 900;
+          flex-shrink: 0;
+          box-shadow: 0 0 24px rgba(16, 185, 129, 0.14);
+        }
+
+        .avatar-circle.is-pro {
+          background: rgba(168, 85, 247, 0.18);
+          border-color: rgba(168, 85, 247, 0.45);
+          color: #e9d5ff;
+          box-shadow: 0 0 26px rgba(168, 85, 247, 0.22);
+        }
+
+        .hero-identity {
+          display: flex;
+          flex-direction: column;
+          gap: 0.4rem;
+          min-width: 0;
+        }
+
+        .hero-name-row {
+          display: flex;
+          align-items: center;
+          gap: 0.65rem;
+          flex-wrap: wrap;
+        }
+
+        .hero-display-name {
+          margin: 0;
+          font-family: 'Outfit', sans-serif;
+          font-size: 1.35rem;
+          font-weight: 900;
+          color: #ffffff;
+          letter-spacing: -0.02em;
+        }
+
+        .hero-tier-badge {
+          font-size: 10px;
+          font-weight: 800;
+          padding: 3px 9px;
+          border-radius: 999px;
+          letter-spacing: 0.06em;
+        }
+
+        .hero-tier-badge.pro {
+          background: rgba(168, 85, 247, 0.16);
+          border: 1px solid rgba(168, 85, 247, 0.38);
+          color: #d8b4fe;
+        }
+
+        .hero-tier-badge.free {
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          color: #cbd5e1;
+        }
+
+        .hero-meta-row {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+          font-size: 0.82rem;
+          color: #94a3b8;
+        }
+
+        .hero-meta-item {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+          color: #cbd5e1;
+        }
+
+        .hero-meta-sep {
+          color: #475569;
+        }
+
+        .hero-right {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 0.8rem;
+          flex: 1 1 360px;
+          min-width: 260px;
+        }
+
+        .readiness-box {
+          width: 100%;
+          max-width: 440px;
+          display: flex;
+          flex-direction: column;
+          gap: 0.45rem;
+          background: rgba(0, 0, 0, 0.28);
+          border: 1px solid rgba(255, 255, 255, 0.07);
+          border-radius: 0.85rem;
+          padding: 0.75rem 0.9rem;
+        }
+
+        .readiness-top {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .readiness-label {
+          font-size: 10px;
+          font-weight: 800;
+          color: #94a3b8;
+          letter-spacing: 0.07em;
+        }
+
+        .readiness-pct {
+          font-size: 11px;
+          font-weight: 900;
+          color: #34d399;
+        }
+
+        .readiness-track {
+          width: 100%;
+          height: 6px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.07);
+          overflow: hidden;
+        }
+
+        .readiness-fill {
+          height: 100%;
+          border-radius: 999px;
+          background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+          transition: width 0.4s ease;
+        }
+
+        .readiness-pills {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.35rem;
+        }
+
+        .readiness-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.25rem;
+          font-size: 10.5px;
+          font-weight: 600;
+          padding: 2px 7px;
+          border-radius: 999px;
+        }
+
+        .readiness-chip.done {
+          background: rgba(16, 185, 129, 0.12);
+          color: #6ee7b7;
+          border: 1px solid rgba(16, 185, 129, 0.22);
+        }
+
+        .readiness-chip.todo {
+          background: rgba(255, 255, 255, 0.04);
+          color: #94a3b8;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .dot-pending {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: #64748b;
+        }
+
+        .quick-shortcuts {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+          justify-content: flex-end;
+        }
+
+        :global(.shortcut-btn) {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.4rem;
+          min-height: 36px;
+          padding: 0 0.85rem;
+          border-radius: 0.65rem;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          color: #e2e8f0;
+          font-size: 0.78rem;
+          font-weight: 700;
+          text-decoration: none;
+          transition: all 0.2s ease;
+        }
+
+        :global(.shortcut-btn:hover) {
+          background: rgba(16, 185, 129, 0.14);
+          border-color: rgba(16, 185, 129, 0.35);
+          color: #ffffff;
+        }
+
+        /* 4-Card Account KPI Strip */
+        .account-kpi-grid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 0.9rem;
+          margin-bottom: 1.35rem;
+        }
+
+        .kpi-tile {
+          padding: 1rem 1.15rem;
+          border-radius: 0.95rem;
+          background: rgba(13, 19, 31, 0.76);
+          border: 1px solid rgba(255, 255, 255, 0.07);
+          display: flex;
+          flex-direction: column;
+          gap: 0.35rem;
+          min-width: 0;
+        }
+
+        .kpi-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.5rem;
+        }
+
+        .kpi-label {
+          font-size: 10px;
+          font-weight: 800;
+          color: #94a3b8;
+          letter-spacing: 0.07em;
+        }
+
+        :global(.kpi-icon.emerald) {
+          color: #34d399;
+        }
+        :global(.kpi-icon.amber) {
+          color: #fbbf24;
+        }
+        :global(.kpi-icon.blue) {
+          color: #38bdf8;
+        }
+        :global(.kpi-icon.purple) {
+          color: #c084fc;
+        }
+
+        .kpi-value {
+          font-size: 1.32rem;
+          font-weight: 900;
+          color: #ffffff;
+          font-variant-numeric: tabular-nums;
+          line-height: 1.2;
+        }
+
+        .kpi-sub {
+          font-size: 0.76rem;
+          color: #94a3b8;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         /* Layout Grid */
         .profile-grid {
           display: grid;
-          grid-template-columns: 1.2fr 1fr;
+          grid-template-columns: 1.35fr 1fr;
           gap: 1.25rem;
           align-items: start;
         }
 
+        .settings-panel,
+        .settings-stack {
+          display: flex;
+          flex-direction: column;
+          gap: 1.25rem;
+        }
+
+        .premium-panel {
+          position: sticky;
+          top: calc(var(--header-height) + 1rem);
+        }
+
         @media (max-width: 1024px) {
+          .account-kpi-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
           .profile-grid {
             grid-template-columns: 1fr;
+          }
+          .premium-panel {
+            position: static;
+          }
+          .hero-right {
+            align-items: flex-start;
+          }
+          .readiness-box {
+            max-width: none;
+          }
+          .quick-shortcuts {
+            justify-content: flex-start;
           }
         }
 
         /* Glass Card */
         .glass-card {
-          background: rgba(10, 14, 23, 0.6);
-          border: 1px solid rgba(255, 255, 255, 0.04);
-          border-radius: 1rem;
+          background: rgba(11, 16, 27, 0.72);
+          border: 1px solid rgba(255, 255, 255, 0.07);
+          border-radius: 1.05rem;
           padding: 1.5rem;
           backdrop-filter: blur(20px);
         }
@@ -1015,25 +1900,38 @@ export default function ProfilePage() {
         .card-header {
           display: flex;
           align-items: center;
+          justify-content: space-between;
           gap: 0.75rem;
-          margin-bottom: 1.25rem;
-          padding-bottom: 0.75rem;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+          margin-bottom: 1.35rem;
+          padding-bottom: 0.85rem;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .card-title-group {
+          display: flex;
+          align-items: flex-start;
+          gap: 0.75rem;
         }
 
         .card-header h2 {
           font-family: 'Outfit', sans-serif;
           font-weight: 800;
-          font-size: 1.1rem;
-          letter-spacing: 0.05em;
+          font-size: 1.02rem;
+          letter-spacing: 0.04em;
           margin: 0;
-          color: #fff;
+          color: #ffffff;
+        }
+
+        .card-sub {
+          margin: 0.25rem 0 0 0;
+          font-size: 0.78rem;
+          color: #94a3b8;
         }
 
         .form-fields {
           display: flex;
           flex-direction: column;
-          gap: 1.5rem;
+          gap: 1.35rem;
         }
 
         .field-group {
@@ -1042,33 +1940,59 @@ export default function ProfilePage() {
           gap: 0.5rem;
         }
 
+        .field-label-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.5rem;
+          flex-wrap: wrap;
+        }
+
         .field-label {
           font-family: 'JetBrains Mono', monospace;
-          font-size: 0.65rem;
+          font-size: 0.68rem;
           font-weight: 800;
-          color: #64748b;
-          letter-spacing: 0.05em;
+          color: #94a3b8;
+          letter-spacing: 0.06em;
+        }
+
+        .field-label-emerald {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.4rem;
+          color: #34d399;
+        }
+
+        .preview-chip {
+          font-size: 0.68rem;
+          font-weight: 700;
+          color: #34d399;
+          background: rgba(16, 185, 129, 0.1);
+          border: 1px solid rgba(16, 185, 129, 0.22);
+          padding: 2px 8px;
+          border-radius: 999px;
         }
 
         .input-wrapper {
           display: flex;
           align-items: center;
-          background: rgba(0, 0, 0, 0.2);
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: rgba(0, 0, 0, 0.28);
+          border: 1px solid rgba(255, 255, 255, 0.1);
           border-radius: 0.75rem;
-          transition: all 0.3s ease;
+          transition: all 0.25s ease;
           overflow: hidden;
         }
 
         .input-wrapper:focus-within {
           border-color: #10b981;
-          box-shadow: 0 0 15px rgba(16, 185, 129, 0.08);
+          box-shadow: 0 0 15px rgba(16, 185, 129, 0.12);
         }
 
-        .input-prefix, .input-suffix {
+        .input-prefix,
+        .input-suffix {
           padding: 0.75rem 1rem;
-          background: rgba(255, 255, 255, 0.02);
-          color: #64748b;
+          background: rgba(255, 255, 255, 0.03);
+          color: #94a3b8;
           font-family: 'JetBrains Mono', monospace;
           font-size: 0.8rem;
           font-weight: 700;
@@ -1082,77 +2006,189 @@ export default function ProfilePage() {
 
         .terminal-input {
           flex: 1;
+          min-width: 0;
           background: transparent;
           border: none;
           padding: 0.85rem 1rem;
-          color: #fff;
+          color: #ffffff;
           font-family: 'JetBrains Mono', monospace;
-          font-size: 0.85rem;
+          font-size: 0.88rem;
           outline: none;
         }
 
-        .terminal-input.purple-focus:focus-within {
-          border-color: #a855f7;
+        .presets-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.45rem;
+          margin-top: 0.15rem;
         }
 
-        .terminal-input.emerald-focus:focus-within {
-          border-color: #10b981;
+        .preset-chip {
+          padding: 0.35rem 0.7rem;
+          border-radius: 0.55rem;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: rgba(255, 255, 255, 0.04);
+          color: #cbd5e1;
+          font-size: 0.72rem;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.18s ease;
+        }
+
+        .preset-chip:hover {
+          border-color: rgba(16, 185, 129, 0.4);
+          color: #ffffff;
+        }
+
+        .preset-chip.active {
+          background: rgba(16, 185, 129, 0.16);
+          border-color: rgba(16, 185, 129, 0.45);
+          color: #34d399;
         }
 
         .field-help {
-          font-size: 0.7rem;
-          color: #475569;
+          font-size: 0.76rem;
+          color: #94a3b8;
           margin: 0;
+          line-height: 1.45;
+        }
+
+        .email-sync-warning {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.75rem;
+          flex-wrap: wrap;
+          padding: 0.65rem 0.85rem;
+          border-radius: 0.65rem;
+          background: rgba(245, 158, 11, 0.09);
+          border: 1px solid rgba(245, 158, 11, 0.28);
+          color: #fde68a;
+          font-size: 0.76rem;
           line-height: 1.4;
         }
 
-        /* Select styling */
-        .select-wrapper {
-          position: relative;
-          background: rgba(0, 0, 0, 0.2);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 0.75rem;
-          overflow: hidden;
-          transition: all 0.3s ease;
-        }
-
-        .select-wrapper:focus-within {
-          border-color: #10b981;
-        }
-
-        .terminal-select {
-          width: 100%;
-          background: transparent;
-          border: none;
-          padding: 0.85rem 1rem;
-          color: #fff;
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 0.85rem;
-          outline: none;
+        .sync-email-btn {
+          padding: 0.35rem 0.65rem;
+          border-radius: 0.45rem;
+          border: 1px solid rgba(245, 158, 11, 0.4);
+          background: rgba(245, 158, 11, 0.16);
+          color: #fef3c7;
+          font-size: 0.68rem;
+          font-weight: 800;
           cursor: pointer;
         }
 
-        .terminal-select option {
-          background: #0d131f;
-          color: #fff;
+        /* Visual Channel Selector Grid */
+        .channel-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 0.65rem;
+        }
+
+        .channel-card {
+          text-align: left;
+          padding: 0.85rem 0.95rem;
+          border-radius: 0.85rem;
+          background: rgba(0, 0, 0, 0.24);
+          border: 1px solid rgba(255, 255, 255, 0.09);
+          color: #e2e8f0;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          display: flex;
+          flex-direction: column;
+          gap: 0.35rem;
+        }
+
+        .channel-card:hover {
+          border-color: rgba(255, 255, 255, 0.22);
+          background: rgba(255, 255, 255, 0.04);
+        }
+
+        .channel-card.selected {
+          background: rgba(16, 185, 129, 0.09);
+          border-color: rgba(16, 185, 129, 0.45);
+          box-shadow: 0 0 18px rgba(16, 185, 129, 0.1);
+        }
+
+        .channel-card-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.5rem;
+        }
+
+        .channel-icon {
+          width: 30px;
+          height: 30px;
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.05);
+          color: #94a3b8;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .channel-icon.selected {
+          background: rgba(16, 185, 129, 0.18);
+          color: #34d399;
+        }
+
+        .channel-pill {
+          font-size: 9.5px;
+          font-weight: 800;
+          padding: 2px 7px;
+          border-radius: 999px;
+          letter-spacing: 0.04em;
+        }
+
+        .channel-pill.ok {
+          background: rgba(16, 185, 129, 0.14);
+          color: #34d399;
+          border: 1px solid rgba(16, 185, 129, 0.28);
+        }
+
+        .channel-pill.warn {
+          background: rgba(245, 158, 11, 0.14);
+          color: #fbbf24;
+          border: 1px solid rgba(245, 158, 11, 0.28);
+        }
+
+        .channel-pill.accent {
+          background: rgba(168, 85, 247, 0.14);
+          color: #d8b4fe;
+          border: 1px solid rgba(168, 85, 247, 0.3);
+        }
+
+        .channel-card-title {
+          font-family: 'Outfit', sans-serif;
+          font-size: 0.9rem;
+          font-weight: 800;
+          color: #ffffff;
+        }
+
+        .channel-card-desc {
+          font-size: 0.74rem;
+          color: #94a3b8;
+          line-height: 1.3;
         }
 
         /* Dynamic collapsible setup boxes */
         .dynamic-box {
           background: rgba(0, 0, 0, 0.25);
-          border-radius: 0.75rem;
-          padding: 1.25rem;
+          border-radius: 0.85rem;
+          padding: 1.15rem;
           display: flex;
           flex-direction: column;
-          gap: 1rem;
+          gap: 0.9rem;
         }
 
         .dynamic-box.telegram {
-          border: 1px solid rgba(168, 85, 247, 0.15);
+          border: 1px solid rgba(168, 85, 247, 0.22);
         }
 
         .dynamic-box.whatsapp {
-          border: 1px solid rgba(16, 185, 129, 0.15);
+          border: 1px solid rgba(16, 185, 129, 0.22);
         }
 
         .dynamic-box-header {
@@ -1162,30 +2198,48 @@ export default function ProfilePage() {
           gap: 0.5rem;
         }
 
+        .unsaved-hint {
+          font-size: 0.76rem;
+          color: #fde68a;
+          background: rgba(245, 158, 11, 0.08);
+          border: 1px solid rgba(245, 158, 11, 0.22);
+          border-radius: 0.55rem;
+          padding: 0.5rem 0.75rem;
+        }
+
         .otp-verify-row {
           display: flex;
           flex-direction: column;
           gap: 0.65rem;
-          margin-top: 0.5rem;
         }
+
         .otp-status-badge {
           font-size: 11px;
           font-weight: 800;
         }
-        .otp-status-badge.ok { color: #10b981; }
-        .otp-status-badge.pending { color: #f59e0b; }
+
+        .otp-status-badge.ok {
+          color: #34d399;
+        }
+
+        .otp-status-badge.pending {
+          color: #fbbf24;
+        }
+
         .otp-controls {
           display: flex;
           flex-wrap: wrap;
           align-items: center;
           gap: 0.5rem;
         }
+
         .otp-action-btn {
           cursor: pointer;
           border: none;
           min-height: 40px;
           padding: 0 0.85rem !important;
         }
+
         .otp-code-input {
           width: 140px !important;
           min-height: 40px !important;
@@ -1193,10 +2247,13 @@ export default function ProfilePage() {
           font-size: 14px !important;
           text-align: center;
           letter-spacing: 0.12em;
+          border: 1px solid rgba(255, 255, 255, 0.12) !important;
+          border-radius: 0.5rem;
+          background: rgba(0, 0, 0, 0.3) !important;
         }
 
         .dynamic-box.telegram .dynamic-box-header {
-          color: #c084fc;
+          color: #d8b4fe;
         }
 
         .dynamic-box.whatsapp .dynamic-box-header {
@@ -1206,62 +2263,62 @@ export default function ProfilePage() {
         .dynamic-box-header h3 {
           font-family: 'Outfit', sans-serif;
           font-weight: 800;
-          font-size: 0.8rem;
-          letter-spacing: 0.02em;
+          font-size: 0.82rem;
+          letter-spacing: 0.03em;
           margin: 0;
           flex: 1;
         }
 
         .integration-link {
-          display: flex;
+          display: inline-flex;
           align-items: center;
           gap: 0.3rem;
           font-family: 'JetBrains Mono', monospace;
-          font-size: 0.65rem;
+          font-size: 0.66rem;
           font-weight: 800;
           text-decoration: none;
-          padding: 0.4rem 0.75rem;
-          border-radius: 0.375rem;
+          padding: 0.42rem 0.75rem;
+          border-radius: 0.4rem;
           transition: all 0.2s ease;
         }
 
         .integration-link.purple {
-          background: rgba(168, 85, 247, 0.1);
-          border: 1px solid rgba(168, 85, 247, 0.2);
-          color: #c084fc;
+          background: rgba(168, 85, 247, 0.12);
+          border: 1px solid rgba(168, 85, 247, 0.28);
+          color: #d8b4fe;
         }
 
         .integration-link.purple:hover {
-          background: rgba(168, 85, 247, 0.2);
-          color: #fff;
+          background: rgba(168, 85, 247, 0.22);
+          color: #ffffff;
         }
 
         .integration-link.emerald {
-          background: rgba(16, 185, 129, 0.1);
-          border: 1px solid rgba(16, 185, 129, 0.2);
+          background: rgba(16, 185, 129, 0.12);
+          border: 1px solid rgba(16, 185, 129, 0.28);
           color: #34d399;
         }
 
         .integration-link.emerald:hover {
-          background: rgba(16, 185, 129, 0.2);
-          color: #fff;
+          background: rgba(16, 185, 129, 0.22);
+          color: #ffffff;
         }
 
         .setup-guide {
-          font-family: sans-serif;
-          background: rgba(255, 255, 255, 0.01);
-          border-radius: 0.5rem;
-          padding: 0.75rem 1rem;
-          font-size: 0.75rem;
-          color: #64748b;
-          border: 1px solid rgba(255, 255, 255, 0.02);
+          background: rgba(255, 255, 255, 0.02);
+          border-radius: 0.55rem;
+          padding: 0.8rem 1rem;
+          font-size: 0.78rem;
+          color: #94a3b8;
+          border: 1px solid rgba(255, 255, 255, 0.04);
         }
 
         .setup-guide h4 {
-          margin: 0 0 0.5rem 0;
-          color: #94a3b8;
+          margin: 0 0 0.45rem 0;
+          color: #cbd5e1;
           font-family: 'Outfit', sans-serif;
           font-weight: 700;
+          font-size: 0.8rem;
         }
 
         .setup-guide ol {
@@ -1269,94 +2326,21 @@ export default function ProfilePage() {
           padding-left: 1.2rem;
           display: flex;
           flex-direction: column;
-          gap: 0.4rem;
+          gap: 0.35rem;
         }
 
         .setup-guide li {
-          line-height: 1.4;
+          line-height: 1.45;
         }
 
         /* Action Buttons Grid */
         .form-actions-grid {
           display: grid;
-          grid-template-columns: 1.2fr 1fr;
-          gap: 1rem;
+          grid-template-columns: 1.25fr 1fr;
+          gap: 0.85rem;
+          margin-top: 0.25rem;
         }
 
-        @media (max-width: 640px) {
-          .title-row { flex-wrap: wrap; gap: 0.5rem; }
-          .title-h1 { font-size: 1.5rem; }
-          .glass-card, .premium-card { padding: 1.25rem !important; border-radius: 1rem !important; }
-          .form-actions-grid { grid-template-columns: 1fr; gap: 0.75rem; }
-          .terminal-input, .terminal-select { font-size: 16px !important; }
-          .input-prefix, .input-suffix { padding: 0.75rem 0.75rem !important; }
-          .submit-btn, .test-alert-btn, .profile-logout-btn { min-height: 50px; font-size: 0.8rem; }
-        }
-
-        .test-alert-btn {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.5rem;
-          background: rgba(168, 85, 247, 0.1);
-          border: 1px solid rgba(168, 85, 247, 0.3);
-          color: #c084fc;
-          font-family: 'Outfit', sans-serif;
-          font-weight: 800;
-          font-size: 0.85rem;
-          letter-spacing: 0.02em;
-          padding: 1rem;
-          border-radius: 0.75rem;
-          cursor: pointer;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .test-alert-btn:hover:not(:disabled) {
-          background: rgba(168, 85, 247, 0.25);
-          border-color: rgba(168, 85, 247, 0.6);
-          color: #fff;
-          transform: translateY(-1px);
-          box-shadow: 0 4px 15px rgba(168, 85, 247, 0.2);
-        }
-
-        .test-alert-btn:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-
-        .profile-logout-section {
-          margin-top: 1.5rem;
-          padding-top: 1.5rem;
-          border-top: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
-        .profile-logout-btn {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.6rem;
-          background: rgba(239, 68, 68, 0.08);
-          border: 1px solid rgba(239, 68, 68, 0.25);
-          color: #f87171;
-          font-family: 'Outfit', sans-serif;
-          font-weight: 800;
-          font-size: 0.85rem;
-          letter-spacing: 0.05em;
-          padding: 0.85rem;
-          border-radius: 0.75rem;
-          cursor: pointer;
-          transition: all 0.3s ease;
-        }
-
-        .profile-logout-btn:hover {
-          background: rgba(239, 68, 68, 0.2);
-          border-color: rgba(239, 68, 68, 0.5);
-          color: #ffffff;
-          box-shadow: 0 0 15px rgba(239, 68, 68, 0.15);
-        }
-
-        /* Submit Button */
         .submit-btn {
           display: flex;
           align-items: center;
@@ -1369,17 +2353,17 @@ export default function ProfilePage() {
           font-size: 0.85rem;
           letter-spacing: 0.02em;
           border: none;
-          padding: 1rem;
+          padding: 0.95rem 1rem;
           border-radius: 0.75rem;
           cursor: pointer;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          box-shadow: 0 4px 15px rgba(16, 185, 129, 0.1);
+          transition: all 0.25s ease;
+          box-shadow: 0 4px 16px rgba(16, 185, 129, 0.14);
         }
 
         .submit-btn:hover:not(:disabled) {
           transform: translateY(-1px);
-          box-shadow: 0 6px 20px rgba(16, 185, 129, 0.2);
-          filter: brightness(1.1);
+          box-shadow: 0 6px 22px rgba(16, 185, 129, 0.25);
+          filter: brightness(1.06);
         }
 
         .submit-btn:disabled {
@@ -1387,16 +2371,163 @@ export default function ProfilePage() {
           cursor: not-allowed;
         }
 
+        .test-alert-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          background: rgba(168, 85, 247, 0.12);
+          border: 1px solid rgba(168, 85, 247, 0.32);
+          color: #d8b4fe;
+          font-family: 'Outfit', sans-serif;
+          font-weight: 800;
+          font-size: 0.84rem;
+          letter-spacing: 0.02em;
+          padding: 0.95rem 1rem;
+          border-radius: 0.75rem;
+          cursor: pointer;
+          transition: all 0.25s ease;
+        }
+
+        .test-alert-btn:hover:not(:disabled) {
+          background: rgba(168, 85, 247, 0.24);
+          border-color: rgba(168, 85, 247, 0.55);
+          color: #ffffff;
+          transform: translateY(-1px);
+        }
+
+        .test-alert-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        /* Security & Session Card */
+        .security-rows {
+          display: flex;
+          flex-direction: column;
+          gap: 0.85rem;
+        }
+
+        .security-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.85rem;
+          flex-wrap: wrap;
+          padding: 0.85rem 1rem;
+          border-radius: 0.75rem;
+          background: rgba(0, 0, 0, 0.24);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .sec-info {
+          display: flex;
+          flex-direction: column;
+          gap: 0.2rem;
+          min-width: 0;
+        }
+
+        .sec-label {
+          font-size: 10px;
+          font-weight: 800;
+          color: #94a3b8;
+          letter-spacing: 0.06em;
+        }
+
+        .sec-value {
+          font-size: 0.88rem;
+          font-weight: 600;
+          color: #f8fafc;
+          word-break: break-word;
+        }
+
+        .provider-pill {
+          font-size: 10px;
+          font-weight: 800;
+          padding: 4px 10px;
+          border-radius: 999px;
+          background: rgba(56, 189, 248, 0.12);
+          border: 1px solid rgba(56, 189, 248, 0.28);
+          color: #7dd3fc;
+        }
+
+        .sec-action-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.4rem;
+          min-height: 38px;
+          padding: 0 0.85rem;
+          border-radius: 0.6rem;
+          border: 1px solid rgba(255, 255, 255, 0.14);
+          background: rgba(255, 255, 255, 0.05);
+          color: #e2e8f0;
+          font-size: 0.7rem;
+          font-weight: 800;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .sec-action-btn:hover:not(:disabled) {
+          border-color: rgba(56, 189, 248, 0.45);
+          background: rgba(56, 189, 248, 0.14);
+          color: #ffffff;
+        }
+
+        .sec-action-btn:disabled {
+          opacity: 0.6;
+          cursor: wait;
+        }
+
+        .sec-oauth-note {
+          font-size: 0.76rem;
+          color: #94a3b8;
+        }
+
+        .profile-logout-section {
+          margin-top: 1.25rem;
+          padding-top: 1.15rem;
+          border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .profile-logout-btn {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.6rem;
+          background: rgba(239, 68, 68, 0.09);
+          border: 1px solid rgba(239, 68, 68, 0.26);
+          color: #fca5a5;
+          font-family: 'Outfit', sans-serif;
+          font-weight: 800;
+          font-size: 0.85rem;
+          letter-spacing: 0.04em;
+          padding: 0.85rem;
+          border-radius: 0.75rem;
+          cursor: pointer;
+          transition: all 0.25s ease;
+        }
+
+        .profile-logout-btn:hover:not(:disabled) {
+          background: rgba(239, 68, 68, 0.2);
+          border-color: rgba(239, 68, 68, 0.5);
+          color: #ffffff;
+        }
+
+        .profile-logout-btn:disabled {
+          opacity: 0.6;
+          cursor: wait;
+        }
+
         /* Premium Panel styling */
         .premium-card {
-          background: rgba(10, 14, 23, 0.7);
-          border: 1px solid rgba(255, 255, 255, 0.04);
-          border-radius: 1rem;
+          background: rgba(11, 16, 27, 0.8);
+          border: 1px solid rgba(255, 255, 255, 0.07);
+          border-radius: 1.05rem;
           padding: 1.5rem;
           display: flex;
           flex-direction: column;
-          gap: 1.25rem;
-          transition: all 0.5s ease;
+          gap: 1.2rem;
           position: relative;
           overflow: hidden;
         }
@@ -1409,12 +2540,11 @@ export default function ProfilePage() {
           right: 0;
           height: 3px;
           background: transparent;
-          transition: all 0.5s ease;
         }
 
         .premium-card.premium-active {
-          border-color: rgba(168, 85, 247, 0.2);
-          box-shadow: 0 10px 40px rgba(168, 85, 247, 0.04);
+          border-color: rgba(168, 85, 247, 0.28);
+          box-shadow: 0 10px 40px rgba(168, 85, 247, 0.06);
         }
 
         .premium-card.premium-active::before {
@@ -1426,42 +2556,241 @@ export default function ProfilePage() {
           display: flex;
           align-items: center;
           gap: 0.4rem;
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.1);
           padding: 0.35rem 0.75rem;
           border-radius: 9999px;
-          color: #94a3b8;
+          color: #cbd5e1;
           font-family: 'JetBrains Mono', monospace;
-          font-size: 0.6rem;
+          font-size: 0.64rem;
           font-weight: 800;
         }
 
         .premium-card.premium-active .premium-badge {
-          background: rgba(168, 85, 247, 0.1);
-          border-color: rgba(168, 85, 247, 0.25);
-          color: #c084fc;
+          background: rgba(168, 85, 247, 0.14);
+          border-color: rgba(168, 85, 247, 0.3);
+          color: #d8b4fe;
         }
 
         .premium-title {
           font-family: 'Outfit', sans-serif;
           font-weight: 900;
-          font-size: 1.5rem;
+          font-size: 1.45rem;
           line-height: 1.25;
           letter-spacing: -0.02em;
           margin: 0;
-          color: #fff;
+          color: #ffffff;
         }
 
         .pro-active-box {
           display: flex;
           flex-direction: column;
-          gap: 1.15rem;
-          background: rgba(168, 85, 247, 0.03);
-          border: 1px dashed rgba(168, 85, 247, 0.2);
-          padding: 1.5rem;
-          border-radius: 1rem;
+          gap: 1rem;
+          background: rgba(168, 85, 247, 0.05);
+          border: 1px dashed rgba(168, 85, 247, 0.28);
+          padding: 1.3rem;
+          border-radius: 0.95rem;
         }
 
+        .pro-details-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 0.75rem;
+        }
+
+        .pro-detail-label {
+          font-size: 10px;
+          font-weight: 800;
+          color: #94a3b8;
+          letter-spacing: 0.07em;
+        }
+
+        .pro-plan-title {
+          margin: 0;
+          font-family: 'Outfit', sans-serif;
+          font-size: 1.05rem;
+          font-weight: 900;
+          color: #ffffff;
+        }
+
+        .pro-plan-price {
+          margin: 0;
+          font-size: 0.95rem;
+          font-weight: 800;
+          color: #34d399;
+        }
+
+        .c-details {
+          display: flex;
+          align-items: center;
+          gap: 0.45rem;
+        }
+
+        :global(.payment-icon) {
+          color: #c084fc;
+        }
+
+        .payment-text {
+          font-size: 0.76rem;
+          color: #cbd5e1;
+        }
+
+        .cancel-pro-btn {
+          margin-top: 0.35rem;
+          background: transparent;
+          border: 1px solid rgba(244, 63, 94, 0.28);
+          border-radius: 0.75rem;
+          color: #fb7185;
+          padding: 0.78rem;
+          font-weight: 800;
+          font-size: 10px;
+          letter-spacing: 0.06em;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .cancel-pro-btn:hover {
+          background: rgba(244, 63, 94, 0.1);
+          border-color: rgba(244, 63, 94, 0.45);
+          color: #ffffff;
+        }
+
+        .pro-inactive-box {
+          display: flex;
+          flex-direction: column;
+          gap: 1.1rem;
+          padding: 0.75rem 0;
+        }
+
+        .pro-price-tag {
+          display: flex;
+          align-items: baseline;
+          justify-content: center;
+          gap: 0.3rem;
+        }
+
+        .pro-price-tag .price {
+          font-size: 2.25rem;
+          font-weight: 900;
+          color: #ffffff;
+          font-family: 'JetBrains Mono', monospace;
+        }
+
+        .pro-price-tag .period {
+          font-size: 0.9rem;
+          color: #c084fc;
+          font-weight: 700;
+        }
+
+        .activate-pro-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          width: 100%;
+          padding: 0.95rem;
+          border-radius: 0.75rem;
+          border: none;
+          background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
+          color: #ffffff;
+          font-weight: 800;
+          font-size: 11px;
+          cursor: pointer;
+          box-shadow: 0 4px 20px rgba(124, 58, 237, 0.28);
+          transition: all 0.2s;
+        }
+
+        .activate-pro-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 24px rgba(124, 58, 237, 0.4);
+        }
+
+        /* Features List */
+        .features-list {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+          margin-top: 0.4rem;
+        }
+
+        .features-list-title {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 0.68rem;
+          font-weight: 800;
+          color: #94a3b8;
+          letter-spacing: 0.06em;
+          margin: 0 0 0.25rem 0;
+        }
+
+        .feature-row {
+          display: flex;
+          align-items: flex-start;
+          gap: 0.85rem;
+          transition: opacity 0.25s ease;
+        }
+
+        .feature-row.disabled {
+          opacity: 0.62;
+        }
+
+        .feature-status {
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          background: rgba(16, 185, 129, 0.14);
+          border: 1px solid rgba(16, 185, 129, 0.3);
+          color: #34d399;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.72rem;
+          font-weight: 900;
+          flex-shrink: 0;
+          margin-top: 2px;
+        }
+
+        .feature-status.premium-check {
+          background: rgba(168, 85, 247, 0.18);
+          border-color: rgba(168, 85, 247, 0.35);
+          color: #d8b4fe;
+        }
+
+        .feature-status.lock {
+          background: rgba(168, 85, 247, 0.08);
+          border-color: rgba(168, 85, 247, 0.22);
+          color: #c084fc;
+        }
+
+        .feature-desc h4 {
+          font-family: 'Outfit', sans-serif;
+          font-weight: 800;
+          font-size: 0.86rem;
+          color: #f8fafc;
+          margin: 0 0 0.18rem 0;
+        }
+
+        .feature-desc p {
+          font-size: 0.76rem;
+          color: #94a3b8;
+          margin: 0;
+          line-height: 1.42;
+        }
+
+        .premium-footer-banner {
+          display: flex;
+          align-items: center;
+          gap: 0.6rem;
+          background: rgba(59, 130, 246, 0.08);
+          border: 1px solid rgba(59, 130, 246, 0.18);
+          padding: 0.8rem 1rem;
+          border-radius: 0.75rem;
+          color: #93c5fd;
+          font-size: 0.76rem;
+          line-height: 1.45;
+        }
+
+        /* Cancel Modal Styles */
         .cancel-modal-content {
           max-width: 460px;
           width: 100%;
@@ -1469,6 +2798,19 @@ export default function ProfilePage() {
           border-radius: 1.25rem;
           border: 1px solid rgba(244, 63, 94, 0.3) !important;
           box-shadow: 0 0 40px rgba(244, 63, 94, 0.15) !important;
+        }
+        .cancel-slide-up {
+          animation: cancelSlideUp 0.25s ease forwards;
+        }
+        @keyframes cancelSlideUp {
+          from {
+            opacity: 0;
+            transform: translateY(16px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
         .cancel-header {
           display: flex;
@@ -1484,7 +2826,10 @@ export default function ProfilePage() {
           align-items: center;
           gap: 0.6rem;
         }
-        :global(.cancel-icon) { color: #f43f5e; flex-shrink: 0; }
+        :global(.cancel-icon) {
+          color: #f43f5e;
+          flex-shrink: 0;
+        }
         .cancel-title {
           font-size: 0.85rem;
           font-weight: 800;
@@ -1504,10 +2849,25 @@ export default function ProfilePage() {
           justify-content: center;
           cursor: pointer;
         }
-        .cancel-body { display: flex; flex-direction: column; gap: 1rem; }
-        .cancel-subtitle { font-size: 0.88rem; color: #94a3b8; line-height: 1.55; margin: 0; }
-        .cancel-strong { color: #fff; }
-        .cancel-features { display: flex; flex-direction: column; gap: 0.65rem; }
+        .cancel-body {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+        .cancel-subtitle {
+          font-size: 0.88rem;
+          color: #cbd5e1;
+          line-height: 1.55;
+          margin: 0;
+        }
+        .cancel-strong {
+          color: #ffffff;
+        }
+        .cancel-features {
+          display: flex;
+          flex-direction: column;
+          gap: 0.65rem;
+        }
         .cancel-feature-item {
           display: flex;
           align-items: flex-start;
@@ -1515,11 +2875,21 @@ export default function ProfilePage() {
           padding: 0.75rem 0.9rem;
           border-radius: 0.75rem;
           background: rgba(244, 63, 94, 0.06);
-          border: 1px solid rgba(244, 63, 94, 0.15);
+          border: 1px solid rgba(244, 63, 94, 0.18);
         }
-        .cancel-x { color: #f43f5e; font-weight: 900; flex-shrink: 0; }
-        .cancel-feature-text { font-size: 0.8rem; color: #cbd5e1; line-height: 1.45; }
-        .cancel-feature-text strong { color: #fff; }
+        .cancel-x {
+          color: #f43f5e;
+          font-weight: 900;
+          flex-shrink: 0;
+        }
+        .cancel-feature-text {
+          font-size: 0.8rem;
+          color: #cbd5e1;
+          line-height: 1.45;
+        }
+        .cancel-feature-text strong {
+          color: #ffffff;
+        }
         .cancel-actions {
           display: flex;
           flex-direction: column;
@@ -1539,7 +2909,6 @@ export default function ProfilePage() {
           letter-spacing: 0.05em;
           cursor: pointer;
         }
-
         .btn-danger-new {
           display: flex;
           align-items: center;
@@ -1550,202 +2919,32 @@ export default function ProfilePage() {
           border-radius: 0.75rem;
           border: none;
           background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%);
-          color: #fff;
+          color: #ffffff;
           font-weight: 800;
           font-size: 11px;
           cursor: pointer;
-          box-shadow: 0 4px 20px rgba(244, 63, 94, 0.2);
+          box-shadow: 0 4px 20px rgba(244, 63, 94, 0.22);
           transition: all 0.2s;
         }
-
         .btn-danger-new:hover {
           transform: translateY(-2px);
-          box-shadow: 0 6px 24px rgba(244, 63, 94, 0.3);
-        }
-
-        .pro-details-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .c-details {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-        }
-
-        .cancel-pro-btn {
-          margin-top: 0.5rem;
-          background: transparent;
-          border: 1px solid rgba(244, 63, 94, 0.2);
-          border-radius: 0.75rem;
-          color: #f43f5e;
-          padding: 0.75rem;
-          font-weight: 800;
-          font-size: 9px;
-          letter-spacing: 0.05rem;
-          cursor: pointer;
-          transition: all 0.3s;
-        }
-
-        .cancel-pro-btn:hover {
-          background: rgba(244, 63, 94, 0.06);
-          border-color: rgba(244, 63, 94, 0.4);
-          transform: translateY(-1px);
-        }
-
-        .pro-inactive-box {
-          display: flex;
-          flex-direction: column;
-          gap: 1.25rem;
-          padding: 1rem 0;
-        }
-
-        .pro-price-tag {
-          display: flex;
-          align-items: baseline;
-          justify-content: center;
-          gap: 0.25rem;
-        }
-
-        .pro-price-tag .price {
-          font-size: 2.25rem;
-          font-weight: 900;
-          color: #fff;
-          font-family: 'JetBrains Mono', monospace;
-        }
-
-        .pro-price-tag .period {
-          font-size: 0.9rem;
-          color: #a855f7;
-          font-weight: 700;
-        }
-
-        .activate-pro-btn {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.5rem;
-          width: 100%;
-          padding: 0.95rem;
-          border-radius: 0.75rem;
-          border: none;
-          background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
-          color: #fff;
-          font-weight: 800;
-          font-size: 11px;
-          cursor: pointer;
-          box-shadow: 0 4px 20px rgba(124, 58, 237, 0.25);
-          transition: all 0.2s;
-        }
-
-        .activate-pro-btn:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 6px 24px rgba(124, 58, 237, 0.35);
-        }
-
-        /* Features List */
-        .features-list {
-          display: flex;
-          flex-direction: column;
-          gap: 1.25rem;
-          margin-top: 1rem;
-        }
-
-        .features-list-title {
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 0.65rem;
-          font-weight: 800;
-          color: #475569;
-          letter-spacing: 0.05em;
-          margin: 0 0 0.5rem 0;
-        }
-
-        .feature-row {
-          display: flex;
-          align-items: flex-start;
-          gap: 1rem;
-          transition: opacity 0.3s ease;
-        }
-
-        .feature-row.disabled {
-          opacity: 0.35;
-        }
-
-        .feature-status {
-          width: 20px;
-          height: 20px;
-          border-radius: 50%;
-          background: rgba(16, 185, 129, 0.1);
-          border: 1px solid rgba(16, 185, 129, 0.2);
-          color: #10b981;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 0.7rem;
-          font-weight: 900;
-          flex-shrink: 0;
-          margin-top: 2px;
-        }
-
-        .feature-status.premium-check {
-          background: rgba(168, 85, 247, 0.15);
-          border-color: rgba(168, 85, 247, 0.3);
-          color: #c084fc;
-        }
-
-        .feature-status.lock {
-          background: rgba(255, 255, 255, 0.03);
-          border-color: rgba(255, 255, 255, 0.06);
-          color: #475569;
-        }
-
-        .feature-desc h4 {
-          font-family: 'Outfit', sans-serif;
-          font-weight: 800;
-          font-size: 0.85rem;
-          color: #f1f5f9;
-          margin: 0 0 0.2rem 0;
-        }
-
-        .feature-desc p {
-          font-size: 0.75rem;
-          color: #64748b;
-          margin: 0;
-          line-height: 1.4;
-        }
-
-        .premium-footer-banner {
-          display: flex;
-          align-items: center;
-          gap: 0.6rem;
-          background: rgba(59, 130, 246, 0.05);
-          border: 1px solid rgba(59, 130, 246, 0.1);
-          padding: 0.75rem 1rem;
-          border-radius: 0.75rem;
-          color: #60a5fa;
-          font-size: 0.7rem;
-          line-height: 1.4;
+          box-shadow: 0 6px 24px rgba(244, 63, 94, 0.34);
         }
 
         /* Animations */
         @keyframes slideDown {
-          from { opacity: 0; transform: translateY(-10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-
-        .animate-fade-in {
-          animation: fadeIn 0.4s ease forwards;
+          from {
+            opacity: 0;
+            transform: translateY(-8px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
 
         .animate-slide-down {
-          animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+          animation: slideDown 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
 
         @media (max-width: 1024px) {
@@ -1755,16 +2954,25 @@ export default function ProfilePage() {
         }
 
         @media (max-width: 768px) {
-          .max-container { padding: 0 0.75rem; }
+          .max-container {
+            padding: 0 0.75rem;
+          }
           .terminal-header {
             flex-direction: column;
             align-items: flex-start;
-            gap: 1rem;
+            gap: 0.9rem;
+          }
+          .title-h1 {
+            font-size: 1.55rem;
+          }
+          .account-hero {
+            padding: 1.1rem;
           }
           .back-btn {
             min-height: 42px;
           }
-          .terminal-input, .otp-code-input {
+          .terminal-input,
+          .otp-code-input {
             font-size: 16px !important;
           }
           .otp-controls {
@@ -1776,19 +2984,42 @@ export default function ProfilePage() {
             width: 100% !important;
             order: -1;
           }
-          .btn-danger-new, .dismiss-btn, .activate-pro-btn, .cancel-pro-btn {
+          .btn-danger-new,
+          .dismiss-btn,
+          .activate-pro-btn,
+          .cancel-pro-btn {
             min-height: 48px;
           }
         }
 
         @media (max-width: 640px) {
+          .account-kpi-grid {
+            grid-template-columns: 1fr;
+          }
+          .channel-grid {
+            grid-template-columns: 1fr;
+          }
+          .glass-card,
+          .premium-card {
+            padding: 1.2rem !important;
+            border-radius: 1rem !important;
+          }
+          .form-actions-grid {
+            grid-template-columns: 1fr;
+            gap: 0.75rem;
+          }
+          .submit-btn,
+          .test-alert-btn,
+          .profile-logout-btn {
+            min-height: 48px;
+            font-size: 0.8rem;
+          }
           .cancel-modal-content {
             max-width: none !important;
             border-radius: 20px 20px 0 0 !important;
           }
         }
       `}</style>
-
     </div>
   );
 }

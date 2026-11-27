@@ -9,7 +9,27 @@ import Header from '@/components/Header';
 import { DividendYieldData } from '@/lib/scrapers/dividend-scraper';
 import { useDebounce } from '@/hooks/useDebounce';
 
-const fetcher = (url: string) => fetch(url).then(r => r.json());
+interface DividendApiResponse {
+  success: boolean;
+  data: DividendYieldData[];
+  source?: string;
+  updatedAt?: string;
+  error?: string;
+}
+
+const fetcher = async (url: string): Promise<DividendApiResponse> => {
+  const res = await fetch(url);
+  let json: DividendApiResponse | null = null;
+  try {
+    json = await res.json();
+  } catch {
+    throw new Error('Réponse serveur invalide lors du chargement des dividendes.');
+  }
+  if (!res.ok || !json || json.success === false) {
+    throw new Error(json?.error || `Erreur serveur (${res.status}) lors du chargement des dividendes.`);
+  }
+  return json;
+};
 
 export default function DividendesPage() {
   const router = useRouter();
@@ -18,12 +38,18 @@ export default function DividendesPage() {
   const [sortBy, setSortBy] = useState<'rank' | 'yield' | 'amount' | 'price'>('rank');
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
-  const { data, error, isLoading, mutate } = useSWR<{ success: boolean; data: DividendYieldData[] }>(
+  const { data, error, isLoading, isValidating, mutate } = useSWR<DividendApiResponse>(
     '/api/dividendes',
     fetcher
   );
 
   const dividends = data?.data || [];
+  const sourceLabel =
+    data?.source === 'tradingview'
+      ? 'TRADINGVIEW CSEMA'
+      : data?.source === 'casablancabourse'
+        ? 'CASABLANCABOURSE'
+        : null;
 
   const parseNumeric = (val?: string | number) => {
     if (typeof val === 'number') return val;
@@ -36,7 +62,10 @@ export default function DividendesPage() {
     const q = debouncedSearchTerm.toLowerCase().trim();
     const list = q
       ? dividends.filter(
-          (d) => d.symbol.toLowerCase().includes(q) || d.name.toLowerCase().includes(q)
+          (d) =>
+            d.symbol.toLowerCase().includes(q) ||
+            d.name.toLowerCase().includes(q) ||
+            (d.sector ? d.sector.toLowerCase().includes(q) : false)
         )
       : [...dividends];
 
@@ -72,6 +101,10 @@ export default function DividendesPage() {
     router.push(`/console?q=${encodeURIComponent(symbol)}&agent=FUNDAMENTAL`);
   };
 
+  const handleRefresh = () => {
+    void mutate(() => fetcher('/api/dividendes?refresh=1'), { revalidate: false });
+  };
+
   return (
     <div className="app-container">
       <Sidebar history={[]} onSelect={() => {}} activeAgent="STRATEGY" onAgentChange={() => {}} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
@@ -95,6 +128,11 @@ export default function DividendesPage() {
                 <div className="market-badge">
                   {dividends.length > 0 ? `${dividends.length} VALEURS CLASSÉES` : 'BOURSE DE CASABLANCA'}
                 </div>
+                {sourceLabel && (
+                  <div className="source-badge mono">
+                    SOURCE : {sourceLabel}
+                  </div>
+                )}
               </div>
               <p className="div-subtitle">
                 Classement des entreprises cotées à la Bourse de Casablanca offrant les meilleurs rendements (Dividend Yield) en temps réel.
@@ -103,11 +141,11 @@ export default function DividendesPage() {
 
             <button
               type="button"
-              onClick={() => mutate()}
-              disabled={isLoading}
+              onClick={handleRefresh}
+              disabled={isLoading || isValidating}
               className="div-refresh-btn glass"
             >
-              <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} />
+              <RefreshCw size={15} className={isLoading || isValidating ? 'icon-spin' : ''} />
               <span className="mono">ACTUALISER</span>
             </button>
           </header>
@@ -116,7 +154,7 @@ export default function DividendesPage() {
           {error && (
             <div className="div-error-banner animate-fade-in">
               <AlertCircle size={20} style={{ color: '#fb7185', flexShrink: 0 }} />
-              <p>Erreur lors du chargement des données de dividendes. Veuillez réessayer plus tard.</p>
+              <p>{error.message || 'Erreur lors du chargement des données de dividendes. Veuillez réessayer plus tard.'}</p>
             </div>
           )}
 
@@ -201,12 +239,31 @@ export default function DividendesPage() {
             {isLoading ? (
               <div className="div-loading-grid">
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="div-skeleton-row animate-pulse" />
+                  <div key={i} className="div-skeleton-row skeleton-pulse" />
                 ))}
               </div>
+            ) : dividends.length === 0 ? (
+              <div className="div-empty-card">
+                <AlertCircle size={26} style={{ color: '#fbbf24' }} />
+                <div className="div-empty-title">Données de dividendes indisponibles pour le moment</div>
+                <p className="div-empty-desc">
+                  Les flux BVC / TradingView n&apos;ont pas encore répondu. Cliquez ci-dessous pour relancer la synchronisation.
+                </p>
+                <button type="button" onClick={handleRefresh} className="div-retry-btn mono">
+                  <RefreshCw size={14} className={isValidating ? 'icon-spin' : ''} />
+                  <span>Réessayer le chargement</span>
+                </button>
+              </div>
             ) : filteredDividends.length === 0 ? (
-              <div className="div-empty">
-                Aucun résultat trouvé pour &laquo; {searchTerm} &raquo;
+              <div className="div-empty-card">
+                <Search size={24} style={{ color: '#94a3b8' }} />
+                <div className="div-empty-title">
+                  Aucun résultat trouvé pour &laquo; {searchTerm} &raquo;
+                </div>
+                <button type="button" onClick={() => setSearchTerm('')} className="div-retry-btn mono">
+                  <X size={14} />
+                  <span>Effacer la recherche</span>
+                </button>
               </div>
             ) : (
               <>
@@ -226,7 +283,10 @@ export default function DividendesPage() {
                             </div>
                             <div className="stock-titles">
                               <span className="stock-symbol-title">{item.symbol}</span>
-                              <span className="div-company-name">{item.name}</span>
+                              <span className="div-company-name">
+                                {item.name}
+                                {item.sector ? ` · ${item.sector}` : ''}
+                              </span>
                             </div>
                           </div>
 
@@ -294,7 +354,10 @@ export default function DividendesPage() {
                               <div className="div-avatar">{item.symbol.substring(0, 3)}</div>
                               <div>
                                 <div className="div-sym">{item.symbol}</div>
-                                <div className="div-subname">{item.name}</div>
+                                <div className="div-subname-row">
+                                  <span className="div-subname">{item.name}</span>
+                                  {item.sector && <span className="div-sector-tag">{item.sector}</span>}
+                                </div>
                               </div>
                             </div>
                           </td>
@@ -362,6 +425,30 @@ export default function DividendesPage() {
           font-weight: 800;
           font-family: 'JetBrains Mono', monospace;
           color: #94a3b8;
+        }
+        .source-badge {
+          background: rgba(16, 185, 129, 0.1);
+          border: 1px solid rgba(16, 185, 129, 0.25);
+          color: #34d399;
+          padding: 4px 9px;
+          border-radius: 6px;
+          font-size: 9.5px;
+          font-weight: 800;
+          letter-spacing: 0.05em;
+        }
+        :global(.icon-spin) {
+          animation: divSpin 0.9s linear infinite;
+        }
+        @keyframes divSpin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .skeleton-pulse {
+          animation: divPulse 1.5s ease-in-out infinite;
+        }
+        @keyframes divPulse {
+          0%, 100% { opacity: 0.45; }
+          50% { opacity: 0.9; }
         }
         .div-subtitle { font-size: 0.9rem; color: #94a3b8; max-width: 640px; line-height: 1.5; margin: 0; }
         .div-refresh-btn {
@@ -461,7 +548,34 @@ export default function DividendesPage() {
 
         .div-loading-grid { display: flex; flex-direction: column; gap: 0.75rem; padding: 1rem; }
         .div-skeleton-row { height: 56px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); }
-        .div-empty { text-align: center; padding: 3rem 1rem; color: #94a3b8; font-size: 0.95rem; }
+        .div-empty-card {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          gap: 0.75rem;
+          padding: 3rem 1.5rem;
+        }
+        .div-empty-title { color: #f8fafc; font-size: 1rem; font-weight: 700; }
+        .div-empty-desc { color: #94a3b8; font-size: 0.875rem; max-width: 440px; margin: 0; line-height: 1.5; }
+        .div-retry-btn {
+          margin-top: 0.25rem;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
+          min-height: 40px;
+          padding: 0 1rem;
+          border-radius: 10px;
+          border: 1px solid rgba(16, 185, 129, 0.35);
+          background: rgba(16, 185, 129, 0.14);
+          color: #34d399;
+          font-size: 11px;
+          font-weight: 800;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .div-retry-btn:hover { background: rgba(16, 185, 129, 0.22); }
 
         .div-mobile-card.top3 { border-color: rgba(245, 158, 11, 0.28) !important; }
         .div-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
@@ -558,7 +672,17 @@ export default function DividendesPage() {
           color: #fff;
         }
         .div-sym { font-weight: 800; color: #f8fafc; font-size: 13px; }
-        .div-subname { font-size: 11px; color: #64748b; }
+        .div-subname-row { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; margin-top: 2px; }
+        .div-subname { font-size: 11.5px; color: #94a3b8; }
+        .div-sector-tag {
+          font-size: 10px;
+          font-weight: 700;
+          color: #94a3b8;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          padding: 1px 7px;
+          border-radius: 999px;
+        }
         .div-amount { color: #e2e8f0; font-weight: 700; }
         .div-price { color: #94a3b8; }
 

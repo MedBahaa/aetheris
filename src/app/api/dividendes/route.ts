@@ -3,8 +3,7 @@ import { DividendScraper } from '@/lib/scrapers/dividend-scraper';
 import { corsHeaders, handleOptionsRequest } from '@/lib/api-headers';
 import { checkRateLimitAsync, getClientIp } from '@/lib/rate-limiter';
 
-// Revalidate cache every 1 hour (3600 seconds)
-export const revalidate = 3600;
+export const dynamic = 'force-dynamic';
 
 export function OPTIONS() {
   return handleOptionsRequest();
@@ -23,12 +22,47 @@ export async function GET(req: Request) {
   }
 
   try {
-    const data = await DividendScraper.getDividendYields();
-    return corsHeaders(NextResponse.json({ success: true, data }));
+    const forceRefresh = new URL(req.url).searchParams.get('refresh') === '1';
+    const result = await DividendScraper.getDividendYieldsWithMeta(forceRefresh);
+
+    if (result.data.length === 0) {
+      return corsHeaders(
+        NextResponse.json(
+          {
+            success: false,
+            data: [],
+            error: 'Données de dividendes temporairement indisponibles. Veuillez réessayer.',
+          },
+          { status: 503, headers: { 'Cache-Control': 'no-store' } }
+        )
+      );
+    }
+
+    return corsHeaders(
+      NextResponse.json(
+        {
+          success: true,
+          data: result.data,
+          source: result.source,
+          updatedAt: result.updatedAt,
+        },
+        {
+          status: 200,
+          headers: {
+            'Cache-Control': forceRefresh
+              ? 'no-store'
+              : 'public, s-maxage=1800, stale-while-revalidate=3600',
+          },
+        }
+      )
+    );
   } catch (error: any) {
     console.error('Error fetching dividends:', error);
     return corsHeaders(
-      NextResponse.json({ success: false, error: 'Données de dividendes temporairement indisponibles.' }, { status: 500 })
+      NextResponse.json(
+        { success: false, error: 'Données de dividendes temporairement indisponibles.' },
+        { status: 500, headers: { 'Cache-Control': 'no-store' } }
+      )
     );
   }
 }

@@ -4,6 +4,7 @@ import { TechnicalEngine } from '../lib/technical-engine';
 import { StrategyWorker } from '../lib/agents/worker-agents';
 import { newsEngine } from '../lib/news-engine';
 import { TradingViewScraper, isHaramIndustryOrSector } from '../lib/scrapers/tradingview-scraper';
+import { DividendScraper } from '../lib/scrapers/dividend-scraper';
 import { parseFrenchPrice, validatePriceLevels } from '../lib/agent-engine';
 import { validatePortfolioOptimization, GeminiService } from '../lib/gemini';
 import { CacheService } from '../lib/cache-service';
@@ -12,6 +13,7 @@ import { CompanyAnalysisSchema } from '../lib/schemas';
 describe('Agents & Orchestrator Credibility Suite', () => {
   afterEach(() => {
     TradingViewScraper.clearCache();
+    DividendScraper.clearCache();
     vi.restoreAllMocks();
   });
 
@@ -452,6 +454,133 @@ describe('Agents & Orchestrator Credibility Suite', () => {
       expect(atwResult.isHaramSector).toBe(true);
       expect(atwResult.isCompliant).toBe(false);
       expect(atwResult.estimatedCompliance).toBe(false);
+    });
+  });
+
+  describe('DividendScraper Resilient Dual-Source & Empty-Cache Protection', () => {
+    it('parses TradingView /morocco/scan yields, deduplicates, preserves AFI & GAZ, and sorts desc', async () => {
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: [
+              {
+                s: 'CSEMA:GAZ',
+                d: ['GAZ', 'Afriquia Gaz', 3599, 4.89, 4.89, 175, null, 'Distribution Services', 'MAD'],
+              },
+              {
+                s: 'CSEMA:AFI',
+                d: ['AFI', 'Afric Industries SA', 325, 6.13, 6.13, 20, null, 'Process Industries', 'MAD'],
+              },
+              {
+                s: 'CSEMA:SLF',
+                d: ['SLF', 'Salafin SA', 420, 7.14, 7.14, 30, null, 'Finance', 'MAD'],
+              },
+              {
+                s: 'CSEMA:AFI',
+                d: ['AFI', 'Afric Industries SA Duplicate Lower', 325, 4.0, 4.0, 13, null, 'Process Industries', 'MAD'],
+              },
+              {
+                s: 'CSEMA:NONE',
+                d: ['NONE', 'Zero Dividend Co', 120, 0, 0, 0, null, 'Finance', 'MAD'],
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      );
+
+      const result = await DividendScraper.getDividendYieldsWithMeta(true);
+      expect(result.source).toBe('tradingview');
+      expect(result.data).toHaveLength(3);
+
+      expect(result.data[0]).toMatchObject({
+        rank: 1,
+        symbol: 'SLF',
+        yield: '7.14 %',
+        amountDH: '30.00 DH',
+        price: '420.00 DH',
+        sector: 'Finance',
+      });
+      expect(result.data[1]).toMatchObject({
+        rank: 2,
+        symbol: 'AFI',
+        name: 'Afric Industries SA',
+        yield: '6.13 %',
+        amountDH: '20.00 DH',
+        sector: 'Industrie',
+      });
+      expect(result.data[2]).toMatchObject({
+        rank: 3,
+        symbol: 'GAZ',
+        name: 'Afriquia Gaz',
+        yield: '4.89 %',
+        amountDH: '175.00 DH',
+        sector: 'Distribution',
+      });
+    });
+
+    it('falls back cleanly to casablancabourse HTML when TradingView fails', async () => {
+      const sampleHtml = `
+        <table id="tableEses">
+          <tbody>
+            <tr>
+              <td class="rank-td">1</td>
+              <td class="name-td"><a href="/SLF/action/dividendes"><span class="nom_entreprise">SALAFIN</span></a></td>
+              <td>7.14 %</td>
+              <td>30.00 DH</td>
+              <td>420 DH</td>
+            </tr>
+            <tr>
+              <td class="rank-td">2</td>
+              <td class="name-td"><a href="/TMA/action/dividendes"><span class="nom_entreprise">TOTALENERGIES</span></a></td>
+              <td>6.90 %</td>
+              <td>89.57 DH</td>
+              <td>1299 DH</td>
+            </tr>
+          </tbody>
+        </table>
+      `;
+
+      vi.spyOn(global, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('scanner.tradingview.com')) {
+          return new Response('Service Unavailable', { status: 503 });
+        }
+        return new Response(sampleHtml, { status: 200 });
+      });
+
+      const result = await DividendScraper.getDividendYieldsWithMeta(true);
+      expect(result.source).toBe('casablancabourse');
+      expect(result.data).toHaveLength(2);
+      expect(result.data[0].symbol).toBe('SLF');
+      expect(result.data[1].symbol).toBe('TMA');
+    });
+
+    it('never caches empty results so subsequent call recovers when upstream succeeds', async () => {
+      const fetchSpy = vi
+        .spyOn(global, 'fetch')
+        .mockResolvedValueOnce(new Response('Error', { status: 503 }))
+        .mockResolvedValueOnce(new Response('<html><body>CF Challenge</body></html>', { status: 403 }))
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              data: [
+                { s: 'CSEMA:IAM', d: ['IAM', 'Maroc Telecom SA', 89.79, 4.5, 4.5, 4, null, 'Communications', 'MAD'] },
+              ],
+            }),
+            { status: 200 }
+          )
+        );
+
+      const first = await DividendScraper.getDividendYieldsWithMeta();
+      expect(first.source).toBe('none');
+      expect(first.data).toHaveLength(0);
+
+      const second = await DividendScraper.getDividendYieldsWithMeta();
+      expect(second.source).toBe('tradingview');
+      expect(second.data).toHaveLength(1);
+      expect(second.data[0].symbol).toBe('IAM');
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
     });
   });
 });
