@@ -4,7 +4,7 @@ import React from 'react';
 import { 
   Search, Loader2, Sparkles, Activity, Zap, ShieldCheck, 
   AlertCircle, X, Globe, RefreshCcw, Landmark, Briefcase, Scale, ArrowRight,
-  TrendingUp, ChevronRight, XCircle
+  TrendingUp, ChevronRight, XCircle, Printer, History, Keyboard
 } from 'lucide-react';
 import Link from 'next/link';
 import AnalysisReport from '@/components/AnalysisReport';
@@ -13,12 +13,37 @@ import StrategyReport from '@/components/StrategyReport';
 import FundamentalReport from '@/components/FundamentalReport';
 import { DashboardProps } from '@/types/dashboard';
 
+const AGENT_CAPABILITIES: Record<'STRATEGY' | 'TECHNICAL' | 'FUNDAMENTAL' | 'SENTIMENT', { title: string; subtitle: string; bullets: string[] }> = {
+  STRATEGY: {
+    title: 'Orchestrateur Alpha Multi-Agents',
+    subtitle: 'Synthèse complète décisionnelle (Acheter / Attendre / Vendre)',
+    bullets: ['Croisement Sentiment + Technique + Fondamentaux', 'Take-Profit, Stop-Loss & Risk/Reward validés', 'Scénarios multi-horizons (CT / MT / LT)'],
+  },
+  TECHNICAL: {
+    title: 'Moteur Quantitatif & Pivots',
+    subtitle: 'Structure de prix, momentum et seuils clés BVC',
+    bullets: ['RSI (14), MACD, Bandes de Bollinger & MMS réelles', 'Points Pivots sur OHLC intraday ou plage glissante', 'Retracements Fibonacci & alerte liquidité'],
+  },
+  FUNDAMENTAL: {
+    title: 'Audit Fondamental CSEMA',
+    subtitle: 'Valorisation intrinsèque, multiples et rentabilité',
+    bullets: ['PER, Rendement Dividende & Capitalisation en MAD', 'CROISSANCE CA, Marge nette, ROE & Bénéfices', 'Source tracking multi-sources (TradingView / Casabourse / BMCE)'],
+  },
+  SENTIMENT: {
+    title: 'Veille Narrative & Flux Presse',
+    subtitle: 'Surveillance AMMC, presse économique et dépêches BVC',
+    bullets: ['Tri chronologique & dédoublonnage Jaccard multi-RSS', 'Filtrage strict par émetteur et alias officiels', 'Scoring pondéré par fiabilité de source'],
+  },
+};
+
 export default function DashboardContent(props: DashboardProps) {
   const {
-    query, setQuery, loading, analysis, activeAgent, terminalLogs, error, setError,
+    query, setQuery, loading, analysis, activeAgent, history, terminalLogs, error, setError,
     suggestions, showSuggestions, setShowSuggestions, selectedIndex, setSelectedIndex,
-    handleSearch, executeSearch, searchRef, logContainerRef, setActiveAgent, handleAgentChange
+    handleSearch, executeSearch, handleSelectFromHistory, searchRef, logContainerRef, setActiveAgent, handleAgentChange
   } = props;
+
+  const activeMeta = AGENT_CAPABILITIES[activeAgent];
 
 
 
@@ -162,9 +187,9 @@ export default function DashboardContent(props: DashboardProps) {
             <div className="terminal-header">
               <div className="term-circles">
                 <span className="circle-pulse"></span>
-                <span className="mono text-[10px] font-bold text-emerald tracking-wider">MOTEUR ACTIF</span>
+                <span className="mono term-status-txt">MOTEUR ACTIF</span>
               </div>
-              <span className="mono text-[10px] font-black opacity-85 uppercase tracking-widest">{activeAgent} AGENT</span>
+              <span className="mono term-agent-tag">{activeAgent} AGENT</span>
             </div>
             
             <div className="terminal-content-grid">
@@ -195,11 +220,11 @@ export default function DashboardContent(props: DashboardProps) {
               <div className="engine-stats-panel">
                 <div className="stat-row">
                   <span className="stat-label">AGENT CORE</span>
-                  <span className="stat-val text-emerald uppercase font-bold">{activeAgent}</span>
+                  <span className="stat-val stat-val-emerald">{activeAgent}</span>
                 </div>
                 <div className="stat-row">
                   <span className="stat-label">LLM ENGINE</span>
-                  <span className="stat-val font-semibold text-slate-300">GEMINI FLASH</span>
+                  <span className="stat-val stat-val-muted">GEMINI 3.8 FLASH</span>
                 </div>
                 <div className="stat-row">
                   <span className="stat-label">ENGINE STATUS</span>
@@ -207,7 +232,7 @@ export default function DashboardContent(props: DashboardProps) {
                 </div>
                 <div className="stat-row">
                   <span className="stat-label">CONNECTION</span>
-                  <span className="stat-val text-cyan font-bold">SECURED SSL</span>
+                  <span className="stat-val stat-val-cyan">SECURED SSL</span>
                 </div>
                 
                 <div className="radar-animation-box">
@@ -219,8 +244,8 @@ export default function DashboardContent(props: DashboardProps) {
 
             <div className="loader-meta-group">
               <div className="progress-info-row">
-                <span className="mono text-[9px] text-slate-500 font-bold uppercase tracking-wider">GÉNÉRATION DU RAPPORT BOURSIER</span>
-                <span className="mono text-[9px] text-emerald font-bold animate-pulse tracking-wider">ANALYSE SÉCURISÉE</span>
+                <span className="mono progress-meta-dim">GÉNÉRATION DU RAPPORT BOURSIER</span>
+                <span className="mono progress-meta-live animate-pulse">ANALYSE SÉCURISÉE</span>
               </div>
               <div className="progress-bar-container">
                 <div className={`p-bar-fill ${activeAgent.toLowerCase()}`}></div>
@@ -229,16 +254,34 @@ export default function DashboardContent(props: DashboardProps) {
           </div>
         ) : analysis ? (
           <div className="report-root animate-fade-in">
-            <div className="report-toolbar">
-              <button 
-                type="button"
-                className="global-refresh-btn glass"
-                onClick={() => executeSearch(analysis.companyName, true)}
-                title="Rafraîchir l'analyse (Bypasser le cache)"
-              >
-                <RefreshCcw size={14} className="text-emerald" />
-                <span className="mono">ACTUALISER</span>
-              </button>
+            <div className="report-toolbar no-print">
+              <div className="report-meta-pill mono">
+                <span className="meta-dot"></span>
+                <span>RAPPORT {analysis.type}</span>
+                <span className="meta-sep">•</span>
+                <span>{analysis.date}</span>
+              </div>
+
+              <div className="report-toolbar-actions">
+                <button
+                  type="button"
+                  className="toolbar-action-btn glass"
+                  onClick={() => window.print()}
+                  title="Imprimer ou exporter en PDF"
+                >
+                  <Printer size={13} />
+                  <span className="mono">PDF / IMPRIMER</span>
+                </button>
+                <button 
+                  type="button"
+                  className="global-refresh-btn glass"
+                  onClick={() => executeSearch(analysis.companyName, true)}
+                  title="Rafraîchir l'analyse (Bypasser le cache)"
+                >
+                  <RefreshCcw size={13} className="text-emerald" />
+                  <span className="mono">ACTUALISER</span>
+                </button>
+              </div>
             </div>
 
             {analysis.isPremiumSignal && (
@@ -247,7 +290,7 @@ export default function DashboardContent(props: DashboardProps) {
                 <Zap size={18} className="text-emerald" />
                 <div className="alert-diag-body">
                   <strong>CONVERGENCE DE SIGNAUX DÉTECTÉE</strong>
-                  <span className="mono text-xs">SCORE SENTIMENT IA ({Number(analysis.globalScore || 0).toFixed(2)}) & INDICATEURS TECHNIQUES VALIDÉS</span>
+                  <span className="mono convergence-sub">SCORE SENTIMENT IA ({Number(analysis.globalScore || 0).toFixed(2)}) & INDICATEURS TECHNIQUES VALIDÉS</span>
                 </div>
               </div>
             )}
@@ -258,31 +301,108 @@ export default function DashboardContent(props: DashboardProps) {
             {analysis.type === 'STRATEGY' && <StrategyReport analysis={analysis} />}
           </div>
         ) : (
-          <div className="console-empty-state animate-fade-in glass-heavy">
-            <Activity size={32} className="text-emerald empty-state-icon" />
-            <h3 className="mono empty-state-title">CONSOLE D&apos;ANALYSE PRÊTE</h3>
-            <p className="empty-state-desc">
-              Entrez un symbole du MASI ou choisissez une valeur populaire ci-dessous pour lancer l&apos;analyse IA.
-            </p>
-            <div className="popular-masi-chips">
-              {[
-                { sym: 'ATW', name: 'Attijariwafa' },
-                { sym: 'IAM', name: 'Maroc Telecom' },
-                { sym: 'BCP', name: 'Banque Populaire' },
-                { sym: 'MSA', name: 'Marsa Maroc' },
-                { sym: 'LBV', name: 'Label Vie' },
-                { sym: 'MNG', name: 'Managem' },
-              ].map((item) => (
-                <button
-                  key={item.sym}
-                  type="button"
-                  onClick={() => executeSearch(item.sym)}
-                  className="popular-masi-pill"
-                >
-                  <span className="mono popular-sym">{item.sym}</span>
-                  <span className="popular-name">{item.name}</span>
-                </button>
-              ))}
+          <div className="console-welcome-grid animate-fade-in">
+            {/* LEFT COLUMN: Active Engine Capabilities & MASI Blue-Chips */}
+            <div className="welcome-primary-card glass-heavy">
+              <div className="welcome-head">
+                <div className="welcome-badge mono">
+                  <Activity size={13} className="text-emerald" />
+                  <span>CONSOLE D&apos;ANALYSE MULTI-AGENTS PRÊTE</span>
+                </div>
+                <h2 className="welcome-title">{activeMeta.title}</h2>
+                <p className="welcome-subtitle">{activeMeta.subtitle}</p>
+              </div>
+
+              <div className="welcome-bullets">
+                {activeMeta.bullets.map((b, i) => (
+                  <div key={i} className="welcome-bullet">
+                    <span className="bullet-dot" />
+                    <span>{b}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="welcome-section-label mono">VALEURS MASI POPULAIRES (LANCEMENT DIRECT)</div>
+              <div className="masi-spotlight-grid">
+                {[
+                  { sym: 'ATW', name: 'Attijariwafa Bank', sector: 'Banques' },
+                  { sym: 'IAM', name: 'Maroc Telecom', sector: 'Télécoms' },
+                  { sym: 'BCP', name: 'Banque Populaire', sector: 'Banques' },
+                  { sym: 'MSA', name: 'Marsa Maroc', sector: 'Ports' },
+                  { sym: 'LBV', name: "Label'Vie", sector: 'Distribution' },
+                  { sym: 'MNG', name: 'Managem', sector: 'Mines' },
+                ].map((item) => (
+                  <button
+                    key={item.sym}
+                    type="button"
+                    onClick={() => executeSearch(item.sym)}
+                    className="spotlight-stock-card"
+                  >
+                    <div className="spot-top">
+                      <span className="mono spot-sym">{item.sym}</span>
+                      <span className="mono spot-sec">{item.sector}</span>
+                    </div>
+                    <div className="spot-bottom">
+                      <span className="spot-name">{item.name}</span>
+                      <ArrowRight size={13} className="spot-arrow" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* RIGHT COLUMN: Recent History & Keyboard Shortcuts */}
+            <div className="welcome-secondary-stack">
+              <div className="welcome-history-card glass-heavy">
+                <div className="wh-header">
+                  <History size={14} className="text-emerald" />
+                  <span className="mono wh-title">ANALYSES RÉCENTES ({activeAgent})</span>
+                </div>
+
+                {history && history.length > 0 ? (
+                  <div className="wh-list">
+                    {history.slice(0, 5).map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleSelectFromHistory(item)}
+                        className="wh-item"
+                      >
+                        <div className="wh-item-left">
+                          <span className="wh-company">{item.companyName}</span>
+                          <span className="mono wh-date">{item.date}</span>
+                        </div>
+                        <span className="mono wh-action">OUVRIR →</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="wh-empty">
+                    Aucune analyse {activeAgent.toLowerCase()} en mémoire. Lancez une valeur ci-contre pour enregistrer votre journal.
+                  </p>
+                )}
+              </div>
+
+              <div className="welcome-shortcuts-card glass-heavy">
+                <div className="wh-header">
+                  <Keyboard size={14} className="text-emerald" />
+                  <span className="mono wh-title">RACCOURCIS CLAVIER</span>
+                </div>
+                <div className="shortcuts-list mono">
+                  <div className="shortcut-row">
+                    <span>Palette de recherche globale</span>
+                    <kbd>Ctrl K</kbd>
+                  </div>
+                  <div className="shortcut-row">
+                    <span>Naviguer les suggestions</span>
+                    <span><kbd>↑</kbd> <kbd>↓</kbd></span>
+                  </div>
+                  <div className="shortcut-row">
+                    <span>Exécuter l&apos;agent sélectionné</span>
+                    <kbd>Entrée</kbd>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -431,54 +551,225 @@ export default function DashboardContent(props: DashboardProps) {
         .error-content p { color: #94a3b8; font-size: 0.85rem; line-height: 1.6; font-family: 'Inter', sans-serif; }
         
         .report-root { position: relative; }
-        .report-toolbar { display: flex; justify-content: flex-end; margin-bottom: 0.5rem; }
-        .global-refresh-btn { position: absolute; top: -0.75rem; right: 0; padding: 0.5rem 1rem; min-height: 38px; border-radius: 100px; border: 1px solid var(--border-glass); background: rgba(15, 23, 42, 0.7); color: #f8fafc; display: flex; align-items: center; gap: 0.5rem; cursor: pointer; transition: all 0.3s var(--ease); z-index: 10; }
-        .global-refresh-btn:hover { background: rgba(16, 185, 129, 0.12); border-color: rgba(16, 185, 129, 0.35); transform: translateY(-2px); }
-
-        .console-empty-state {
-          padding: 3.5rem 2rem;
-          text-align: center;
-          border-radius: 1.25rem;
-          margin-top: 1.5rem;
-          border: 1px solid rgba(255, 255, 255, 0.08);
+        .report-toolbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.75rem;
+          flex-wrap: wrap;
+          margin-bottom: 1.25rem;
+          padding-bottom: 0.85rem;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.07);
         }
-        .empty-state-icon { margin: 0 auto 1rem; opacity: 0.65; display: block; }
-        .empty-state-title { font-size: 1rem; font-weight: 800; color: #fff; margin-bottom: 0.5rem; letter-spacing: 0.06em; }
-        .empty-state-desc { max-width: 440px; margin: 0 auto 1.5rem; color: #94a3b8; font-size: 0.9rem; line-height: 1.55; }
-        .popular-masi-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.55rem; max-width: 560px; margin: 0 auto; }
-        .popular-masi-pill {
+        .report-meta-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.35rem 0.85rem;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          color: #94a3b8;
+          font-size: 10.5px;
+          font-weight: 700;
+        }
+        .meta-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: var(--accent-emerald);
+          box-shadow: 0 0 8px var(--accent-emerald);
+        }
+        .meta-sep { opacity: 0.4; }
+        .report-toolbar-actions { display: flex; align-items: center; gap: 0.55rem; }
+        .toolbar-action-btn, .global-refresh-btn {
+          position: static;
+          padding: 0.48rem 0.95rem;
+          min-height: 36px;
+          border-radius: 10px;
+          border: 1px solid var(--border-glass);
+          background: rgba(15, 23, 42, 0.75);
+          color: #f8fafc;
           display: inline-flex;
           align-items: center;
           gap: 0.45rem;
-          min-height: 40px;
-          padding: 0 0.9rem;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.04);
+          cursor: pointer;
+          transition: all 0.2s var(--ease);
+          font-size: 10.5px;
+          font-weight: 700;
+        }
+        .toolbar-action-btn:hover { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.22); }
+        .global-refresh-btn:hover { background: rgba(16, 185, 129, 0.14); border-color: rgba(16, 185, 129, 0.4); }
+        .convergence-sub { font-size: 11px; color: #cbd5e1; }
+
+        /* 2-Column Desktop Command Center */
+        .console-welcome-grid {
+          display: grid;
+          grid-template-columns: 1.35fr 1fr;
+          gap: 1.35rem;
+          margin-top: 0.75rem;
+          align-items: start;
+        }
+        .welcome-primary-card {
+          padding: 1.75rem;
+          border-radius: 1.25rem;
           border: 1px solid rgba(255, 255, 255, 0.09);
+          display: flex;
+          flex-direction: column;
+          gap: 1.25rem;
+        }
+        .welcome-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.45rem;
+          font-size: 10px;
+          font-weight: 800;
+          color: #34d399;
+          letter-spacing: 0.08em;
+          margin-bottom: 0.4rem;
+        }
+        .welcome-title {
+          font-family: 'Outfit', sans-serif;
+          font-size: 1.55rem;
+          font-weight: 900;
+          color: #ffffff;
+          margin: 0 0 0.35rem;
+          letter-spacing: -0.02em;
+        }
+        .welcome-subtitle {
+          font-size: 0.9rem;
+          color: #94a3b8;
+          margin: 0;
+          line-height: 1.5;
+        }
+        .welcome-bullets {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+          padding: 0.9rem 1rem;
+          border-radius: 12px;
+          background: rgba(255, 255, 255, 0.025);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .welcome-bullet {
+          display: flex;
+          align-items: center;
+          gap: 0.65rem;
+          font-size: 0.85rem;
+          color: #cbd5e1;
+        }
+        .bullet-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: var(--accent-emerald);
+          flex-shrink: 0;
+        }
+        .welcome-section-label {
+          font-size: 10px;
+          font-weight: 800;
+          color: #94a3b8;
+          letter-spacing: 0.1em;
+        }
+        .masi-spotlight-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 0.7rem;
+        }
+        .spotlight-stock-card {
+          display: flex;
+          flex-direction: column;
+          gap: 0.45rem;
+          padding: 0.85rem;
+          border-radius: 12px;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          cursor: pointer;
+          text-align: left;
+          transition: all 0.2s ease;
+        }
+        .spotlight-stock-card:hover {
+          background: rgba(16, 185, 129, 0.09);
+          border-color: rgba(16, 185, 129, 0.38);
+          transform: translateY(-2px);
+        }
+        .spot-top { display: flex; justify-content: space-between; align-items: center; gap: 0.4rem; }
+        .spot-sym { font-size: 12px; font-weight: 900; color: #34d399; }
+        .spot-sec { font-size: 9px; color: #94a3b8; }
+        .spot-bottom { display: flex; justify-content: space-between; align-items: center; gap: 0.4rem; }
+        .spot-name { font-size: 0.82rem; font-weight: 600; color: #f8fafc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        :global(.spot-arrow) { color: #64748b; flex-shrink: 0; transition: transform 0.2s ease, color 0.2s ease; }
+        .spotlight-stock-card:hover :global(.spot-arrow) { color: #34d399; transform: translateX(2px); }
+
+        .welcome-secondary-stack { display: flex; flex-direction: column; gap: 1.15rem; }
+        .welcome-history-card, .welcome-shortcuts-card {
+          padding: 1.35rem;
+          border-radius: 1.25rem;
+          border: 1px solid rgba(255, 255, 255, 0.09);
+          display: flex;
+          flex-direction: column;
+          gap: 0.9rem;
+        }
+        .wh-header { display: flex; align-items: center; gap: 0.55rem; }
+        .wh-title { font-size: 10.5px; font-weight: 800; color: #e2e8f0; letter-spacing: 0.08em; }
+        .wh-list { display: flex; flex-direction: column; gap: 0.45rem; }
+        .wh-item {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.75rem;
+          padding: 0.65rem 0.85rem;
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.025);
+          border: 1px solid rgba(255, 255, 255, 0.06);
           cursor: pointer;
           transition: all 0.18s ease;
+          text-align: left;
         }
-        .popular-masi-pill:hover { background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.35); }
-        .popular-sym { color: #34d399; font-weight: 900; font-size: 11px; }
-        .popular-name { color: #cbd5e1; font-size: 12px; font-weight: 600; }
+        .wh-item:hover { background: rgba(255, 255, 255, 0.06); border-color: rgba(16, 185, 129, 0.3); }
+        .wh-item-left { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        .wh-company { font-size: 0.86rem; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .wh-date { font-size: 10px; color: #94a3b8; }
+        .wh-action { font-size: 10px; font-weight: 800; color: #34d399; flex-shrink: 0; }
+        .wh-empty { font-size: 0.84rem; color: #94a3b8; line-height: 1.5; margin: 0; }
+
+        .shortcuts-list { display: flex; flex-direction: column; gap: 0.55rem; }
+        .shortcut-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; font-size: 11px; color: #94a3b8; }
+        .shortcut-row kbd {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 2px 7px;
+          border-radius: 5px;
+          background: rgba(255, 255, 255, 0.07);
+          border: 1px solid rgba(255, 255, 255, 0.14);
+          color: #f8fafc;
+          font-size: 10px;
+          font-weight: 700;
+        }
 
         /* Terminal System Loader */
-        .terminal-system-loader { width: 100%; max-width: 760px; margin: 4rem auto; border-radius: 0.75rem; overflow: hidden; border: 1px solid var(--border-glass); box-shadow: 0 30px 60px rgba(0,0,0,0.5); background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(10px); }
+        .terminal-system-loader { width: 100%; max-width: 760px; margin: 2.5rem auto; border-radius: 0.75rem; overflow: hidden; border: 1px solid var(--border-glass); box-shadow: 0 30px 60px rgba(0,0,0,0.5); background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(10px); }
         .terminal-header { background: rgba(255,255,255,0.02); padding: 0.85rem 1.25rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-glass); }
         .term-circles { display: flex; align-items: center; gap: 0.6rem; }
+        .term-status-txt { font-size: 10px; font-weight: 800; color: var(--accent-emerald); letter-spacing: 0.08em; }
+        .term-agent-tag { font-size: 10px; font-weight: 900; color: #cbd5e1; text-transform: uppercase; letter-spacing: 0.12em; }
         
         .terminal-content-grid { display: grid; grid-template-columns: 1.8fr 1fr; border-bottom: 1px solid var(--border-glass); }
         .terminal-logs-column { border-right: 1px solid var(--border-glass); background: rgba(0,0,0,0.15); }
         
         .engine-stats-panel { padding: 1.5rem; display: flex; flex-direction: column; gap: 0.85rem; background: rgba(0,0,0,0.25); }
-        .stat-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 0.6rem; }
-        .stat-label { font-family: 'JetBrains Mono', monospace; font-size: 8px; color: #475569; font-weight: 850; letter-spacing: 0.05rem; }
-        .stat-val { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #cbd5e1; }
-        .badge-processing { background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); color: var(--accent-emerald); font-size: 8px; font-weight: 900; padding: 0.15rem 0.5rem; border-radius: 4px; letter-spacing: 0.05rem; animation: blink 1.5s infinite; }
+        .stat-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.04); padding-bottom: 0.6rem; }
+        .stat-label { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #94a3b8; font-weight: 800; letter-spacing: 0.05rem; }
+        .stat-val { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: #cbd5e1; }
+        .stat-val-emerald { color: var(--accent-emerald); font-weight: 800; text-transform: uppercase; }
+        .stat-val-muted { color: #cbd5e1; font-weight: 600; }
+        .stat-val-cyan { color: var(--accent-cyan); font-weight: 700; }
+        .badge-processing { background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); color: var(--accent-emerald); font-size: 8.5px; font-weight: 900; padding: 0.15rem 0.5rem; border-radius: 4px; letter-spacing: 0.05rem; animation: blink 1.5s infinite; }
         
         .radar-animation-box { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(255,255,255,0.01); border: 1px solid var(--border-glass); border-radius: 0.5rem; margin-top: 0.5rem; min-height: 85px; position: relative; overflow: hidden; }
         .radar-sweep { position: absolute; inset: 0; background: linear-gradient(180deg, transparent, rgba(16, 185, 129, 0.05) 50%, transparent); animation: sweep 2s linear infinite; }
-        .radar-text { z-index: 1; color: #475569; font-weight: 900; letter-spacing: 0.1rem; font-size: 8px; }
+        .radar-text { z-index: 1; color: #64748b; font-weight: 900; letter-spacing: 0.1rem; font-size: 8.5px; }
         
         @keyframes sweep { 0% { transform: translateY(-100%); } 100% { transform: translateY(100%); } }
         
@@ -492,11 +783,22 @@ export default function DashboardContent(props: DashboardProps) {
         
         .loader-meta-group { padding: 1.25rem 1.5rem; background: rgba(255,255,255,0.01); }
         .progress-info-row { display: flex; justify-content: space-between; margin-bottom: 0.6rem; }
+        .progress-meta-dim { font-size: 9px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+        .progress-meta-live { font-size: 9px; color: var(--accent-emerald); font-weight: 700; letter-spacing: 0.08em; }
         .progress-bar-container { height: 3px; width: 100%; background: rgba(255,255,255,0.04); border-radius: 2px; overflow: hidden; }
         .p-bar-fill { height: 100%; transition: width 0.3s var(--ease); }
         .p-bar-fill.strategy { background: var(--accent-blue); width: 100%; animation: load-progress 15s linear; }
         .p-bar-fill.sentiment { background: var(--accent-emerald); width: 100%; animation: load-progress 10s linear; }
         .p-bar-fill.technical { background: var(--accent-cyan); width: 100%; animation: load-progress 12s linear; }
+        .p-bar-fill.fundamental { background: #f59e0b; width: 100%; animation: load-progress 12s linear; }
+
+        @media (max-width: 1023px) {
+          .console-welcome-grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 640px) {
+          .masi-spotlight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .welcome-primary-card { padding: 1.2rem; }
+        }
 
         @keyframes load-progress { from { width: 0%; } to { width: 95%; } }
 

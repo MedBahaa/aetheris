@@ -12,6 +12,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
 import { getUserProfileAction } from '@/lib/portfolio-actions';
 import { supabase, performCleanLogout } from '@/lib/supabase';
+import { useDevice } from '@/hooks/useDevice';
 
 interface SidebarProps {
   history: CompanyAnalysis[];
@@ -34,6 +35,7 @@ export default function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { isDesktop } = useDevice();
   const [isIntelligenceOpen, setIsIntelligenceOpen] = useState(true);
   const [sidebarSearch, setSidebarSearch] = useState('');
   const [profile, setProfile] = useState<any>(null);
@@ -42,7 +44,7 @@ export default function Sidebar({
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isDesktop) return;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
@@ -55,7 +57,7 @@ export default function Sidebar({
       document.body.style.overflow = prevOverflow;
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, isDesktop, onClose]);
 
   const handleLogout = async () => {
     if (loggingOut) return;
@@ -175,7 +177,7 @@ export default function Sidebar({
 
   return (
     <>
-      {isOpen && (
+      {isOpen && !isDesktop && (
         <div 
           className="sidebar-overlay is-active"
           onClick={onClose}
@@ -185,9 +187,9 @@ export default function Sidebar({
 
       <aside 
         className={`sidebar glass-heavy ${isOpen ? 'is-open' : ''}`}
-        role="dialog"
-        aria-modal={isOpen ? true : undefined}
-        aria-hidden={!isOpen}
+        role={isDesktop ? 'navigation' : 'dialog'}
+        aria-modal={!isDesktop && isOpen ? true : undefined}
+        aria-hidden={isDesktop ? false : !isOpen}
         aria-label="Navigation principale Aetheris"
         onTouchStart={(e) => {
           const t = e.touches[0];
@@ -297,7 +299,7 @@ export default function Sidebar({
 
               <Link href="/dividendes" style={{ textDecoration: 'none' }} onClick={() => onClose()}>
                 <button className={`agent-btn-compact ${pathname === '/dividendes' ? 'active' : ''}`}>
-                  <Landmark size={16} className="nav-icon text-amber-400" />
+                  <Landmark size={16} className="nav-icon" style={{ color: '#fbbf24' }} />
                   <span>Palmarès Dividendes</span>
                 </button>
               </Link>
@@ -456,7 +458,13 @@ export default function Sidebar({
 
           @media (min-width: 1024px) {
             .sidebar {
-              width: var(--sidebar-width, 240px);
+              width: var(--sidebar-width, 256px) !important;
+              transform: translateX(0) !important;
+              box-shadow: none !important;
+              border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+            }
+            .close-btn-drawer {
+              display: none !important;
             }
           }
 
@@ -869,7 +877,7 @@ export default function Sidebar({
             font-family: 'JetBrains Mono', monospace; 
           }
           .history-group { margin-bottom: 0.5rem; }
-          .group-label { padding: 0.2rem 1rem; color: #334155; font-size: 8.5px; font-weight: 900; letter-spacing: 0.05rem; }
+          .group-label { padding: 0.2rem 1rem; color: #64748b; font-size: 8.5px; font-weight: 900; letter-spacing: 0.05rem; }
           .history-item {
             display: flex;
             flex-direction: column;
@@ -936,7 +944,7 @@ export default function Sidebar({
           }
           .v-tag-minimal { 
             font-size: 8.5px; 
-            color: #334155; 
+            color: #64748b; 
             font-weight: 900; 
             font-family: 'JetBrains Mono', monospace; 
             letter-spacing: 0.05rem;

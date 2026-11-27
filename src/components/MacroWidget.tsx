@@ -100,13 +100,15 @@ export default function MacroWidget() {
         .macro-ticker-wrapper {
           width: 100%;
           overflow: hidden;
-          background: rgba(15, 23, 42, 0.4);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          background: rgba(15, 23, 42, 0.45);
+          border: 1px solid rgba(255, 255, 255, 0.06);
           padding: 0.4rem 0;
           border-radius: 100px;
           backdrop-filter: blur(10px);
           box-shadow: 0 4px 20px rgba(0,0,0,0.3);
           position: relative;
+          mask-image: linear-gradient(90deg, transparent, #000 3%, #000 97%, transparent);
+          -webkit-mask-image: linear-gradient(90deg, transparent, #000 3%, #000 97%, transparent);
         }
 
         .macro-ticker-content {
@@ -148,14 +150,14 @@ export default function MacroWidget() {
         }
 
         .m-label {
-          font-size: 0.6rem;
-          color: #64748b;
+          font-size: 0.62rem;
+          color: #94a3b8;
           font-weight: 800;
           display: flex;
           align-items: center;
           gap: 0.25rem;
           text-transform: uppercase;
-          letter-spacing: 0.02rem;
+          letter-spacing: 0.03rem;
         }
 
         .m-val {

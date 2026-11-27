@@ -309,6 +309,14 @@ export default function PurificationPage() {
           
         </div>
       </main>
+
+      <style jsx>{`
+        @media (min-width: 1024px) {
+          .max-container {
+            max-width: 1180px;
+          }
+        }
+      `}</style>
     </div>
   );
 }

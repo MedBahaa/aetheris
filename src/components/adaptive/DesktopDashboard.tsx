@@ -12,21 +12,23 @@ interface DesktopDashboardProps extends DashboardProps {
 
 export default function DesktopDashboard(props: DesktopDashboardProps) {
   return (
-    <div className="app-container desktop-layout" style={{ display: 'block', minHeight: '100vh' }}>
-      <Header onOpenSidebar={() => props.setIsSidebarOpen(!props.isSidebarOpen)} /> 
-      
-      <main className="main-content desktop-content" style={{ padding: '1.75rem 2rem', paddingTop: 'calc(var(--header-height) + 1.75rem)', margin: '0 auto', maxWidth: '1650px' }}>
-        <DashboardContent {...props} />
+    <div className="app-container desktop-layout">
+      <Header onOpenSidebar={() => props.setIsSidebarOpen(!props.isSidebarOpen)} />
+
+      <main className="main-content desktop-content">
+        <div className="max-container">
+          <DashboardContent {...props} />
+        </div>
       </main>
 
-      <Sidebar 
-        history={props.history} 
-        onSelect={props.handleSelectFromHistory} 
+      <Sidebar
+        history={props.history}
+        onSelect={props.handleSelectFromHistory}
         activeId={props.activeId}
         activeAgent={props.activeAgent}
         onAgentChange={props.handleAgentChange}
-        isOpen={props.isSidebarOpen} 
-        onClose={() => props.setIsSidebarOpen(false)} 
+        isOpen={props.isSidebarOpen}
+        onClose={() => props.setIsSidebarOpen(false)}
       />
     </div>
   );

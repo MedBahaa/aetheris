@@ -69,6 +69,7 @@ export default function PortfolioPage() {
   const [whatsappPhone, setWhatsappPhone] = useState('');
   const [alertChannel, setAlertChannel] = useState('EMAIL');
   const [username, setUsername] = useState('');
+  const [alertsFeedback, setAlertsFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [virtualBalance, setVirtualBalance] = useState(100000);
   const [virtualInitialCapital, setVirtualInitialCapital] = useState(100000);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
@@ -726,21 +727,33 @@ export default function PortfolioPage() {
 
               <form onSubmit={async (e) => {
                 e.preventDefault();
+                setAlertsFeedback(null);
                 try {
                   setLoading(true);
-                  await upsertUserProfileAction({
+                  const res = await upsertUserProfileAction({
                     telegram_chat_id: telegramChatId,
                     whatsapp_phone: whatsappPhone,
                     alert_channel: alertChannel,
                     username: username
                   });
-                  alert("Paramètres d'alertes enregistrés avec succès !");
+                  if (res && !res.success) {
+                    setAlertsFeedback({ type: 'error', text: res.error || 'Erreur de sauvegarde' });
+                  } else {
+                    setAlertsFeedback({ type: 'success', text: "Paramètres d'alertes enregistrés avec succès !" });
+                  }
+                  setTimeout(() => setAlertsFeedback(null), 4500);
                 } catch (err: any) {
-                  alert(err.message || "Erreur de sauvegarde");
+                  setAlertsFeedback({ type: 'error', text: err.message || 'Erreur de sauvegarde' });
+                  setTimeout(() => setAlertsFeedback(null), 4500);
                 } finally {
                   setLoading(false);
                 }
               }} className="alerts-form">
+                {alertsFeedback && (
+                  <div className={`alerts-feedback ${alertsFeedback.type}`}>
+                    {alertsFeedback.text}
+                  </div>
+                )}
                 
                 <div className="alerts-field">
                   <label className="mono alerts-label">NOM D'UTILISATEUR (COMPÉTITION)</label>
@@ -1045,6 +1058,25 @@ export default function PortfolioPage() {
           border-radius: 1rem;
           margin-top: 1rem;
           color: #fff;
+        }
+        .alerts-settings-panel {
+          max-width: 820px;
+        }
+        .alerts-feedback {
+          padding: 0.75rem 1rem;
+          border-radius: 10px;
+          font-size: 0.85rem;
+          font-weight: 600;
+        }
+        .alerts-feedback.success {
+          background: rgba(16, 185, 129, 0.14);
+          border: 1px solid rgba(16, 185, 129, 0.35);
+          color: #34d399;
+        }
+        .alerts-feedback.error {
+          background: rgba(244, 63, 94, 0.14);
+          border: 1px solid rgba(244, 63, 94, 0.35);
+          color: #fb7185;
         }
         .alerts-panel-title {
           color: #a855f7;

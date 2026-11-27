@@ -135,7 +135,7 @@ const FAQ_ITEMS = [
   },
   {
     q: "Comment est établie la conformité Shariah AAOIFI ?",
-    a: "Notre module passe chaque entreprise du MASI au criblage des critères financiers AAOIFI (ratio d'endettement < 30%, revenus non-conformes < 5%). Il calcule ensuite la purification exacte des dividendes."
+    a: "Notre module passe chaque entreprise du MASI au criblage des critères financiers AAOIFI (ratio d'endettement et de trésorerie < 33,33%, revenus non-conformes < 5%). Il calcule ensuite la purification exacte des dividendes."
   },
   {
     q: "Le compte Découverte est-il vraiment sans engagement ?",

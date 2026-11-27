@@ -57,7 +57,7 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
   };
 
   const SortIcon = ({ col }: { col: SortKey }) => {
-    if (sortKey !== col) return <ChevronsUpDown size={10} className="opacity-30" />;
+    if (sortKey !== col) return <ChevronsUpDown size={10} style={{ opacity: 0.35 }} />;
     return sortDir === 'asc' ? <ArrowUp size={10} className="text-emerald" /> : <ArrowDown size={10} className="text-emerald" />;
   };
 
@@ -372,8 +372,8 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
                         </td>
                         <td>
                           <div className="flex flex-col">
-                            <span className="mono text-emerald font-bold">{(s.totalDividends ?? 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} <span className="text-[9px]">MAD</span></span>
-                            <span className="mono-tiny opacity-50">YOC: {(s.yieldOnCost ?? 0).toFixed(2)}%</span>
+                            <span className="mono text-emerald font-bold">{(s.totalDividends ?? 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} <span style={{ fontSize: '9px' }}>MAD</span></span>
+                            <span className="mono-tiny" style={{ opacity: 0.55 }}>YOC: {(s.yieldOnCost ?? 0).toFixed(2)}%</span>
                           </div>
                         </td>
                         <td>
@@ -462,7 +462,7 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
                 return (
                   <tfoot>
                     <tr className="total-row">
-                      <td><span className="mono font-bold opacity-60">TOTAL PORTEFEUILLE</span></td>
+                      <td><span className="mono font-bold" style={{ opacity: 0.7 }}>TOTAL PORTEFEUILLE</span></td>
                       <td></td>
                       <td></td>
                       <td></td>
@@ -476,6 +476,7 @@ export const PortfolioTable: React.FC<PortfolioTableProps> = ({
                           </span>
                         </div>
                       </td>
+                      <td></td>
                       <td></td>
                       <td></td>
                     </tr>

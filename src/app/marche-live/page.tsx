@@ -155,8 +155,8 @@ export default function MarcheLive() {
   const renderSortIcon = (key: string) => {
     if (sortConfig?.key === key) {
       return sortConfig.direction === 'asc' 
-        ? <ChevronUp size={12} className="inline ml-1 text-emerald-500" /> 
-        : <ChevronDown size={12} className="inline ml-1 text-rose-500" />;
+        ? <ChevronUp size={12} className="sort-icon up" /> 
+        : <ChevronDown size={12} className="sort-icon down" />;
     }
     return null;
   };
@@ -193,6 +193,22 @@ export default function MarcheLive() {
     }
     return { all: stocks.length, up, down };
   }, [stocks]);
+
+  const marketBreadth = useMemo(() => {
+    if (stocks.length === 0) {
+      return { total: 0, up: 0, down: 0, upPct: 0, downPct: 0, topGainer: null as any, topLoser: null as any };
+    }
+    const byVarDesc = [...stocks].sort((a, b) => b.variationValue - a.variationValue);
+    return {
+      total: stocks.length,
+      up: marketCounts.up,
+      down: marketCounts.down,
+      upPct: Math.round((marketCounts.up / stocks.length) * 100),
+      downPct: Math.round((marketCounts.down / stocks.length) * 100),
+      topGainer: byVarDesc[0] || null,
+      topLoser: byVarDesc[byVarDesc.length - 1] || null,
+    };
+  }, [stocks, marketCounts]);
 
   // Amélioration 2 : Mémoïsation du filtrage (supporte Nom, Ticker officiel, Alias, Secteur et Tendance)
   const filteredStocks = useMemo(() => {
@@ -278,6 +294,51 @@ export default function MarcheLive() {
               <CheckCircle2 size={15} />
               <span>{ipoCheckStatus}</span>
             </div>
+          )}
+
+          {/* Bandeau KPI Market Breadth Desktop (>= 1024px) */}
+          {stocks.length > 0 && (
+            <section className="desktop-market-kpis animate-fade-in" aria-label="Synthèse de séance BVC">
+              <div className="mkt-kpi-card">
+                <span className="mkt-kpi-label mono">VALEURS COTÉES</span>
+                <span className="mkt-kpi-val mono">{marketBreadth.total}</span>
+                <span className="mkt-kpi-sub">Indice CSEMA Live</span>
+              </div>
+              <div className="mkt-kpi-card">
+                <span className="mkt-kpi-label mono">HAUSSES</span>
+                <span className="mkt-kpi-val bull mono">{marketBreadth.up}</span>
+                <span className="mkt-kpi-sub">{marketBreadth.upPct}% du marché</span>
+              </div>
+              <div className="mkt-kpi-card">
+                <span className="mkt-kpi-label mono">BAISSES</span>
+                <span className="mkt-kpi-val bear mono">{marketBreadth.down}</span>
+                <span className="mkt-kpi-sub">{marketBreadth.downPct}% du marché</span>
+              </div>
+              {marketBreadth.topGainer && (
+                <button
+                  type="button"
+                  className="mkt-kpi-card clickable"
+                  onClick={() => handleAnalyze(marketBreadth.topGainer.symbol, 'STRATEGY')}
+                  title="Lancer l'analyse Stratégie IA"
+                >
+                  <span className="mkt-kpi-label mono">TOP HAUSSE</span>
+                  <span className="mkt-kpi-val bull mono">{marketBreadth.topGainer.symbol}</span>
+                  <span className="mkt-kpi-sub mono">{marketBreadth.topGainer.variation}</span>
+                </button>
+              )}
+              {marketBreadth.topLoser && (
+                <button
+                  type="button"
+                  className="mkt-kpi-card clickable"
+                  onClick={() => handleAnalyze(marketBreadth.topLoser.symbol, 'STRATEGY')}
+                  title="Lancer l'analyse Stratégie IA"
+                >
+                  <span className="mkt-kpi-label mono">TOP BAISSE</span>
+                  <span className="mkt-kpi-val bear mono">{marketBreadth.topLoser.symbol}</span>
+                  <span className="mkt-kpi-sub mono">{marketBreadth.topLoser.variation}</span>
+                </button>
+              )}
+            </section>
           )}
 
           <div className="controls-bar glass-heavy animate-fade-in" style={{ animationDelay: '0.1s' }}>
@@ -514,50 +575,70 @@ export default function MarcheLive() {
                         <th onClick={() => requestSort('opening')} className="sortable">OUV. {renderSortIcon('opening')}</th>
                         <th onClick={() => requestSort('high')} className="sortable">PLUS HAUT {renderSortIcon('high')}</th>
                         <th onClick={() => requestSort('low')} className="sortable">PLUS BAS {renderSortIcon('low')}</th>
+                        <th>PLAGE DU JOUR</th>
                         <th style={{ textAlign: 'right' }}>ACTION</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredStocks.map((stock, i) => {
                         const displayTicker = stock.ticker && stock.ticker !== stock.symbol.toUpperCase() ? stock.ticker : null;
+                        const parseNum = (v: unknown) => parseFloat(String(v ?? '').replace(',', '.').replace(/[^\d.-]/g, ''));
+                        const lowNum = parseNum(stock.low);
+                        const highNum = parseNum(stock.high);
+                        const curNum = parseNum(stock.price);
+                        const hasRange = !Number.isNaN(lowNum) && !Number.isNaN(highNum) && !Number.isNaN(curNum) && highNum > lowNum;
+                        const rangePct = hasRange ? Math.max(0, Math.min(100, ((curNum - lowNum) / (highNum - lowNum)) * 100)) : 50;
+                        const isPos = stock.variationValue >= 0;
+                        const openUp = i >= filteredStocks.length - 3 && filteredStocks.length > 4;
+
                         return (
-                          <tr key={i} className="inst-row">
-                            <td data-label="VALEUR">
+                          <tr key={stock.symbol || i} className="inst-row">
+                            <td
+                              data-label="VALEUR"
+                              className="symbol-cell-clickable"
+                              onClick={() => handleAnalyze(stock.symbol, 'STRATEGY')}
+                              title="Ouvrir l'analyse Stratégie IA"
+                            >
                               <div className="symbol-cell">
                                 <div className="s-status"></div>
-                                <span className="s-name">{stock.symbol}</span>
-                                {displayTicker && (
-                                  <span
-                                    className="mono"
-                                    style={{
-                                      fontSize: '10px',
-                                      padding: '1px 6px',
-                                      borderRadius: '4px',
-                                      background: 'rgba(255,255,255,0.05)',
-                                      color: '#94a3b8',
-                                      marginLeft: '6px',
-                                    }}
-                                  >
-                                    {displayTicker}
-                                  </span>
-                                )}
-                                {stock.isIpo && (
-                                  <span
-                                    className="mono"
-                                    style={{
-                                      fontSize: '9px',
-                                      padding: '1px 6px',
-                                      borderRadius: '4px',
-                                      background: 'rgba(16, 185, 129, 0.15)',
-                                      color: '#10b981',
-                                      border: '1px solid rgba(16, 185, 129, 0.35)',
-                                      marginLeft: '6px',
-                                      fontWeight: 800,
-                                    }}
-                                  >
-                                    IPO
-                                  </span>
-                                )}
+                                <div className="symbol-cell-info">
+                                  <div className="symbol-title-line">
+                                    <span className="s-name">{stock.symbol}</span>
+                                    {displayTicker && (
+                                      <span
+                                        className="mono"
+                                        style={{
+                                          fontSize: '10px',
+                                          padding: '1px 6px',
+                                          borderRadius: '4px',
+                                          background: 'rgba(255,255,255,0.05)',
+                                          color: '#94a3b8',
+                                          marginLeft: '6px',
+                                        }}
+                                      >
+                                        {displayTicker}
+                                      </span>
+                                    )}
+                                    {stock.isIpo && (
+                                      <span
+                                        className="mono"
+                                        style={{
+                                          fontSize: '9px',
+                                          padding: '1px 6px',
+                                          borderRadius: '4px',
+                                          background: 'rgba(16, 185, 129, 0.15)',
+                                          color: '#10b981',
+                                          border: '1px solid rgba(16, 185, 129, 0.35)',
+                                          marginLeft: '6px',
+                                          fontWeight: 800,
+                                        }}
+                                      >
+                                        IPO
+                                      </span>
+                                    )}
+                                  </div>
+                                  {stock.sector && <span className="s-sector-sub">{stock.sector}</span>}
+                                </div>
                               </div>
                             </td>
                             <td className="price-cell-inst" data-label="DERNIER COURS">
@@ -567,7 +648,7 @@ export default function MarcheLive() {
                               </div>
                             </td>
                             <td data-label="MOMENTUM">
-                              <div className={`momentum-box ${stock.variationValue >= 0 ? 'bull' : 'bear'}`}>
+                              <div className={`momentum-box ${isPos ? 'bull' : 'bear'}`}>
                                 <div className="m-main">
                                    <span className="m-abs mono">{stock.variationAbs}</span>
                                    <span className="m-pct mono">{stock.variation}</span>
@@ -580,6 +661,22 @@ export default function MarcheLive() {
                             <td className="data-cell mono" data-label="OUVERTURE">{stock.opening}</td>
                             <td className="data-cell high mono" data-label="PLUS HAUT">{stock.high}</td>
                             <td className="data-cell low mono" data-label="PLUS BAS">{stock.low}</td>
+                            <td data-label="PLAGE DU JOUR">
+                              {hasRange ? (
+                                <div className="desktop-intraday-range">
+                                  <div className="desktop-range-meta mono">
+                                    <span>{stock.low}</span>
+                                    <span>{stock.high}</span>
+                                  </div>
+                                  <div className="range-track">
+                                    <div className={`range-fill ${isPos ? 'bull' : 'bear'}`} style={{ width: `${rangePct}%` }} />
+                                    <div className={`range-thumb ${isPos ? 'bull' : 'bear'}`} style={{ left: `${rangePct}%` }} />
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="data-cell mono">—</span>
+                              )}
+                            </td>
                             <td style={{ textAlign: 'right' }}>
                               <div className="action-dropdown-container" ref={openMenuSymbol === stock.symbol ? menuRef : undefined}>
                                 <button 
@@ -590,7 +687,7 @@ export default function MarcheLive() {
                                   <span>ANALYSER</span>
                                 </button>
                                 {openMenuSymbol === stock.symbol && (
-                                  <div className="action-dropdown-menu">
+                                  <div className={`action-dropdown-menu ${openUp ? 'open-up' : ''}`}>
                                     {ANALYSIS_OPTIONS.map(opt => (
                                       <button
                                         key={opt.key}

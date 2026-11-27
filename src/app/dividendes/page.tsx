@@ -52,6 +52,22 @@ export default function DividendesPage() {
     return list;
   }, [dividends, debouncedSearchTerm, sortBy]);
 
+  const dividendSummary = useMemo(() => {
+    if (dividends.length === 0) {
+      return { count: 0, topYield: null as DividendYieldData | null, avgYield: 0, topAmount: null as DividendYieldData | null };
+    }
+    const yields = dividends.map((d) => parseNumeric(d.yield)).filter((v) => v > 0);
+    const avgYield = yields.length > 0 ? yields.reduce((a, b) => a + b, 0) / yields.length : 0;
+    const byYield = [...dividends].sort((a, b) => parseNumeric(b.yield) - parseNumeric(a.yield));
+    const byAmt = [...dividends].sort((a, b) => parseNumeric(b.amountDH) - parseNumeric(a.amountDH));
+    return {
+      count: dividends.length,
+      topYield: byYield[0] || null,
+      avgYield,
+      topAmount: byAmt[0] || null,
+    };
+  }, [dividends]);
+
   const handleAnalyze = (symbol: string) => {
     router.push(`/console?q=${encodeURIComponent(symbol)}&agent=FUNDAMENTAL`);
   };
@@ -102,6 +118,32 @@ export default function DividendesPage() {
               <AlertCircle size={20} style={{ color: '#fb7185', flexShrink: 0 }} />
               <p>Erreur lors du chargement des données de dividendes. Veuillez réessayer plus tard.</p>
             </div>
+          )}
+
+          {/* Bandeau KPI Résumé Dividendes Desktop (>= 1024px) */}
+          {!isLoading && dividends.length > 0 && (
+            <section className="div-desktop-kpis animate-fade-in" aria-label="Synthèse dividendes BVC">
+              <div className="div-kpi-card">
+                <span className="div-kpi-label mono">RENDEMENT RECORD</span>
+                <span className="div-kpi-val emerald mono">{dividendSummary.topYield?.yield || '--'}</span>
+                <span className="div-kpi-sub">{dividendSummary.topYield ? `${dividendSummary.topYield.symbol} — ${dividendSummary.topYield.name}` : '—'}</span>
+              </div>
+              <div className="div-kpi-card">
+                <span className="div-kpi-label mono">MOYENNE PALMARÈS</span>
+                <span className="div-kpi-val mono">{dividendSummary.avgYield.toFixed(2)}%</span>
+                <span className="div-kpi-sub">Yield moyen distribué</span>
+              </div>
+              <div className="div-kpi-card">
+                <span className="div-kpi-label mono">PLUS GROS COUPON</span>
+                <span className="div-kpi-val amber mono">{dividendSummary.topAmount?.amountDH || '--'}</span>
+                <span className="div-kpi-sub">{dividendSummary.topAmount ? `${dividendSummary.topAmount.symbol} — ${dividendSummary.topAmount.name}` : '—'}</span>
+              </div>
+              <div className="div-kpi-card">
+                <span className="div-kpi-label mono">SOCIÉTÉS CLASSÉES</span>
+                <span className="div-kpi-val mono">{dividendSummary.count}</span>
+                <span className="div-kpi-sub">Valeurs à dividende BVC</span>
+              </div>
+            </section>
           )}
 
           {/* Search & Sort Controls */}
@@ -223,11 +265,19 @@ export default function DividendesPage() {
                   <table className="institutional-table div-table">
                     <thead>
                       <tr className="glass-heavy">
-                        <th>Rang</th>
+                        <th className={`th-clickable ${sortBy === 'rank' ? 'active' : ''}`} onClick={() => setSortBy('rank')}>
+                          Rang {sortBy === 'rank' && <span className="th-active-dot">•</span>}
+                        </th>
                         <th>Valeur</th>
-                        <th className="num">Yield (%)</th>
-                        <th className="num">Dividende (DH)</th>
-                        <th className="num">Cours</th>
+                        <th className={`num th-clickable ${sortBy === 'yield' ? 'active' : ''}`} onClick={() => setSortBy('yield')}>
+                          Yield (%) {sortBy === 'yield' && <span className="th-active-dot">•</span>}
+                        </th>
+                        <th className={`num th-clickable ${sortBy === 'amount' ? 'active' : ''}`} onClick={() => setSortBy('amount')}>
+                          Dividende (DH) {sortBy === 'amount' && <span className="th-active-dot">•</span>}
+                        </th>
+                        <th className={`num th-clickable ${sortBy === 'price' ? 'active' : ''}`} onClick={() => setSortBy('price')}>
+                          Cours {sortBy === 'price' && <span className="th-active-dot">•</span>}
+                        </th>
                         <th className="num">Action</th>
                       </tr>
                     </thead>
@@ -461,7 +511,36 @@ export default function DividendesPage() {
           cursor: pointer;
         }
 
+        .div-desktop-kpis { display: none; }
+        @media (min-width: 1024px) {
+          .div-desktop-kpis {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 0.85rem;
+            margin-bottom: 1rem;
+          }
+        }
+        .div-kpi-card {
+          padding: 0.9rem 1.1rem;
+          border-radius: 14px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: rgba(13, 19, 31, 0.72);
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+          min-width: 0;
+        }
+        .div-kpi-label { font-size: 9.5px; font-weight: 800; color: #94a3b8; letter-spacing: 0.08em; }
+        .div-kpi-val { font-size: 1.25rem; font-weight: 900; color: #fff; font-variant-numeric: tabular-nums; }
+        .div-kpi-val.emerald { color: #34d399; }
+        .div-kpi-val.amber { color: #fbbf24; }
+        .div-kpi-sub { font-size: 11px; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
         .div-table th.num, .div-table td.num { text-align: right; }
+        .div-table th.th-clickable { cursor: pointer; transition: color 0.18s ease; }
+        .div-table th.th-clickable:hover { color: #ffffff; }
+        .div-table th.th-clickable.active { color: #34d399; }
+        .th-active-dot { margin-left: 4px; color: #10b981; }
         .div-rank-text { color: #94a3b8; font-weight: 700; }
         .div-rank-text.gold { color: #fbbf24; font-weight: 900; }
         .div-sym-cell { display: flex; align-items: center; gap: 0.75rem; }
