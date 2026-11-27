@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { 
   Search, Loader2, Sparkles, Activity, Zap, ShieldCheck, 
   AlertCircle, X, Globe, RefreshCcw, Landmark, Briefcase, Scale, ArrowRight,
-  TrendingUp, ChevronRight, XCircle, Printer, History, Keyboard
+  TrendingUp, ChevronRight, XCircle, FileDown, History, Keyboard
 } from 'lucide-react';
 import Link from 'next/link';
 import AnalysisReport from '@/components/AnalysisReport';
@@ -13,6 +13,7 @@ import StrategyReport from '@/components/StrategyReport';
 import FundamentalReport from '@/components/FundamentalReport';
 import RegulatoryDisclaimer from '@/components/RegulatoryDisclaimer';
 import { getRecentAiSignals, type TrackedAiSignal } from '@/lib/signal-tracker';
+import { downloadAgentReportPdf } from '@/lib/pdf-export-service';
 import { DashboardProps } from '@/types/dashboard';
 
 const AGENT_CAPABILITIES: Record<'STRATEGY' | 'TECHNICAL' | 'FUNDAMENTAL' | 'SENTIMENT', { title: string; subtitle: string; bullets: string[] }> = {
@@ -47,18 +48,29 @@ export default function DashboardContent(props: DashboardProps) {
 
   const activeMeta = AGENT_CAPABILITIES[activeAgent];
   const [recentSignals, setRecentSignals] = useState<TrackedAiSignal[]>([]);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   useEffect(() => {
     setRecentSignals(getRecentAiSignals());
   }, [analysis]);
 
-
-
+  const handleExportPdf = async () => {
+    if (!analysis || exportingPdf) return;
+    try {
+      setExportingPdf(true);
+      await downloadAgentReportPdf(analysis);
+    } catch (err: any) {
+      console.error('PDF Export Error:', err);
+      setError(err?.message || 'Erreur lors de la génération du fichier PDF.');
+    } finally {
+      setExportingPdf(false);
+    }
+  };
 
   return (
     <div className="dashboard-container">
       {/* AGENT SELECTOR STRIP */}
-      <div className="agent-switcher-strip animate-fade-in" role="tablist" aria-label="Sélectionner l'agent d'analyse IA">
+      <div className="agent-switcher-strip animate-fade-in no-print" role="tablist" aria-label="Sélectionner l'agent d'analyse IA">
         {[
           { id: 'STRATEGY' as const, label: 'Stratégie', icon: Sparkles },
           { id: 'TECHNICAL' as const, label: 'Technique', icon: TrendingUp },
@@ -84,7 +96,7 @@ export default function DashboardContent(props: DashboardProps) {
       </div>
 
       {/* INSTITUTIONAL SEARCH CONSOLE */}
-      <div className="search-console-wrapper animate-fade-in" ref={searchRef}>
+      <div className="search-console-wrapper animate-fade-in no-print" ref={searchRef}>
         <form onSubmit={(e) => handleSearch(e, undefined, false)} className="terminal-search-form glass-heavy">
           <div className="input-terminal-group">
             <Search className="search-symbol" size={18} />
@@ -273,11 +285,12 @@ export default function DashboardContent(props: DashboardProps) {
                 <button
                   type="button"
                   className="toolbar-action-btn glass"
-                  onClick={() => window.print()}
-                  title="Imprimer ou exporter en PDF"
+                  onClick={handleExportPdf}
+                  disabled={exportingPdf}
+                  title="Télécharger le rapport complet en PDF institutionnel"
                 >
-                  <Printer size={13} />
-                  <span className="mono">PDF / IMPRIMER</span>
+                  {exportingPdf ? <Loader2 size={13} className="animate-spin" /> : <FileDown size={13} />}
+                  <span className="mono">{exportingPdf ? 'GÉNÉRATION PDF...' : 'EXPORTER PDF'}</span>
                 </button>
                 <button 
                   type="button"

@@ -122,13 +122,35 @@ export default function AnalysisReport({ analysis }: AnalysisReportProps) {
             <div className="data-point">
               <span className="mono-label" title="Sentiment global extrait des sources textuelles récentes.">INDEX DE SENTIMENT GLOBAL</span>
 
-              <SentimentBadge sentiment={analysis.globalSentiment} />
+              <div className="sentiment-score-wrap">
+                <SentimentBadge sentiment={analysis.globalSentiment} />
+                {typeof analysis.globalScore === 'number' && Number.isFinite(analysis.globalScore) && (
+                  <span className="score-chip mono">
+                    Score : {analysis.globalScore >= 0 ? '+' : ''}{analysis.globalScore.toFixed(2)}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="data-point">
               <span className="mono-label" title="Impact directionnel estimé sur le cours de bourse à court/moyen terme.">VECTEUR D'IMPACT ESTIMÉ</span>
 
               <div className="impact-pill glass">{analysis.probableImpact}</div>
             </div>
+            {(analysis.sentimentMomentum || (analysis.detectedEvents && analysis.detectedEvents.length > 0)) && (
+              <div className="data-point">
+                <span className="mono-label">SIGNAUX D&apos;AMPLIFICATION</span>
+                <div className="sentiment-extra-pills">
+                  {analysis.sentimentMomentum && (
+                    <span className="impact-pill glass mono">
+                      {analysis.sentimentMomentum.direction} ({analysis.sentimentMomentum.variation})
+                    </span>
+                  )}
+                  {analysis.detectedEvents?.map((ev, i) => (
+                    <span key={i} className="event-chip mono">{ev}</span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -154,10 +176,16 @@ export default function AnalysisReport({ analysis }: AnalysisReportProps) {
                       <p className="log-summary">{item.summary}</p>
                    </div>
                    <div className="log-actions">
+                       {item.eventCategory && item.eventCategory !== 'GENERAL' && (
+                         <span className="event-cat-tag mono">{item.eventCategory}</span>
+                       )}
+                       {item.corroboratingSourcesCount && item.corroboratingSourcesCount > 1 && (
+                         <span className="corrob-tag mono">{item.corroboratingSourcesCount} sources</span>
+                       )}
                        <span className={`action-tag mono ${item.sentiment ? String(item.sentiment).toLowerCase() : 'neutre'}`}>
                          {item.sentiment ? String(item.sentiment).replace(/_/g, ' ').charAt(0).toUpperCase() + String(item.sentiment).replace(/_/g, ' ').slice(1).toLowerCase() : 'Neutre'}
                        </span>
-                      <button className="log-toggle">
+                      <button type="button" className="log-toggle no-print" aria-label="Afficher ou masquer l'analyse">
                         {expandedNews === item.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                       </button>
                    </div>
@@ -367,6 +395,41 @@ export default function AnalysisReport({ analysis }: AnalysisReportProps) {
         .analysis-dq-msg { font-size: 0.85rem; color: #cbd5e1; line-height: 1.45; }
         .text-amber { color: #f59e0b; }
         .text-emerald { color: var(--accent-emerald); }
+
+        .sentiment-score-wrap { display: flex; align-items: center; gap: 0.65rem; flex-wrap: wrap; }
+        .score-chip {
+          font-size: 11px;
+          font-weight: 800;
+          color: #e2e8f0;
+          padding: 0.45rem 0.85rem;
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        .sentiment-extra-pills { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+        .event-chip {
+          font-size: 10px;
+          font-weight: 800;
+          color: #bae6fd;
+          padding: 0.45rem 0.85rem;
+          border-radius: 999px;
+          background: rgba(14, 165, 233, 0.1);
+          border: 1px solid rgba(14, 165, 233, 0.25);
+        }
+        .event-cat-tag, .corrob-tag {
+          font-size: 9px;
+          font-weight: 800;
+          padding: 0.3rem 0.6rem;
+          border-radius: 6px;
+          border: 1px solid rgba(14, 165, 233, 0.25);
+          background: rgba(14, 165, 233, 0.08);
+          color: #7dd3fc;
+        }
+        .corrob-tag {
+          border-color: rgba(16, 185, 129, 0.28);
+          background: rgba(16, 185, 129, 0.08);
+          color: #6ee7b7;
+        }
 
         @media (max-width: 768px) {
           .analysis-feed { gap: 1.75rem; padding-bottom: 2rem; }

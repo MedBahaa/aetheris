@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { FileText, ShieldCheck, XCircle, AlertTriangle, Coins, Check, Copy, ChevronDown, ChevronUp, ExternalLink, Info, Shield, BookOpen, Globe, FileCheck } from 'lucide-react';
+import { FileText, ShieldCheck, XCircle, AlertTriangle, Coins, Check, Copy, ChevronDown, ChevronUp, ExternalLink, Info, Shield, BookOpen, Globe, FileCheck, Loader2 } from 'lucide-react';
 import { ShariaResult } from '@/lib/schemas';
+import { ConsolidatedPurificationSummary } from '@/lib/portfolio-service';
+import { downloadShariaCertificatePdf } from '@/lib/pdf-export-service';
 import RegulatoryDisclaimer from '@/components/RegulatoryDisclaimer';
 
 interface ResultDashboardProps {
@@ -23,6 +25,7 @@ interface ResultDashboardProps {
   confidenceScore?: number;
   estimatedCompliance?: boolean;
   isAIEstimated?: boolean;
+  consolidatedPurification?: ConsolidatedPurificationSummary | null;
   onPrefillManual?: () => void;
 }
 
@@ -100,13 +103,35 @@ export default function ResultDashboard({
   confidenceScore,
   estimatedCompliance,
   isAIEstimated,
+  consolidatedPurification,
   onPrefillManual
 }: ResultDashboardProps) {
   const [copied, setCopied] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [methodologyOpen, setMethodologyOpen] = useState(false);
   const [explanationOpen, setExplanationOpen] = useState(false);
 
   if (!result) return null;
+
+  const handleExportPdf = async () => {
+    if (exportingPdf) return;
+    try {
+      setExportingPdf(true);
+      await downloadShariaCertificatePdf(result, {
+        dividendAmount: numericDividend,
+        dividendType,
+        purificationAmount,
+        halalAmount,
+        canCalculate,
+        consolidatedPurification,
+      });
+    } catch (err) {
+      console.error('Sharia PDF Export Error:', err);
+      alert("Impossible de générer l'attestation PDF pour le moment.");
+    } finally {
+      setExportingPdf(false);
+    }
+  };
 
   const isUnverified = dataQuality === 'UNVERIFIED' || isAIEstimated;
   const effectiveCompliant = isManualResult ? result.isCompliant : (result.isCompliant ?? estimatedCompliance ?? null);
@@ -157,9 +182,9 @@ export default function ResultDashboard({
 
       {/* PDF EXPORT BUTTON */}
       <div className="sharia-export-row no-print">
-        <button type="button" onClick={() => window.print()} className="sharia-ghost-btn">
-          <FileText size={14} />
-          <span>EXPORTER ATTESTATION PDF</span>
+        <button type="button" onClick={handleExportPdf} disabled={exportingPdf} className="sharia-ghost-btn">
+          {exportingPdf ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
+          <span>{exportingPdf ? 'GÉNÉRATION PDF...' : 'EXPORTER ATTESTATION PDF'}</span>
         </button>
       </div>
 
@@ -1142,23 +1167,6 @@ export default function ResultDashboard({
           .sharia-haram-alert { flex-direction: column; gap: 0.65rem; }
           .purif-calc-card { padding: 1.1rem; }
           .calc-amount-input { font-size: 16px; }
-        }
-        @media print {
-          body * { visibility: hidden; }
-          .data-terminal, .data-terminal * { visibility: visible; }
-          .data-terminal {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            margin: 0 !important;
-            padding: 20px !important;
-            background: white !important;
-            color: black !important;
-            box-shadow: none !important;
-            border: none !important;
-          }
-          .no-print { display: none !important; }
         }
       `}</style>
     </div>

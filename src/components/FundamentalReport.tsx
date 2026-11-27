@@ -197,17 +197,29 @@ export default function FundamentalReport({ analysis }: FundamentalReportProps) 
           <div className="growth-grid">
             <div className="growth-item">
               <span className="m-label mono-label">CROISSANCE CA</span>
-
-              <div className={`growth-badge ${fundamentals.revenueGrowth?.includes('-') ? 'down' : 'up'}`}>
-                {fundamentals.revenueGrowth || 'N/A'}
-              </div>
+              {(() => {
+                const raw = fundamentals.revenueGrowth;
+                const num = raw && raw !== 'N/A' ? parseFloat(String(raw).replace(',', '.')) : NaN;
+                const cls = !Number.isFinite(num) || num === 0 ? 'neutral' : num < 0 ? 'down' : 'up';
+                return (
+                  <div className={`growth-badge ${cls}`}>
+                    {raw || 'N/A'}
+                  </div>
+                );
+              })()}
             </div>
             <div className="growth-item">
               <span className="m-label mono-label">CROISSANCE RÉSULTAT</span>
-
-              <div className={`growth-badge ${fundamentals.profitGrowth?.includes('-') ? 'down' : 'up'}`}>
-                {fundamentals.profitGrowth || 'N/A'}
-              </div>
+              {(() => {
+                const raw = fundamentals.profitGrowth;
+                const num = raw && raw !== 'N/A' ? parseFloat(String(raw).replace(',', '.')) : NaN;
+                const cls = !Number.isFinite(num) || num === 0 ? 'neutral' : num < 0 ? 'down' : 'up';
+                return (
+                  <div className={`growth-badge ${cls}`}>
+                    {raw || 'N/A'}
+                  </div>
+                );
+              })()}
             </div>
             <div className="growth-item">
               <span className="m-label mono-label">MARGE NETTE</span>
@@ -219,6 +231,72 @@ export default function FundamentalReport({ analysis }: FundamentalReportProps) 
           </div>
         </div>
       </div>
+
+      {(fundamentals.fundamentalQualityScore || fundamentals.sectorBenchmark) && (
+        <div className="fund-extras-grid">
+          {fundamentals.fundamentalQualityScore && (
+            <div className="fund-card glass-heavy">
+              <div className="card-tag">
+                <Shield size={14} className="text-emerald" />
+                <span className="mono-label">SCORE QUALITÉ FONDAMENTALE</span>
+              </div>
+              <div className="quality-score-row">
+                <div className="quality-score-num mono">
+                  {fundamentals.fundamentalQualityScore.score}<span className="quality-denom">/100</span>
+                </div>
+                <span className={`quality-grade-pill grade-${fundamentals.fundamentalQualityScore.grade.toLowerCase()}`}>
+                  GRADE {fundamentals.fundamentalQualityScore.grade}
+                </span>
+              </div>
+              {fundamentals.fundamentalQualityScore.highlights?.length > 0 && (
+                <ul className="quality-highlights">
+                  {fundamentals.fundamentalQualityScore.highlights.map((h, i) => (
+                    <li key={i}>• {h}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {fundamentals.sectorBenchmark && (
+            <div className="fund-card glass-heavy">
+              <div className="card-tag">
+                <BarChart3 size={14} className="text-emerald" />
+                <span className="mono-label">BENCHMARK SECTORIEL BVC ({fundamentals.sectorBenchmark.peerCount} PAIRS)</span>
+              </div>
+              <div className="bench-metrics-grid">
+                <div className="bench-item">
+                  <span className="m-label">PER MÉDIAN SECTEUR</span>
+                  <span className="bench-val mono">
+                    {fundamentals.sectorBenchmark.medianPe !== null ? `${fundamentals.sectorBenchmark.medianPe.toFixed(1)}x` : 'N/A'}
+                  </span>
+                </div>
+                <div className="bench-item">
+                  <span className="m-label">ÉCART VS SECTEUR</span>
+                  <span className="bench-val mono">
+                    {fundamentals.sectorBenchmark.peVsSectorPct !== null
+                      ? `${fundamentals.sectorBenchmark.peVsSectorPct >= 0 ? '+' : ''}${fundamentals.sectorBenchmark.peVsSectorPct.toFixed(1)}%`
+                      : 'N/A'}
+                  </span>
+                </div>
+                <div className="bench-item">
+                  <span className="m-label">VALORISATION</span>
+                  <span className="bench-val mono">{fundamentals.sectorBenchmark.valuationVerdict}</span>
+                </div>
+                <div className="bench-item">
+                  <span className="m-label">DIV. / ROE MÉDIAN</span>
+                  <span className="bench-val mono">
+                    {fundamentals.sectorBenchmark.medianDividendYield !== null
+                      ? `${fundamentals.sectorBenchmark.medianDividendYield.toFixed(2)}%`
+                      : 'N/A'}{' '}
+                    / {fundamentals.sectorBenchmark.medianRoe !== null ? `${fundamentals.sectorBenchmark.medianRoe.toFixed(1)}%` : 'N/A'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="fund-footer glass-heavy">
         <TrendingUp size={16} className="text-emerald" />
@@ -288,6 +366,69 @@ export default function FundamentalReport({ analysis }: FundamentalReportProps) 
         .m-cur { font-size: 10px; color: #334155; margin-left: 0.75rem; vertical-align: middle; }
         .text-emerald { color: var(--accent-emerald); }
         .text-dim { color: #334155 !important; }
+
+        .fund-extras-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          gap: 1.5rem;
+        }
+        .quality-score-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1rem;
+        }
+        .quality-score-num {
+          font-size: 2rem;
+          font-weight: 900;
+          color: #f8fafc;
+        }
+        .quality-denom {
+          font-size: 0.9rem;
+          color: #94a3b8;
+          margin-left: 4px;
+        }
+        .quality-grade-pill {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 11px;
+          font-weight: 800;
+          padding: 4px 10px;
+          border-radius: 999px;
+          border: 1px solid rgba(255, 255, 255, 0.14);
+        }
+        .quality-grade-pill.grade-a { color: #10b981; background: rgba(16, 185, 129, 0.12); border-color: rgba(16, 185, 129, 0.35); }
+        .quality-grade-pill.grade-b { color: #60a5fa; background: rgba(59, 130, 246, 0.12); border-color: rgba(59, 130, 246, 0.35); }
+        .quality-grade-pill.grade-c { color: #f59e0b; background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.35); }
+        .quality-grade-pill.grade-d { color: #f43f5e; background: rgba(244, 63, 94, 0.12); border-color: rgba(244, 63, 94, 0.35); }
+        .quality-highlights {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 0.45rem;
+          font-size: 0.85rem;
+          color: #cbd5e1;
+        }
+        .bench-metrics-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 1rem;
+        }
+        .bench-item {
+          display: flex;
+          flex-direction: column;
+          gap: 0.35rem;
+          padding: 0.85rem 1rem;
+          border-radius: 0.9rem;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .bench-val {
+          font-size: 1rem;
+          font-weight: 800;
+          color: #f8fafc;
+        }
 
         @media (max-width: 768px) {
           .fundamental-root { gap: 1.75rem; padding-bottom: 2rem; }

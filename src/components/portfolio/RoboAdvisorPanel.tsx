@@ -1,19 +1,35 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Sparkles, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Sparkles, ShieldCheck, RefreshCw, FileDown, Loader2 } from 'lucide-react';
 import { PortfolioHolding } from '@/lib/schemas';
+import { downloadRoboAdvisorPdf } from '@/lib/pdf-export-service';
 
 interface RoboAdvisorPanelProps {
   holdings: PortfolioHolding[];
   onOptimize: (options?: { shariaOnly?: boolean }) => Promise<any>;
+  isVirtualMode?: boolean;
 }
 
-export const RoboAdvisorPanel: React.FC<RoboAdvisorPanelProps> = ({ holdings, onOptimize }) => {
+export const RoboAdvisorPanel: React.FC<RoboAdvisorPanelProps> = ({ holdings, onOptimize, isVirtualMode }) => {
   const [loading, setLoading] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [recommendation, setRecommendation] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [shariaOnly, setShariaOnly] = useState(false);
+
+  const handleExportPdf = async () => {
+    if (!recommendation || exportingPdf) return;
+    try {
+      setExportingPdf(true);
+      await downloadRoboAdvisorPdf(recommendation, { holdings, isVirtualMode });
+    } catch (err: any) {
+      console.error('RoboAdvisor PDF Export Error:', err);
+      setError(err?.message || "Impossible de générer le rapport PDF du Robo-Advisor.");
+    } finally {
+      setExportingPdf(false);
+    }
+  };
 
   const triggerOptimization = async () => {
     try {
@@ -44,6 +60,23 @@ export const RoboAdvisorPanel: React.FC<RoboAdvisorPanelProps> = ({ holdings, on
             <span className="sharia-tag-mini mono-tiny">
               <ShieldCheck size={11} /> MODE SHARIA AAOIFI
             </span>
+          )}
+          {recommendation?.shariaMode && Number(recommendation?.blockedHaramOrdersCount || 0) > 0 && (
+            <span className="haram-blocked-mini mono-tiny">
+              {recommendation.blockedHaramOrdersCount} HARAM BLOQUÉ(S)
+            </span>
+          )}
+          {recommendation && (
+            <button
+              type="button"
+              onClick={handleExportPdf}
+              disabled={exportingPdf}
+              className="robo-pdf-btn mono-tiny no-print"
+              title="Exporter le plan de rééquilibrage en PDF"
+            >
+              {exportingPdf ? <Loader2 size={12} className="animate-spin" /> : <FileDown size={12} />}
+              <span>{exportingPdf ? 'PDF...' : 'EXPORTER PDF'}</span>
+            </button>
           )}
           <span className="premium-tag-mini mono-tiny">PREMIUM ACTIF</span>
         </div>
@@ -124,6 +157,14 @@ export const RoboAdvisorPanel: React.FC<RoboAdvisorPanelProps> = ({ holdings, on
                     <div className="order-details">
                       <span className="order-asset mono">{order.symbol}</span>
                       <span className="order-desc">{order.reason}</span>
+                      {order.estimatedAmountMAD !== undefined && (
+                        <span className="order-costs mono-tiny">
+                          Montant : {Number(order.estimatedAmountMAD).toLocaleString('fr-FR')} MAD
+                          {order.estimatedFeeMAD !== undefined
+                            ? ` · Frais : ${Number(order.estimatedFeeMAD).toLocaleString('fr-FR')} MAD`
+                            : ''}
+                        </span>
+                      )}
                     </div>
                     <div className="order-qty mono">{order.quantity} titres</div>
                   </div>
@@ -214,6 +255,41 @@ export const RoboAdvisorPanel: React.FC<RoboAdvisorPanelProps> = ({ holdings, on
           padding: 3px 8px;
           border-radius: 4px;
           font-weight: 800;
+        }
+        .haram-blocked-mini {
+          display: inline-flex;
+          align-items: center;
+          background: rgba(244, 63, 94, 0.14);
+          color: #fda4af;
+          border: 1px solid rgba(244, 63, 94, 0.35);
+          padding: 3px 8px;
+          border-radius: 4px;
+          font-weight: 800;
+        }
+        .robo-pdf-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+          padding: 4px 10px;
+          border-radius: 6px;
+          background: rgba(168, 85, 247, 0.16);
+          border: 1px solid rgba(168, 85, 247, 0.35);
+          color: #e9d5ff;
+          font-weight: 800;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .robo-pdf-btn:hover:not(:disabled) {
+          background: rgba(168, 85, 247, 0.28);
+          color: #ffffff;
+        }
+        .robo-pdf-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+        .order-costs {
+          font-size: 9.5px;
+          color: #94a3b8;
         }
         .sharia-toggle-label {
           display: inline-flex;

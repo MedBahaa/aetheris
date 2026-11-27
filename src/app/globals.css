@@ -2953,13 +2953,35 @@ table {
     margin: 14mm;
   }
 
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
   html,
   body {
     background: #ffffff !important;
     background-image: none !important;
     color: #0f172a !important;
     width: auto !important;
+    height: auto !important;
     overflow: visible !important;
+  }
+
+  .app-container,
+  .main-content,
+  .max-container,
+  .display-area {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
 
   .fixed-header,
@@ -2974,18 +2996,37 @@ table {
     display: none !important;
   }
 
-  .main-content {
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-    margin: 0 !important;
+  .glass,
+  .glass-heavy,
+  .sharia-upgrade-card,
+  .consolidated-purif-card,
+  .robo-advisor-container,
+  .synthesis-card,
+  .tech-card,
+  .fund-card,
+  .recommendation-card,
+  .gauges-card,
+  .tactical-board-new,
+  .keys-card,
+  .fund-footer,
+  .market-context-card,
+  .purif-calc-card,
+  .sources-card,
+  .reg-disclaimer {
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
-  * {
-    box-shadow: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    color: #0f172a !important;
+  h1, h2, h3, h4, h5, p, span, td, th, li, strong {
+    color: #0f172a;
+  }
+
+  table, tr, td, th {
     border-color: #cbd5e1 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .print-header-only {

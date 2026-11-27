@@ -74,7 +74,7 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
     <>
       {/* SÉLECTEUR D'HORIZON — Masqué si horizons absent */}
       {horizons && (
-        <div className="horizon-switcher glass-heavy">
+        <div className="horizon-switcher glass-heavy no-print">
           {(['shortTerm', 'mediumTerm', 'longTerm'] as const).map((h) => (
             <button 
               key={h}
@@ -86,6 +86,21 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
               <span className="h-sub">{horizonLabel[h].split(' ')[1]}</span>
             </button>
           ))}
+        </div>
+      )}
+
+      {(analysis.marketRegime || analysis.strategyBacktest) && (
+        <div className="quant-context-strip mono">
+          {analysis.marketRegime && (
+            <span className="quant-context-pill">RÉGIME : <strong>{analysis.marketRegime}</strong></span>
+          )}
+          {analysis.strategyBacktest && (
+            <span className="quant-context-pill">
+              BACKTEST ({analysis.strategyBacktest.sampleSize} signaux · {analysis.strategyBacktest.horizonSessions}j) :{' '}
+              <strong>Win Rate {analysis.strategyBacktest.winRatePct.toFixed(1)}%</strong> · Moy{' '}
+              {analysis.strategyBacktest.avgReturnPct >= 0 ? '+' : ''}{analysis.strategyBacktest.avgReturnPct.toFixed(2)}%
+            </span>
+          )}
         </div>
       )}
 
@@ -104,7 +119,7 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
             
             <div className="badge-row">
               <div className="action-badge-new">
-                <span className="badge-bg-text">{typeof data.finalAction === 'object' ? JSON.stringify(data.finalAction) : data.finalAction}</span>
+                <span className="badge-bg-text no-print">{typeof data.finalAction === 'object' ? JSON.stringify(data.finalAction) : data.finalAction}</span>
                 <span className="badge-main-text">{typeof data.finalAction === 'object' ? JSON.stringify(data.finalAction) : data.finalAction}</span>
               </div>
               
@@ -288,7 +303,7 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
 
       {/* BLOC 3 — Exploration */}
       <div className="exploration-area">
-        <button onClick={() => setShowDetails(!showDetails)} className="expert-toggle-btn glass-heavy">
+        <button onClick={() => setShowDetails(!showDetails)} className="expert-toggle-btn glass-heavy no-print">
           <span>{showDetails ? 'MASQUER DÉTAILS AVANCÉS' : 'EXPLORER LES DÉTAILS COMPLETS'}</span>
           {showDetails ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
         </button>
@@ -307,22 +322,25 @@ export default function OrchestratorReport({ analysis }: OrchestratorReportProps
         )}
       </div>
 
-      {/* AUDIT FIX: Disclaimer réglementaire AMMC */}
-      <div style={{
-        marginTop: '24px',
-        padding: '16px 20px',
-        background: 'rgba(245, 158, 11, 0.06)',
-        border: '1px solid rgba(245, 158, 11, 0.15)',
-        borderRadius: '8px',
-        fontSize: '11px',
-        lineHeight: '1.6',
-        color: 'rgba(255,255,255,0.5)',
-        letterSpacing: '0.02em'
-      }}>
-        <span style={{ color: 'rgba(245, 158, 11, 0.8)', fontWeight: 600 }}>⚠️ AVERTISSEMENT :</span> Les analyses et recommandations générées par les agents Aetheris sont fournies à titre purement informatif et ne constituent en aucun cas un conseil en investissement au sens de la réglementation de l’Autorité Marocaine du Marché des Capitaux (AMMC). Les investissements sur le MASI comportent un risque de perte en capital. Les performances passées ne préjugent pas des performances futures.
-      </div>
-
       <style jsx>{`
+        .quant-context-strip {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.65rem;
+          margin-bottom: 1rem;
+        }
+        .quant-context-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+          padding: 0.4rem 0.85rem;
+          border-radius: 999px;
+          background: rgba(14, 165, 233, 0.08);
+          border: 1px solid rgba(14, 165, 233, 0.25);
+          color: #bae6fd;
+          font-size: 10.5px;
+        }
+        .quant-context-pill strong { color: #f8fafc; }
         .report-container { display: flex; flex-direction: column; gap: 1.5rem; padding-bottom: 4rem; }
         
         .horizon-switcher { 

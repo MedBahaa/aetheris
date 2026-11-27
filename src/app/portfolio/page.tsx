@@ -676,7 +676,8 @@ export default function PortfolioPage() {
           {showRoboPanel && subscriptionTier === 'premium' && (
             <RoboAdvisorPanel 
               holdings={holdings} 
-              onOptimize={handleOptimizePortfolio} 
+              onOptimize={handleOptimizePortfolio}
+              isVirtualMode={isVirtualMode}
             />
           )}
 

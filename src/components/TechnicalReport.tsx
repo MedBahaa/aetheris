@@ -256,16 +256,82 @@ export default function TechnicalReport({ analysis }: TechnicalReportProps) {
                  <div className="macd-values">
                     <div className="mv-item">
                        <span className="mv-label mono-label">HIST</span>
-                       <span className={`mv-val mono ${analysis.macd && analysis.macd.histogram > 0 ? 'text-emerald' : 'text-rose'}`}>
-                          {analysis.macd?.histogram || '0.00'}
-                       </span>
+                       {(() => {
+                         const histNum = Number(analysis.macd?.histogram);
+                         const histClass = Number.isFinite(histNum)
+                           ? histNum > 0
+                             ? 'text-emerald'
+                             : histNum < 0
+                               ? 'text-rose'
+                               : ''
+                           : '';
+                         return (
+                           <span className={`mv-val mono ${histClass}`}>
+                             {analysis.macd?.histogram !== undefined && analysis.macd?.histogram !== null
+                               ? String(analysis.macd.histogram)
+                               : 'N/A'}
+                           </span>
+                         );
+                       })()}
                     </div>
                     <div className="mv-item">
                        <span className="mv-label mono-label">MACD</span>
-                       <span className="mv-val mono">{analysis.macd?.macd || '0.00'}</span>
+                       <span className="mv-val mono">
+                         {analysis.macd?.macd !== undefined && analysis.macd?.macd !== null
+                           ? String(analysis.macd.macd)
+                           : 'N/A'}
+                       </span>
                     </div>
                  </div>
               </div>
+
+              {(analysis.atr || analysis.volumeBreakout || analysis.relativeStrengthMasi) && (
+                <div className="quant-extras-panel">
+                  {analysis.atr && (
+                    <div className="quant-extra-card">
+                      <span className="mono-label quant-extra-title">VOLATILITÉ ATR (14)</span>
+                      <div className="quant-extra-val mono">
+                        {analysis.atr.atr14.toFixed(2)} MAD <span className="quant-sub">({analysis.atr.atrPercent.toFixed(2)}%)</span>
+                      </div>
+                      <div className="quant-extra-meta mono">
+                        SL Achat {analysis.atr.dynamicStopBuy.toFixed(2)} · TP Achat {analysis.atr.dynamicTargetBuy.toFixed(2)} MAD
+                      </div>
+                    </div>
+                  )}
+                  {analysis.volumeBreakout && (
+                    <div className="quant-extra-card">
+                      <span className="mono-label quant-extra-title">VOLUME BREAKOUT &amp; BOLLINGER</span>
+                      <div className="quant-extra-val mono">
+                        {analysis.volumeBreakout.ratio.toFixed(2)}x MM20{' '}
+                        <span className={analysis.volumeBreakout.isBreakout ? 'text-emerald' : 'quant-sub'}>
+                          {analysis.volumeBreakout.isBreakout
+                            ? '(CASSURE)'
+                            : analysis.volumeBreakout.isBollingerSqueeze
+                              ? '(SQUEEZE)'
+                              : '(NORMAL)'}
+                        </span>
+                      </div>
+                      {analysis.volumeBreakout.bollingerBandwidth !== undefined && (
+                        <div className="quant-extra-meta mono">
+                          Largeur Bandes Bollinger : {analysis.volumeBreakout.bollingerBandwidth.toFixed(2)}%
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {analysis.relativeStrengthMasi && (
+                    <div className="quant-extra-card">
+                      <span className="mono-label quant-extra-title">ALPHA VS INDICE MASI</span>
+                      <div className={`quant-extra-val mono ${analysis.relativeStrengthMasi.alphaPct >= 0 ? 'text-emerald' : 'text-rose'}`}>
+                        {analysis.relativeStrengthMasi.alphaPct >= 0 ? '+' : ''}
+                        {analysis.relativeStrengthMasi.alphaPct.toFixed(2)}%
+                      </div>
+                      <div className="quant-extra-meta mono">
+                        {analysis.relativeStrengthMasi.label}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
            </div>
         </div>
 
@@ -499,6 +565,26 @@ export default function TechnicalReport({ analysis }: TechnicalReportProps) {
         .fib-item-label { font-size: 10px; color: rgba(255,255,255,0.45); margin-bottom: 4px; }
         .fib-item-val { font-size: 13px; color: rgba(255,255,255,0.9); font-weight: 700; }
         .fib-cur { font-size: 9px; color: rgba(255,255,255,0.35); }
+
+        .quant-extras-panel {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+          gap: 0.85rem;
+          margin-top: 1.25rem;
+        }
+        .quant-extra-card {
+          display: flex;
+          flex-direction: column;
+          gap: 0.35rem;
+          padding: 0.9rem 1rem;
+          border-radius: 0.9rem;
+          background: rgba(255, 255, 255, 0.025);
+          border: 1px solid rgba(255, 255, 255, 0.07);
+        }
+        .quant-extra-title { font-size: 9px; letter-spacing: 0.08rem; }
+        .quant-extra-val { font-size: 1rem; font-weight: 800; color: #f8fafc; }
+        .quant-sub { font-size: 0.78rem; color: #94a3b8; font-weight: 600; }
+        .quant-extra-meta { font-size: 10px; color: #94a3b8; line-height: 1.35; }
 
         @media (max-width: 768px) {
           .tech-analysis-root { gap: 1.75rem; padding-bottom: 2rem; }

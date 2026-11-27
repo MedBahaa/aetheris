@@ -318,6 +318,7 @@ export default function PurificationPage() {
             confidenceScore={result?.confidenceScore}
             estimatedCompliance={result?.estimatedCompliance}
             isAIEstimated={result?.isAIEstimated}
+            consolidatedPurification={consolidatedPurification}
             onPrefillManual={handlePrefillManual}
           />
 
