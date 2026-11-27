@@ -15,6 +15,7 @@ export const MAX_RATE_LIMIT_MEMORY_ENTRIES = 10_000;
 
 const rateLimitMap = new Map<string, RateLimitEntry>();
 const VALID_IP_REGEX = /^[0-9a-fA-F.:]+$/;
+let hasWarnedMissingRedis = false;
 
 interface HeaderGetter {
   get(name: string): string | null;
@@ -125,8 +126,8 @@ export async function checkRateLimitAsync(
   maxRequests: number = 30,
   windowMs: number = 60000
 ): Promise<{ allowed: boolean; remaining: number; retryAfterMs: number }> {
-  const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
-  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const redisUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
   const safeId = identifier.substring(0, 160);
 
   if (redisUrl && redisToken) {
@@ -163,6 +164,11 @@ export async function checkRateLimitAsync(
     } catch {
       // Fallback transparent sur la Map en mémoire en cas d'erreur réseau Redis
     }
+  } else if (process.env.VERCEL === '1' && process.env.NODE_ENV === 'production' && !hasWarnedMissingRedis) {
+    hasWarnedMissingRedis = true;
+    console.warn(
+      '[RateLimiter] Variables Redis (UPSTASH_REDIS_REST_URL / KV_REST_API_URL) manquantes en production Vercel — fallback mémoire locale actif.'
+    );
   }
 
   return checkRateLimit(safeId, maxRequests, windowMs);

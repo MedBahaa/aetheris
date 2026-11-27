@@ -3,12 +3,16 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
-import { Activity, RefreshCw, Clock, Search, Zap, ChevronUp, ChevronDown, AlertCircle, Sparkles, BarChart3, Building2, Newspaper, CheckCircle2, X } from 'lucide-react';
+import { Activity, RefreshCw, Clock, Search, Zap, ChevronUp, ChevronDown, AlertCircle, Sparkles, BarChart3, Building2, Newspaper, CheckCircle2, X, Star } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
+import RegulatoryDisclaimer from '@/components/RegulatoryDisclaimer';
+import { useToast } from '@/components/ToastProvider';
 import { LiveStockData } from '@/lib/scrapers/market-list-scraper';
 import { SymbolMapper } from '@/lib/symbol-mapper';
+import { getBvcMarketStatus, type BvcMarketStatusInfo } from '@/lib/bvc-market-hours';
 import { useDebounce } from '@/hooks/useDebounce';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import './marche-live.css';
 
 const TickerTape = ({ stocks }: { stocks: LiveStockData[] }) => {
@@ -43,17 +47,57 @@ const ANALYSIS_OPTIONS = [
 
 export default function MarcheLive() {
   const router = useRouter();
+  const toast = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [nextRefresh, setNextRefresh] = useState(60);
   const [lastUpdate, setLastUpdate] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>({ key: 'variationValue', direction: 'desc' });
-  const [trendFilter, setTrendFilter] = useState<'ALL' | 'UP' | 'DOWN'>('ALL');
+  const [trendFilter, setTrendFilter] = useState<'ALL' | 'UP' | 'DOWN' | 'FAV'>('ALL');
+  const [watchlist, setWatchlist] = useState<string[]>([]);
+  const [bvcSession, setBvcSession] = useState<BvcMarketStatusInfo | null>(null);
   const [openMenuSymbol, setOpenMenuSymbol] = useState<string | null>(null);
   const [isCheckingIpo, setIsCheckingIpo] = useState(false);
   const [ipoCheckStatus, setIpoCheckStatus] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('aetheris_watchlist');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setWatchlist(parsed.map((s) => String(s).toUpperCase()));
+        }
+      }
+    } catch {
+      // Ignorer
+    }
+    setBvcSession(getBvcMarketStatus());
+    const id = setInterval(() => setBvcSession(getBvcMarketStatus()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const toggleWatchlist = useCallback(
+    (rawSymbol: string, e?: React.MouseEvent) => {
+      if (e) e.stopPropagation();
+      const key = String(rawSymbol || '').toUpperCase().trim();
+      if (!key) return;
+      setWatchlist((prev) => {
+        const exists = prev.includes(key);
+        const next = exists ? prev.filter((s) => s !== key) : [...prev, key];
+        try {
+          window.localStorage.setItem('aetheris_watchlist', JSON.stringify(next));
+        } catch {
+          // Ignorer
+        }
+        toast.info(exists ? `${key} retiré des favoris` : `${key} ajouté à votre watchlist ★`, 2500);
+        return next;
+      });
+    },
+    [toast]
+  );
 
   // Fermer le menu contextuel si on clique en dehors
   useEffect(() => {
@@ -129,6 +173,9 @@ export default function MarcheLive() {
   const stocks = stocksData || [];
   const loading = !stocksData && !error;
   const isRefreshing = (isValidating && !!stocksData) || isCheckingIpo;
+  const { pullDistance, refreshing: pullRefreshing } = usePullToRefresh({
+    onRefresh: () => mutate(),
+  });
 
   useEffect(() => {
     if (stocksData) {
@@ -187,12 +234,15 @@ export default function MarcheLive() {
   const marketCounts = useMemo(() => {
     let up = 0;
     let down = 0;
+    let fav = 0;
     for (const s of stocks) {
       if (s.variationValue >= 0) up++;
       else down++;
+      const favKey = String(s.ticker || s.symbol).toUpperCase();
+      if (watchlist.includes(favKey) || watchlist.includes(String(s.symbol).toUpperCase())) fav++;
     }
-    return { all: stocks.length, up, down };
-  }, [stocks]);
+    return { all: stocks.length, up, down, fav };
+  }, [stocks, watchlist]);
 
   const marketBreadth = useMemo(() => {
     if (stocks.length === 0) {
@@ -210,11 +260,17 @@ export default function MarcheLive() {
     };
   }, [stocks, marketCounts]);
 
-  // Amélioration 2 : Mémoïsation du filtrage (supporte Nom, Ticker officiel, Alias, Secteur et Tendance)
+  // Amélioration 2 : Mémoïsation du filtrage (supporte Nom, Ticker officiel, Alias, Secteur, Watchlist et Tendance)
   const filteredStocks = useMemo(() => {
-    const baseList = trendFilter === 'ALL'
-      ? sortedStocks
-      : sortedStocks.filter(s => trendFilter === 'UP' ? s.variationValue >= 0 : s.variationValue < 0);
+    const baseList =
+      trendFilter === 'ALL'
+        ? sortedStocks
+        : trendFilter === 'FAV'
+          ? sortedStocks.filter((s) => {
+              const tKey = String(s.ticker || s.symbol).toUpperCase();
+              return watchlist.includes(tKey) || watchlist.includes(String(s.symbol).toUpperCase());
+            })
+          : sortedStocks.filter((s) => (trendFilter === 'UP' ? s.variationValue >= 0 : s.variationValue < 0));
 
     if (!debouncedSearchTerm) return baseList;
     const lowerSearch = debouncedSearchTerm.toLowerCase().trim();
@@ -233,7 +289,7 @@ export default function MarcheLive() {
         (resolvedSearch.length > 0 && tickerLower === resolvedSearch)
       );
     });
-  }, [sortedStocks, debouncedSearchTerm, trendFilter]);
+  }, [sortedStocks, debouncedSearchTerm, trendFilter, watchlist]);
 
   return (
     <div className="app-container">
@@ -253,6 +309,13 @@ export default function MarcheLive() {
 
 
         <div className="max-container">
+          {(pullDistance > 18 || pullRefreshing) && (
+            <div className="pull-refresh-pill mono">
+              <RefreshCw size={12} className={pullRefreshing ? 'animate-spin' : ''} />
+              <span>{pullRefreshing ? 'SYNCHRONISATION EN COURS...' : 'RELÂCHER POUR ACTUALISER'}</span>
+            </div>
+          )}
+
           <header className="terminal-header animate-fade-in">
             <div className="header-identity">
               <div className="identity-block">
@@ -264,6 +327,14 @@ export default function MarcheLive() {
                 <div className="market-badge opacity-70">
                   BOURSE DE CASABLANCA ({stocks.length > 0 ? `${stocks.length} VALEURS` : 'LIVE'})
                 </div>
+                {bvcSession && (
+                  <span
+                    className={`bvc-inline-pill mono ${bvcSession.status === 'OPEN' ? 'open' : bvcSession.status === 'PRE_OPEN' ? 'pre' : 'closed'}`}
+                    title={`${bvcSession.hoursLabel} · ${bvcSession.casablancaTime}`}
+                  >
+                    {bvcSession.label}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -376,6 +447,13 @@ export default function MarcheLive() {
               </button>
               <button
                 type="button"
+                className={`filter-pill fav ${trendFilter === 'FAV' ? 'active' : ''}`}
+                onClick={() => setTrendFilter('FAV')}
+              >
+                ★ Favoris <span className="pill-count">{marketCounts.fav}</span>
+              </button>
+              <button
+                type="button"
                 className={`filter-pill up ${trendFilter === 'UP' ? 'active' : ''}`}
                 onClick={() => setTrendFilter('UP')}
               >
@@ -450,6 +528,8 @@ export default function MarcheLive() {
                     </div>
                   ) : filteredStocks.map((stock) => {
                     const isPositive = stock.variationValue >= 0;
+                    const favKey = String(stock.ticker || stock.symbol).toUpperCase();
+                    const isFav = watchlist.includes(favKey) || watchlist.includes(String(stock.symbol).toUpperCase());
                     const displayTicker = stock.ticker && stock.ticker !== stock.symbol.toUpperCase() ? stock.ticker : null;
                     const parseVal = (v: unknown) => parseFloat(String(v ?? '').replace(',', '.').replace(/[^\d.-]/g, ''));
                     const lowNum = parseVal(stock.low);
@@ -463,6 +543,14 @@ export default function MarcheLive() {
                         {/* TOP ROW: Avatar Badge + Symbol + Price & Variation Hero Pill */}
                         <div className="card-top-row">
                           <div className="card-identity" onClick={() => handleAnalyze(stock.symbol, 'STRATEGY')} role="button" tabIndex={0}>
+                            <button
+                              type="button"
+                              onClick={(e) => toggleWatchlist(favKey, e)}
+                              className={`fav-star-btn ${isFav ? 'is-fav' : ''}`}
+                              aria-label={isFav ? `Retirer ${stock.symbol} des favoris` : `Ajouter ${stock.symbol} aux favoris`}
+                            >
+                              <Star size={14} fill={isFav ? 'currentColor' : 'none'} />
+                            </button>
                             <div className="stock-avatar-badge">
                               {(stock.ticker || stock.symbol).substring(0, 3)}
                             </div>
@@ -582,6 +670,8 @@ export default function MarcheLive() {
                     <tbody>
                       {filteredStocks.map((stock, i) => {
                         const displayTicker = stock.ticker && stock.ticker !== stock.symbol.toUpperCase() ? stock.ticker : null;
+                        const favKey = String(stock.ticker || stock.symbol).toUpperCase();
+                        const isFav = watchlist.includes(favKey) || watchlist.includes(String(stock.symbol).toUpperCase());
                         const parseNum = (v: unknown) => parseFloat(String(v ?? '').replace(',', '.').replace(/[^\d.-]/g, ''));
                         const lowNum = parseNum(stock.low);
                         const highNum = parseNum(stock.high);
@@ -600,7 +690,15 @@ export default function MarcheLive() {
                               title="Ouvrir l'analyse Stratégie IA"
                             >
                               <div className="symbol-cell">
-                                <div className="s-status"></div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => toggleWatchlist(favKey, e)}
+                                  className={`fav-star-btn ${isFav ? 'is-fav' : ''}`}
+                                  aria-label={isFav ? `Retirer ${stock.symbol} des favoris` : `Ajouter ${stock.symbol} aux favoris`}
+                                  title="Ajouter / retirer de votre watchlist"
+                                >
+                                  <Star size={13} fill={isFav ? 'currentColor' : 'none'} />
+                                </button>
                                 <div className="symbol-cell-info">
                                   <div className="symbol-title-line">
                                     <span className="s-name">{stock.symbol}</span>
@@ -711,6 +809,11 @@ export default function MarcheLive() {
               </>
             )}
           </div>
+
+          <RegulatoryDisclaimer
+            compact
+            sources={['BMCE Capital Bourse', 'TradingView CSEMA']}
+          />
         </div>
       </main>
     </div>

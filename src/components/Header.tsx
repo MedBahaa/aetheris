@@ -4,7 +4,8 @@ import { Menu, Zap, LogIn, UserPlus, User, Search, ChevronRight } from 'lucide-r
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useUserSession } from '@/hooks/useUserSession';
+import { getBvcMarketStatus, type BvcMarketStatusInfo } from '@/lib/bvc-market-hours';
 import MacroWidget from './MacroWidget';
 import CommandPalette from './CommandPalette';
 
@@ -24,10 +25,20 @@ const ROUTE_LABELS: Record<string, string> = {
 
 export default function Header({ onOpenSidebar }: HeaderProps) {
   const pathname = usePathname();
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const { isAuthenticated: sessionAuth, authResolved } = useUserSession();
+  const isAuthenticated = authResolved ? sessionAuth : null;
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  const [bvcSession, setBvcSession] = useState<BvcMarketStatusInfo | null>(null);
 
   const routeLabel = ROUTE_LABELS[pathname || ''] || 'TERMINAL';
+
+  useEffect(() => {
+    setBvcSession(getBvcMarketStatus());
+    const id = setInterval(() => {
+      setBvcSession(getBvcMarketStatus());
+    }, 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     const onGlobalKey = (e: KeyboardEvent) => {
@@ -37,43 +48,13 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
       }
     };
     window.addEventListener('keydown', onGlobalKey);
-    return () => window.removeEventListener('keydown', onGlobalKey);
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-
-    const checkUser = async () => {
-      try {
-        // 1. Lecture instantanée de la session locale pour éviter le clignotement d'UI
-        const { data: { session } } = await supabase.auth.getSession();
-        if (active && session?.user) {
-          setIsAuthenticated(true);
-        }
-
-        // 2. Validation serveur en arrière-plan
-        const { data: { user } } = await supabase.auth.getUser();
-        if (active) {
-          setIsAuthenticated(!!user);
-        }
-      } catch {
-        if (active) setIsAuthenticated(false);
-      }
-    };
-
-    checkUser();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (active) {
-        setIsAuthenticated(!!session?.user);
-      }
-    });
-
+    const onSwipeOpen = () => onOpenSidebar();
+    window.addEventListener('aetheris-open-sidebar', onSwipeOpen);
     return () => {
-      active = false;
-      subscription.unsubscribe();
+      window.removeEventListener('keydown', onGlobalKey);
+      window.removeEventListener('aetheris-open-sidebar', onSwipeOpen);
     };
-  }, []);
+  }, [onOpenSidebar]);
 
   return (
     <>
@@ -93,6 +74,15 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
           <div className="header-breadcrumb mono">
             <ChevronRight size={12} className="bc-sep" />
             <span className="bc-current">{routeLabel}</span>
+            {bvcSession && (
+              <span
+                className={`bvc-session-pill ${bvcSession.status === 'OPEN' ? 'open' : bvcSession.status === 'PRE_OPEN' ? 'pre' : 'closed'}`}
+                title={`${bvcSession.label} · Séance ${bvcSession.hoursLabel} · Heure locale ${bvcSession.casablancaTime}`}
+              >
+                <span className="bvc-dot" />
+                <span>{bvcSession.shortLabel}</span>
+              </span>
+            )}
           </div>
         </div>
 
@@ -383,6 +373,38 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
           border: 1px solid rgba(16, 185, 129, 0.25);
           padding: 0.22rem 0.6rem;
           border-radius: 7px;
+        }
+        .bvc-session-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.38rem;
+          padding: 0.22rem 0.55rem;
+          border-radius: 999px;
+          font-size: 9.5px;
+          font-weight: 800;
+          letter-spacing: 0.05em;
+          border: 1px solid;
+        }
+        .bvc-session-pill.open {
+          background: rgba(16, 185, 129, 0.12);
+          border-color: rgba(16, 185, 129, 0.32);
+          color: #34d399;
+        }
+        .bvc-session-pill.pre {
+          background: rgba(245, 158, 11, 0.12);
+          border-color: rgba(245, 158, 11, 0.32);
+          color: #fbbf24;
+        }
+        .bvc-session-pill.closed {
+          background: rgba(148, 163, 184, 0.08);
+          border-color: rgba(148, 163, 184, 0.2);
+          color: #94a3b8;
+        }
+        .bvc-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: currentColor;
         }
 
         .cmd-trigger-btn {

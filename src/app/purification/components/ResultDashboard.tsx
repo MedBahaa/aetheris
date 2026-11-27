@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { FileText, ShieldCheck, XCircle, AlertTriangle, Coins, Check, Copy, ChevronDown, ChevronUp, ExternalLink, Info, Shield, BookOpen, Globe, FileCheck } from 'lucide-react';
 import { ShariaResult } from '@/lib/schemas';
+import RegulatoryDisclaimer from '@/components/RegulatoryDisclaimer';
 
 interface ResultDashboardProps {
   result: ShariaResult | null;
@@ -141,11 +142,24 @@ export default function ResultDashboard({
 
   return (
     <div className={`data-terminal glass-heavy animate-fade-in sharia-result-root accent-${isManualResult ? 'emerald' : isUnverified ? 'amber' : 'emerald'}`}>
+      {/* PRINT-ONLY CERTIFICATE HEADER */}
+      <div className="print-header-only">
+        <div>
+          <strong style={{ fontSize: '15px', letterSpacing: '0.04em' }}>AETHERIS AI — ATTESTATION SHARIA &amp; PURIFICATION AAOIFI</strong>
+          <div style={{ fontSize: '11px', marginTop: '2px' }}>
+            Émetteur : {result.companyName} ({result.ticker}) · Exercice : {result.fiscalYear}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right', fontSize: '11px' }}>
+          Généré le {new Date().toLocaleDateString('fr-FR')}
+        </div>
+      </div>
+
       {/* PDF EXPORT BUTTON */}
       <div className="sharia-export-row no-print">
         <button type="button" onClick={() => window.print()} className="sharia-ghost-btn">
           <FileText size={14} />
-          <span>EXPORTER REÇU (PDF)</span>
+          <span>EXPORTER ATTESTATION PDF</span>
         </button>
       </div>
 
@@ -558,7 +572,24 @@ export default function ResultDashboard({
         </div>
       )}
 
+      <RegulatoryDisclaimer
+        compact
+        sources={
+          isManualResult
+            ? ['Saisie Utilisateur Certifiée', 'Normes AAOIFI']
+            : [...(sources && sources.length > 0 ? sources : ['TradingView CSEMA', 'Gemini Search']), 'Normes AAOIFI']
+        }
+      />
+
       <style jsx>{`
+        .print-header-only {
+          display: none;
+          justify-content: space-between;
+          align-items: center;
+          padding-bottom: 12px;
+          border-bottom: 2px solid #cbd5e1;
+          margin-bottom: 12px;
+        }
         .sharia-result-root {
           margin-top: 1.5rem;
           padding: 2rem;

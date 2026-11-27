@@ -10,8 +10,8 @@ import type { CompanyAnalysis, AgentType } from '@/lib/schemas';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
-import { getUserProfileAction } from '@/lib/portfolio-actions';
-import { supabase, performCleanLogout } from '@/lib/supabase';
+import { useUserSession } from '@/hooks/useUserSession';
+import { performCleanLogout } from '@/lib/supabase';
 
 interface SidebarProps {
   history: CompanyAnalysis[];
@@ -34,10 +34,9 @@ export default function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { profile, isAuthenticated } = useUserSession();
   const [isIntelligenceOpen, setIsIntelligenceOpen] = useState(true);
   const [sidebarSearch, setSidebarSearch] = useState('');
-  const [profile, setProfile] = useState<any>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [loggingOut, setLoggingOut] = useState<boolean>(false);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -57,50 +56,45 @@ export default function Sidebar({
     };
   }, [isOpen, onClose]);
 
+  // Ouverture tactile par glissement depuis le bord gauche de l'écran mobile
+  useEffect(() => {
+    if (isOpen || typeof window === 'undefined') return;
+    let edgeStart: { x: number; y: number } | null = null;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      if (t.clientX <= 24) {
+        edgeStart = { x: t.clientX, y: t.clientY };
+      } else {
+        edgeStart = null;
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (!edgeStart) return;
+      const t = e.changedTouches[0];
+      const deltaX = t.clientX - edgeStart.x;
+      const deltaY = Math.abs(t.clientY - edgeStart.y);
+      edgeStart = null;
+      if (deltaX > 65 && deltaY < 55) {
+        window.dispatchEvent(new CustomEvent('aetheris-open-sidebar'));
+      }
+    };
+
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => {
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [isOpen]);
+
   const handleLogout = async () => {
     if (loggingOut) return;
     setLoggingOut(true);
     await performCleanLogout('/login');
   };
-
-  useEffect(() => {
-    let active = true;
-
-    const fetchAuthAndProfile = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!active) return;
-
-        if (!session?.user) {
-          setIsAuthenticated(false);
-          setProfile(null);
-          return;
-        }
-
-        setIsAuthenticated(true);
-        const res = await getUserProfileAction();
-        if (active && res && res.success && res.data) {
-          setProfile(res.data);
-        }
-      } catch (err) {
-        console.error('Failed to fetch profile in sidebar:', err);
-      }
-    };
-
-    fetchAuthAndProfile();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (active) {
-        setIsAuthenticated(!!session?.user);
-        if (!session?.user) setProfile(null);
-      }
-    });
-
-    return () => {
-      active = false;
-      subscription.unsubscribe();
-    };
-  }, [pathname]);
 
   const [marketIndex, setMarketIndex] = useState<{ price: string; variation: string; value: number }>({
     price: '17 667,10',

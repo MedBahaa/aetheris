@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import type { CompanyAnalysis, AgentType } from '@/lib/schemas';
 import { analyzeCompanyAction } from '@/lib/actions';
 import { HistoryService } from '@/lib/history-service';
+import { recordAiSignal } from '@/lib/signal-tracker';
 import { PremiumPaywallModal } from '@/components/portfolio/PremiumPaywallModal';
 import { getUserProfileAction } from '@/lib/portfolio-actions';
 import { activateSandboxSubscriptionAction } from '@/lib/stripe-actions';
@@ -178,6 +179,18 @@ function ConsoleHome() {
           setActiveId(result.id);
           HistoryService.saveToHistory(result);
           setHistory(HistoryService.getFilteredHistory(agentToUse));
+          const verdict = result.orchestrator?.finalAction || result.recommendedAction;
+          if (agentToUse === 'STRATEGY' && verdict) {
+            void recordAiSignal({
+              symbol: finalQuery,
+              companyName: result.companyName || finalQuery,
+              action: verdict,
+              priceAtSignal: String(result.price || result.fundamentals?.marketCap || 'N/A'),
+              targetPrice: result.orchestrator?.takeProfit,
+              stopLoss: result.orchestrator?.stopLoss,
+              confidenceLevel: result.orchestrator?.confidenceLevel || result.confidenceLevel,
+            });
+          }
           setQuery('');
           setLoading(false);
         }, 500);

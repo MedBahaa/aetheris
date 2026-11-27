@@ -1,8 +1,15 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&family=Outfit:wght@500;700;900&display=swap');
-
 :root {
   /* Design Tokens - Aetheris Midnight Premium Palette */
-  --bg-dark: #020408;
+  --surface-0: #020408;
+  --surface-1: #0a0e17;
+  --surface-2: #0f1624;
+  --radius-card: 16px;
+  --radius-btn: 10px;
+  --font-sans: var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: var(--font-outfit), 'Outfit', sans-serif;
+  --font-mono: var(--font-jetbrains-mono), 'JetBrains Mono', monospace;
+
+  --bg-dark: var(--surface-0);
   --bg-elevated: #0d131f;
   --bg-surface: rgba(15, 22, 36, 0.88);
   --bg-card: rgba(13, 17, 23, 0.75);
@@ -93,7 +100,7 @@ html {
 body {
   background-color: var(--bg-dark);
   color: var(--text-main);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   min-height: 100vh;
   min-height: 100dvh;
   overflow-x: hidden;
@@ -1363,7 +1370,7 @@ a, a:visited {
 }
 
 .mono { 
-  font-family: 'JetBrains Mono', monospace; 
+  font-family: var(--font-mono); 
   font-variant-numeric: tabular-nums;
 }
 
@@ -2935,5 +2942,54 @@ table {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 12.5px;
   font-weight: 800;
+}
+
+/* ==========================================================================
+   PRINT / PDF INSTITUTIONAL EXPORT STYLESHEET
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 14mm;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    background-image: none !important;
+    color: #0f172a !important;
+    width: auto !important;
+    overflow: visible !important;
+  }
+
+  .fixed-header,
+  .sidebar,
+  .sidebar-overlay,
+  .mobile-bottom-nav,
+  .pwa-banner-wrap,
+  .pwa-update-banner,
+  .pwa-offline-banner,
+  .toast-viewport,
+  .no-print {
+    display: none !important;
+  }
+
+  .main-content {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin: 0 !important;
+  }
+
+  * {
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    color: #0f172a !important;
+    border-color: #cbd5e1 !important;
+  }
+
+  .print-header-only {
+    display: flex !important;
+  }
 }
 

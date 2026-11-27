@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Download, X, Sparkles, Smartphone } from 'lucide-react';
+import { Download, X, Sparkles, Smartphone, WifiOff } from 'lucide-react';
 
 // Extension du window pour TypeScript
 declare global {
@@ -19,6 +19,7 @@ export default function PwaRegistry() {
   const [isIos, setIsIos] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [showIosBanner, setShowIosBanner] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
 
   const activateBanner = useCallback((promptEvent: any) => {
     if (!promptEvent) return;
@@ -29,6 +30,11 @@ export default function PwaRegistry() {
   }, []);
 
   useEffect(() => {
+    const syncNetworkState = () => setIsOffline(!navigator.onLine);
+    syncNetworkState();
+    window.addEventListener('online', syncNetworkState);
+    window.addEventListener('offline', syncNetworkState);
+
     const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
     const standalone =
       window.matchMedia('(display-mode: standalone)').matches ||
@@ -69,6 +75,8 @@ export default function PwaRegistry() {
     }
 
     return () => {
+      window.removeEventListener('online', syncNetworkState);
+      window.removeEventListener('offline', syncNetworkState);
       window.removeEventListener('pwa-install-available', onInstallAvailable);
     };
   }, [activateBanner]);
@@ -96,12 +104,18 @@ export default function PwaRegistry() {
     }
   }, [newWorker]);
 
-  if (isStandalone) return null;
-
   return (
     <>
+      {/* ── Bannière Hors-Ligne globale (browser & standalone) ── */}
+      {isOffline && (
+        <div className="pwa-offline-banner no-print" role="status" aria-live="polite">
+          <WifiOff size={14} style={{ flexShrink: 0 }} />
+          <span>Mode hors-ligne — affichage du dernier snapshot marché disponible</span>
+        </div>
+      )}
+
       {/* ── Bannière d'installation Android/Desktop ─────────── */}
-      {showBanner && (
+      {!isStandalone && showBanner && (
         <div className="pwa-banner-wrap">
           <div className="pwa-banner-card">
             <div className="pwa-icon-box">
@@ -126,7 +140,7 @@ export default function PwaRegistry() {
       )}
 
       {/* ── Guide iOS Add to Home Screen ────────────────────── */}
-      {isIos && showIosBanner && (
+      {!isStandalone && isIos && showIosBanner && (
         <div className="pwa-banner-wrap">
           <div className="pwa-banner-card ios">
             <Smartphone size={18} className="pwa-ios-icon" />
@@ -162,6 +176,28 @@ export default function PwaRegistry() {
       )}
 
       <style jsx>{`
+        .pwa-offline-banner {
+          position: fixed;
+          top: calc(var(--header-height, 60px) + var(--sat, 0px) + 8px);
+          left: 50%;
+          transform: translateX(-50%);
+          z-index: var(--z-pwa, 1100);
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.45rem 0.95rem;
+          border-radius: 999px;
+          background: rgba(120, 53, 15, 0.95);
+          border: 1px solid rgba(245, 158, 11, 0.45);
+          color: #fef3c7;
+          font-size: 0.78rem;
+          font-weight: 700;
+          max-width: calc(100vw - 1.5rem);
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+        }
+
         .pwa-banner-wrap {
           position: fixed;
           bottom: 1.25rem;

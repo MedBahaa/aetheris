@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Search, Loader2, Sparkles, Activity, Zap, ShieldCheck, 
   AlertCircle, X, Globe, RefreshCcw, Landmark, Briefcase, Scale, ArrowRight,
@@ -11,6 +11,8 @@ import AnalysisReport from '@/components/AnalysisReport';
 import TechnicalReport from '@/components/TechnicalReport';
 import StrategyReport from '@/components/StrategyReport';
 import FundamentalReport from '@/components/FundamentalReport';
+import RegulatoryDisclaimer from '@/components/RegulatoryDisclaimer';
+import { getRecentAiSignals, type TrackedAiSignal } from '@/lib/signal-tracker';
 import { DashboardProps } from '@/types/dashboard';
 
 const AGENT_CAPABILITIES: Record<'STRATEGY' | 'TECHNICAL' | 'FUNDAMENTAL' | 'SENTIMENT', { title: string; subtitle: string; bullets: string[] }> = {
@@ -44,6 +46,11 @@ export default function DashboardContent(props: DashboardProps) {
   } = props;
 
   const activeMeta = AGENT_CAPABILITIES[activeAgent];
+  const [recentSignals, setRecentSignals] = useState<TrackedAiSignal[]>([]);
+
+  useEffect(() => {
+    setRecentSignals(getRecentAiSignals());
+  }, [analysis]);
 
 
 
@@ -403,9 +410,45 @@ export default function DashboardContent(props: DashboardProps) {
                   </div>
                 </div>
               </div>
+
+              {recentSignals.length > 0 && (
+                <div className="welcome-shortcuts-card glass-heavy">
+                  <div className="wh-header">
+                    <Sparkles size={14} className="text-emerald" />
+                    <span className="mono wh-title">JOURNAL DES SIGNAUX IA RÉCENTS</span>
+                  </div>
+                  <div className="signals-mini-list">
+                    {recentSignals.slice(0, 4).map((sig) => (
+                      <button
+                        key={sig.id}
+                        type="button"
+                        onClick={() => executeSearch(sig.symbol)}
+                        className="signal-mini-row"
+                      >
+                        <div className="sig-left">
+                          <span className="sig-sym mono">{sig.symbol}</span>
+                          <span className="sig-price mono">{sig.priceAtSignal}</span>
+                        </div>
+                        <span
+                          className={`sig-verdict mono ${
+                            sig.action === 'ACHETER' ? 'buy' : sig.action === 'VENDRE' ? 'sell' : 'hold'
+                          }`}
+                        >
+                          {sig.action}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
+
+        <RegulatoryDisclaimer
+          compact
+          sources={['Gemini 3.8 Flash', 'TradingView CSEMA', 'BMCE Capital Bourse']}
+        />
       </div>
 
       {/* CSS STYLING */}
@@ -1238,6 +1281,64 @@ export default function DashboardContent(props: DashboardProps) {
         .featured-card:hover .fc-go-btn {
           background: #10b981;
           color: #000000;
+        }
+        .signals-mini-list {
+          display: flex;
+          flex-direction: column;
+          gap: 0.45rem;
+          margin-top: 0.5rem;
+        }
+        .signal-mini-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.5rem;
+          padding: 0.5rem 0.65rem;
+          border-radius: 0.6rem;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.07);
+          color: #e2e8f0;
+          cursor: pointer;
+          transition: border-color 0.2s ease, background 0.2s ease;
+        }
+        .signal-mini-row:hover {
+          background: rgba(16, 185, 129, 0.08);
+          border-color: rgba(16, 185, 129, 0.3);
+        }
+        .sig-left {
+          display: flex;
+          align-items: center;
+          gap: 0.55rem;
+        }
+        .sig-sym {
+          font-size: 11px;
+          font-weight: 800;
+          color: #ffffff;
+        }
+        .sig-price {
+          font-size: 10.5px;
+          color: #94a3b8;
+        }
+        .sig-verdict {
+          font-size: 9.5px;
+          font-weight: 800;
+          padding: 2px 7px;
+          border-radius: 999px;
+        }
+        .sig-verdict.buy {
+          background: rgba(16, 185, 129, 0.14);
+          color: #34d399;
+          border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+        .sig-verdict.sell {
+          background: rgba(244, 63, 94, 0.14);
+          color: #fda4af;
+          border: 1px solid rgba(244, 63, 94, 0.3);
+        }
+        .sig-verdict.hold {
+          background: rgba(245, 158, 11, 0.14);
+          color: #fbbf24;
+          border: 1px solid rgba(245, 158, 11, 0.3);
         }
 
         @media (max-width: 1024px) {

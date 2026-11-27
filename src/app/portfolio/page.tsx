@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { 
   Briefcase, Plus, Download, Upload, Gift, BarChart2, RefreshCw, Sparkles, Zap, Trophy, Bell, Award, DollarSign, PieChart, AlertTriangle, History
 } from 'lucide-react';
@@ -26,20 +27,39 @@ import {
 } from '@/lib/portfolio-actions';
 import { activateSandboxSubscriptionAction } from '@/lib/stripe-actions';
 import { PortfolioStats } from '@/components/portfolio/PortfolioStats';
-import { SectorAllocationDonut } from '@/components/portfolio/SectorAllocationDonut';
-import { PortfolioEvolutionChart } from '@/components/portfolio/PortfolioEvolutionChart';
 import { PortfolioTable } from '@/components/portfolio/PortfolioTable';
 import { DividendTable } from '@/components/portfolio/DividendTable';
 import { SalesHistoryTable } from '@/components/portfolio/SalesHistoryTable';
-import { AddTransactionModal } from '@/components/portfolio/AddTransactionModal';
-import { AddDividendModal } from '@/components/portfolio/AddDividendModal';
-import { PremiumPaywallModal } from '@/components/portfolio/PremiumPaywallModal';
-import { RoboAdvisorPanel } from '@/components/portfolio/RoboAdvisorPanel';
 import { PortfolioService } from '@/lib/portfolio-service';
 import { BROKERAGE_FEE, TAX_ON_PROFIT } from '@/lib/portfolio-constants';
 import { SymbolMapper } from '@/lib/symbol-mapper';
 import { InputSanitizer } from '@/lib/input-sanitizer';
 import { useRouter } from 'next/navigation';
+
+const PortfolioEvolutionChart = dynamic(
+  () => import('@/components/portfolio/PortfolioEvolutionChart').then((m) => m.PortfolioEvolutionChart),
+  { ssr: false, loading: () => <div className="chart-lazy-placeholder glass-heavy" /> }
+);
+const SectorAllocationDonut = dynamic(
+  () => import('@/components/portfolio/SectorAllocationDonut').then((m) => m.SectorAllocationDonut),
+  { ssr: false, loading: () => <div className="chart-lazy-placeholder glass-heavy" /> }
+);
+const RoboAdvisorPanel = dynamic(
+  () => import('@/components/portfolio/RoboAdvisorPanel').then((m) => m.RoboAdvisorPanel),
+  { ssr: false, loading: () => <div className="chart-lazy-placeholder glass-heavy" /> }
+);
+const AddTransactionModal = dynamic(
+  () => import('@/components/portfolio/AddTransactionModal').then((m) => m.AddTransactionModal),
+  { ssr: false }
+);
+const AddDividendModal = dynamic(
+  () => import('@/components/portfolio/AddDividendModal').then((m) => m.AddDividendModal),
+  { ssr: false }
+);
+const PremiumPaywallModal = dynamic(
+  () => import('@/components/portfolio/PremiumPaywallModal').then((m) => m.PremiumPaywallModal),
+  { ssr: false }
+);
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 
@@ -73,6 +93,8 @@ export default function PortfolioPage() {
   const [virtualBalance, setVirtualBalance] = useState(100000);
   const [virtualInitialCapital, setVirtualInitialCapital] = useState(100000);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
 
   // Capital Settings
   const [initialCapital, setInitialCapital] = useState<number>(0);
@@ -105,10 +127,13 @@ export default function PortfolioPage() {
   const searchRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Read localStorage AS FALLBACK, then Supabase
+  // 🔒 SÉCURITÉ PII : purger l'ancienne copie locale non chiffrée ; source autoritaire = Supabase
   useEffect(() => {
-    const saved = localStorage.getItem('aetheris_capital');
-    if (saved) setInitialCapital(parseFloat(saved));
+    try {
+      window.localStorage.removeItem('aetheris_capital');
+    } catch {
+      // Ignorer
+    }
   }, []);
 
   const loadData = useCallback(async () => {
@@ -200,12 +225,26 @@ export default function PortfolioPage() {
     loadData();
   }, [loadData]);
 
+  const fetchLeaderboard = useCallback(async () => {
+    try {
+      setLeaderboardLoading(true);
+      setLeaderboardError(null);
+      const data = await getLeaderboardAction();
+      setLeaderboard(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      console.error(err);
+      setLeaderboardError(err?.message || 'Impossible de charger le classement.');
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  }, []);
+
   // Charger le classement uniquement à l'affichage de l'onglet Leaderboard
   useEffect(() => {
     if (activeTab === 'leaderboard') {
-      getLeaderboardAction().then(setLeaderboard).catch(console.error);
+      void fetchLeaderboard();
     }
-  }, [activeTab]);
+  }, [activeTab, fetchLeaderboard]);
 
   // Handle Search Suggestions
   useEffect(() => {
@@ -301,7 +340,6 @@ export default function PortfolioPage() {
         }
       } else {
         setInitialCapital(val);
-        localStorage.setItem('aetheris_capital', val.toString());
         try {
           await upsertUserProfileAction({ initial_capital: val });
           loadData();
@@ -836,9 +874,23 @@ export default function PortfolioPage() {
                 Découvrez les investisseurs les plus performants de la Bourse de Casablanca sur la base de leur portefeuille virtuel (Paper Trading).
               </p>
 
-              {leaderboard.length === 0 ? (
+              {leaderboardLoading ? (
                 <div className="leaderboard-empty">
                   Chargement du classement...
+                </div>
+              ) : leaderboardError ? (
+                <div className="leaderboard-empty">
+                  <p style={{ color: '#fda4af', marginBottom: '0.75rem' }}>{leaderboardError}</p>
+                  <button type="button" onClick={() => void fetchLeaderboard()} className="lb-retry-btn mono">
+                    RÉESSAYER
+                  </button>
+                </div>
+              ) : leaderboard.length === 0 ? (
+                <div className="leaderboard-empty">
+                  <p style={{ marginBottom: '0.75rem' }}>Aucun participant enregistré pour le moment.</p>
+                  <button type="button" onClick={() => void fetchLeaderboard()} className="lb-retry-btn mono">
+                    ACTUALISER
+                  </button>
                 </div>
               ) : (
                 <>
@@ -1134,7 +1186,23 @@ export default function PortfolioPage() {
           margin-top: 0.5rem;
         }
 
-        .leaderboard-empty { text-align: center; padding: 2.5rem 1rem; color: #64748b; }
+        .leaderboard-empty { text-align: center; padding: 2.5rem 1rem; color: #94a3b8; }
+        .lb-retry-btn {
+          padding: 0.55rem 1rem;
+          border-radius: 0.6rem;
+          border: 1px solid rgba(16, 185, 129, 0.35);
+          background: rgba(16, 185, 129, 0.14);
+          color: #34d399;
+          font-size: 11px;
+          font-weight: 800;
+          cursor: pointer;
+        }
+        .chart-lazy-placeholder {
+          height: 320px;
+          border-radius: 1rem;
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          background: rgba(13, 19, 31, 0.6);
+        }
         .leaderboard-table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
         .leaderboard-table th {
           text-align: left;

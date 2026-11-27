@@ -1,13 +1,21 @@
 // ============================================================
-// AETHERIS ADVANCED SERVICE WORKER v5.0 (Zero-Trust Auth & CSP Nonce Safe)
-// Stratégie : Network-only HTML (nonces CSP dynamiques), API & routes privées, Cache-first assets statiques
+// AETHERIS ADVANCED SERVICE WORKER v6.0 (Zero-Trust Auth & CSP Nonce Safe)
+// Stratégie : Network-only HTML/Privé, Snapshot Hors-Ligne APIs Marché Publiques, Cache-first Assets
 // ============================================================
 
-const CACHE_VERSION = 'v5';
+const CACHE_VERSION = 'v6';
 const STATIC_CACHE = `aetheris-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `aetheris-dynamic-${CACHE_VERSION}`;
 const IMAGE_CACHE = `aetheris-images-${CACHE_VERSION}`;
+const PUBLIC_API_CACHE = `aetheris-public-api-${CACHE_VERSION}`;
 const OFFLINE_URL = '/offline';
+
+const PUBLIC_MARKET_API_PATHS = [
+  '/api/market-live',
+  '/api/market-index',
+  '/api/dividendes',
+  '/api/macro',
+];
 
 // Uniquement les assets statiques et le fallback hors-ligne (jamais les pages HTML dynamiques avec nonce CSP)
 const PRECACHE_ASSETS = [
@@ -52,7 +60,7 @@ self.addEventListener('activate', (event) => {
           .filter(
             (name) =>
               name.startsWith('aetheris-') &&
-              ![STATIC_CACHE, DYNAMIC_CACHE, IMAGE_CACHE].includes(name)
+              ![STATIC_CACHE, DYNAMIC_CACHE, IMAGE_CACHE, PUBLIC_API_CACHE].includes(name)
           )
           .map((name) => caches.delete(name))
       );
@@ -83,7 +91,38 @@ self.addEventListener('fetch', (event) => {
   if (url.protocol === 'chrome-extension:') return;
   if (url.origin !== self.location.origin && !url.hostname.includes('fonts.g')) return;
 
-  // 1. Network-only pour les appels API
+  // 1a. Snapshot hors-ligne lecture seule uniquement pour les 4 routes marché publiques non nominatives
+  if (PUBLIC_MARKET_API_PATHS.some((p) => url.pathname === p)) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok && !response.headers.get('cache-control')?.includes('no-store')) {
+            const copy = response.clone();
+            caches.open(PUBLIC_API_CACHE).then((cache) => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(async () => {
+          const cached = await caches.match(request);
+          if (cached) {
+            const headers = new Headers(cached.headers);
+            headers.set('X-Aetheris-Offline-Cache', '1');
+            return new Response(cached.body, {
+              status: cached.status,
+              statusText: cached.statusText,
+              headers,
+            });
+          }
+          return new Response(
+            JSON.stringify({ error: 'Hors-ligne. Données indisponibles.', offline: true }),
+            { headers: { 'Content-Type': 'application/json' }, status: 503 }
+          );
+        })
+    );
+    return;
+  }
+
+  // 1b. Network-only strict pour toutes les autres API (auth, portefeuille, IA, Stripe...)
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
       fetch(request).catch(() => {

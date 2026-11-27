@@ -3,6 +3,7 @@
 import Stripe from 'stripe';
 import { createServerSupabase, supabaseAdmin } from './supabase-server';
 import { checkRateLimitAsync } from './rate-limiter';
+import { resolveAppOrigin } from './app-origin';
 import { revalidatePath } from 'next/cache';
 
 function getStripeClient(): Stripe | null {
@@ -13,22 +14,8 @@ function getStripeClient(): Stripe | null {
   });
 }
 
-/**
- * Valide l'origine pour éviter toute attaque Open Redirect lors du retour Stripe
- */
 function getSafeOrigin(clientOrigin?: string): string {
-  const configuredOrigin = process.env.NEXT_PUBLIC_APP_URL;
-  if (configuredOrigin) {
-    return configuredOrigin.replace(/\/$/, '');
-  }
-  if (
-    clientOrigin &&
-    process.env.NODE_ENV !== 'production' &&
-    /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(clientOrigin)
-  ) {
-    return clientOrigin;
-  }
-  return 'http://localhost:3000';
+  return resolveAppOrigin(clientOrigin);
 }
 
 /**

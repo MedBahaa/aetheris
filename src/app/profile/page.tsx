@@ -1,12 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   User,
   Bell,
-  BellRing,
   Sparkles,
   CheckCircle2,
   AlertTriangle,
@@ -23,18 +21,14 @@ import {
   X,
   LogOut,
   KeyRound,
-  Briefcase,
-  LayoutGrid,
-  Scale,
-  Wallet,
-  Clock,
-  Check,
   Lock,
-  Layers,
-  Award,
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
+import AccountOverview from '@/components/profile/AccountOverview';
+import { useToast } from '@/components/ToastProvider';
+import { useUserSession } from '@/hooks/useUserSession';
+import type { UserProfileData } from '@/types/profile';
 import {
   getUserProfileAction,
   upsertUserProfileAction,
@@ -57,6 +51,8 @@ const CAPITAL_PRESETS = [
 
 export default function ProfilePage() {
   const router = useRouter();
+  const toast = useToast();
+  const { refreshSession } = useUserSession();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -65,7 +61,7 @@ export default function ProfilePage() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  // Non-blocking toast banner
+  // Non-blocking inline feedback + global toast
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Authenticated user & workspace overview states
@@ -80,7 +76,7 @@ export default function ProfilePage() {
   const [activeAlertsCount, setActiveAlertsCount] = useState<number>(0);
 
   // Form & subscription states
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<UserProfileData | null>(null);
   const [newCapital, setNewCapital] = useState('0');
   const [telegramChatId, setTelegramChatId] = useState('');
   const [telegramVerified, setTelegramVerified] = useState(false);
@@ -96,17 +92,27 @@ export default function ProfilePage() {
   const [showPaywallModal, setShowPaywallModal] = useState(false);
   const [showCancelConfirmModal, setShowCancelConfirmModal] = useState(false);
 
-  const showFeedback = useCallback((type: 'success' | 'error', text: string, durationMs = 4500) => {
-    setSaveMessage({ type, text });
-    if (durationMs > 0) {
-      setTimeout(() => {
-        setSaveMessage((prev) => (prev?.text === text ? null : prev));
-      }, durationMs);
-    }
-  }, []);
+  const showFeedback = useCallback(
+    (type: 'success' | 'error', text: string, durationMs = 4500) => {
+      setSaveMessage({ type, text });
+      toast.showToast({ type, message: text, durationMs });
+      if (durationMs > 0) {
+        setTimeout(() => {
+          setSaveMessage((prev) => (prev?.text === text ? null : prev));
+        }, durationMs);
+      }
+    },
+    [toast]
+  );
 
   useEffect(() => {
     setMounted(true);
+    // 🔒 SÉCURITÉ PII : purger toute ancienne copie locale non chiffrée
+    try {
+      window.localStorage.removeItem('aetheris_user_profile');
+    } catch {
+      // Ignorer
+    }
   }, []);
 
   useEffect(() => {
@@ -126,21 +132,6 @@ export default function ProfilePage() {
   const loadProfile = useCallback(async (showSpinner: boolean = true) => {
     try {
       if (showSpinner) setLoading(true);
-
-      try {
-        const cached = localStorage.getItem('aetheris_user_profile');
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (parsed.newCapital !== undefined) setNewCapital(String(parsed.newCapital));
-          if (parsed.telegramChatId !== undefined) setTelegramChatId(parsed.telegramChatId);
-          if (parsed.whatsappPhone !== undefined) setWhatsappPhone(parsed.whatsappPhone);
-          if (parsed.alertChannel !== undefined) setAlertChannel(parsed.alertChannel);
-          if (parsed.notificationEmail !== undefined) setNotificationEmail(parsed.notificationEmail);
-          if (parsed.username !== undefined) setUsername(parsed.username);
-        }
-      } catch {
-        // Ignore invalid localStorage cache
-      }
 
       const [authRes, profileRes, alertsRes, txRes] = await Promise.allSettled([
         supabase.auth.getUser(),
@@ -246,22 +237,6 @@ export default function ProfilePage() {
       const cap = parseFloat(newCapital) || 0;
       const targetTier = forceTier !== undefined ? forceTier : subscriptionTier;
 
-      try {
-        localStorage.setItem(
-          'aetheris_user_profile',
-          JSON.stringify({
-            newCapital,
-            telegramChatId,
-            whatsappPhone,
-            alertChannel,
-            notificationEmail,
-            username,
-          })
-        );
-      } catch {
-        // Ignore storage errors
-      }
-
       const payload = {
         initial_capital: cap,
         telegram_chat_id: telegramChatId,
@@ -280,6 +255,7 @@ export default function ProfilePage() {
       setSubscriptionTier(targetTier);
       showFeedback('success', 'Paramètres enregistrés et validés avec succès !', 4500);
       loadProfile(false);
+      void refreshSession();
     } catch (err: any) {
       showFeedback('error', err.message || 'Erreur lors de la sauvegarde', 5000);
     } finally {
@@ -573,123 +549,37 @@ export default function ProfilePage() {
           )}
 
           {loading ? (
-            <div className="loading-container">
-              <RefreshCw className="icon-spin" size={28} />
-              <span className="mono-tiny">CHARGEMENT DES DONNÉES DU COMPTE...</span>
+            <div className="profile-skeleton-wrap" aria-busy="true" aria-label="Chargement du profil">
+              <div className="skeleton-hero skeleton-pulse" />
+              <div className="skeleton-kpi-grid">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="skeleton-kpi skeleton-pulse" />
+                ))}
+              </div>
+              <div className="skeleton-cols">
+                <div className="skeleton-panel skeleton-pulse" />
+                <div className="skeleton-panel side skeleton-pulse" />
+              </div>
             </div>
           ) : (
             <>
-              {/* Executive Account Hero Banner */}
-              <section className={`account-hero animate-fade-in ${isPro ? 'is-pro' : ''}`} aria-label="Synthèse du compte">
-                <div className="hero-left">
-                  <div className={`avatar-circle ${isPro ? 'is-pro' : ''}`}>
-                    <span className="mono">{avatarInitials}</span>
-                  </div>
-
-                  <div className="hero-identity">
-                    <div className="hero-name-row">
-                      <h2 className="hero-display-name">{displayName}</h2>
-                      <span className={`hero-tier-badge mono ${isPro ? 'pro' : 'free'}`}>
-                        {isPro ? 'MEMBRE PRO' : 'ACCÈS STANDARD'}
-                      </span>
-                    </div>
-
-                    <div className="hero-meta-row">
-                      <span className="hero-meta-item">
-                        <Mail size={13} />
-                        <span>{authEmail || 'Session non identifiée'}</span>
-                      </span>
-                      <span className="hero-meta-sep">•</span>
-                      <span className="hero-meta-item">
-                        <Clock size={13} />
-                        <span>Membre depuis {formattedMemberSince}</span>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="hero-right">
-                  <div className="readiness-box">
-                    <div className="readiness-top">
-                      <span className="readiness-label mono">ÉTAT DU PROFIL</span>
-                      <span className="readiness-pct mono">{completionScore}%</span>
-                    </div>
-                    <div className="readiness-track" role="progressbar" aria-valuenow={completionScore} aria-valuemin={0} aria-valuemax={100}>
-                      <div className="readiness-fill" style={{ width: `${completionScore}%` }} />
-                    </div>
-                    <div className="readiness-pills">
-                      {readinessChecks.map((item) => (
-                        <span key={item.key} className={`readiness-chip ${item.done ? 'done' : 'todo'}`}>
-                          {item.done ? <Check size={10} /> : <span className="dot-pending" />}
-                          <span>{item.label}</span>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="quick-shortcuts">
-                    <Link href="/portfolio" className="shortcut-btn">
-                      <Briefcase size={13} />
-                      <span>Portefeuille</span>
-                    </Link>
-                    <Link href="/console" className="shortcut-btn">
-                      <LayoutGrid size={13} />
-                      <span>Console Alpha</span>
-                    </Link>
-                    <Link href="/purification" className="shortcut-btn">
-                      <Scale size={13} />
-                      <span>Purification</span>
-                    </Link>
-                  </div>
-                </div>
-              </section>
-
-              {/* 4-Card Account KPI Strip */}
-              <section className="account-kpi-grid animate-fade-in" aria-label="Indicateurs clés du compte">
-                <div className="kpi-tile">
-                  <div className="kpi-head">
-                    <span className="kpi-label mono">CAPITAL RÉEL</span>
-                    <Wallet size={15} className="kpi-icon emerald" />
-                  </div>
-                  <div className="kpi-value mono">{capitalNum.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD</div>
-                  <div className="kpi-sub">Base d&apos;indexation portefeuille</div>
-                </div>
-
-                <div className="kpi-tile">
-                  <div className="kpi-head">
-                    <span className="kpi-label mono">PAPER TRADING</span>
-                    <Award size={15} className="kpi-icon amber" />
-                  </div>
-                  <div className="kpi-value mono">{virtualBalance.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD</div>
-                  <div className="kpi-sub">
-                    Capital initial : {virtualInitialCapital.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD
-                  </div>
-                </div>
-
-                <div className="kpi-tile">
-                  <div className="kpi-head">
-                    <span className="kpi-label mono">POSITIONS RÉELLES</span>
-                    <Layers size={15} className="kpi-icon blue" />
-                  </div>
-                  <div className="kpi-value mono">
-                    {openPositionsCount} {openPositionsCount > 1 ? 'valeurs' : 'valeur'}
-                  </div>
-                  <div className="kpi-sub">{transactionsCount} transaction(s) enregistrée(s)</div>
-                </div>
-
-                <div className="kpi-tile">
-                  <div className="kpi-head">
-                    <span className="kpi-label mono">ALERTES SL / TP</span>
-                    <BellRing size={15} className="kpi-icon purple" />
-                  </div>
-                  <div className="kpi-value mono">
-                    {activeAlertsCount} {activeAlertsCount > 1 ? 'actives' : 'active'}
-                  </div>
-                  <div className="kpi-sub">
-                    Canal actif : {alertChannel} · {isChannelOperational ? 'Opérationnel' : 'À finaliser'}
-                  </div>
-                </div>
-              </section>
+              <AccountOverview
+                isPro={isPro}
+                avatarInitials={avatarInitials}
+                displayName={displayName}
+                authEmail={authEmail}
+                formattedMemberSince={formattedMemberSince}
+                completionScore={completionScore}
+                readinessChecks={readinessChecks}
+                capitalNum={capitalNum}
+                virtualBalance={virtualBalance}
+                virtualInitialCapital={virtualInitialCapital}
+                openPositionsCount={openPositionsCount}
+                transactionsCount={transactionsCount}
+                activeAlertsCount={activeAlertsCount}
+                alertChannel={alertChannel}
+                isChannelOperational={isChannelOperational}
+              />
 
               {/* Main 2-Column Workspace */}
               <div className="profile-grid">
@@ -1529,15 +1419,54 @@ export default function ProfilePage() {
           color: #fda4af;
         }
 
-        /* Loading */
-        .loading-container {
+        /* Structured Skeleton Loader */
+        .profile-skeleton-wrap {
           display: flex;
           flex-direction: column;
-          align-items: center;
-          justify-content: center;
+          gap: 1.15rem;
+        }
+        .skeleton-pulse {
+          animation: skPulse 1.5s ease-in-out infinite;
+          background: rgba(15, 23, 42, 0.72);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .skeleton-hero {
+          height: 118px;
+          border-radius: 1.15rem;
+        }
+        .skeleton-kpi-grid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 0.9rem;
+        }
+        .skeleton-kpi {
+          height: 92px;
+          border-radius: 0.95rem;
+        }
+        .skeleton-cols {
+          display: grid;
+          grid-template-columns: 1.35fr 1fr;
           gap: 1.25rem;
-          padding: 6rem 0;
-          color: #94a3b8;
+        }
+        .skeleton-panel {
+          height: 360px;
+          border-radius: 1.05rem;
+        }
+        @keyframes skPulse {
+          0%, 100% {
+            opacity: 0.45;
+          }
+          50% {
+            opacity: 0.85;
+          }
+        }
+        @media (max-width: 1024px) {
+          .skeleton-kpi-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          .skeleton-cols {
+            grid-template-columns: 1fr;
+          }
         }
 
         :global(.icon-spin) {
@@ -1551,300 +1480,6 @@ export default function ProfilePage() {
           to {
             transform: rotate(360deg);
           }
-        }
-
-        /* Executive Account Hero Banner */
-        .account-hero {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 1.5rem;
-          flex-wrap: wrap;
-          padding: 1.35rem 1.5rem;
-          border-radius: 1.15rem;
-          background: linear-gradient(135deg, rgba(16, 185, 129, 0.07) 0%, rgba(15, 23, 42, 0.85) 60%, rgba(10, 14, 23, 0.92) 100%);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          margin-bottom: 1.1rem;
-        }
-
-        .account-hero.is-pro {
-          background: linear-gradient(135deg, rgba(168, 85, 247, 0.1) 0%, rgba(15, 23, 42, 0.88) 55%, rgba(16, 185, 129, 0.06) 100%);
-          border-color: rgba(168, 85, 247, 0.25);
-        }
-
-        .hero-left {
-          display: flex;
-          align-items: center;
-          gap: 1.1rem;
-          min-width: 0;
-          flex: 1 1 320px;
-        }
-
-        .avatar-circle {
-          width: 60px;
-          height: 60px;
-          border-radius: 18px;
-          background: rgba(16, 185, 129, 0.14);
-          border: 1px solid rgba(16, 185, 129, 0.35);
-          color: #34d399;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 1.25rem;
-          font-weight: 900;
-          flex-shrink: 0;
-          box-shadow: 0 0 24px rgba(16, 185, 129, 0.14);
-        }
-
-        .avatar-circle.is-pro {
-          background: rgba(168, 85, 247, 0.18);
-          border-color: rgba(168, 85, 247, 0.45);
-          color: #e9d5ff;
-          box-shadow: 0 0 26px rgba(168, 85, 247, 0.22);
-        }
-
-        .hero-identity {
-          display: flex;
-          flex-direction: column;
-          gap: 0.4rem;
-          min-width: 0;
-        }
-
-        .hero-name-row {
-          display: flex;
-          align-items: center;
-          gap: 0.65rem;
-          flex-wrap: wrap;
-        }
-
-        .hero-display-name {
-          margin: 0;
-          font-family: 'Outfit', sans-serif;
-          font-size: 1.35rem;
-          font-weight: 900;
-          color: #ffffff;
-          letter-spacing: -0.02em;
-        }
-
-        .hero-tier-badge {
-          font-size: 10px;
-          font-weight: 800;
-          padding: 3px 9px;
-          border-radius: 999px;
-          letter-spacing: 0.06em;
-        }
-
-        .hero-tier-badge.pro {
-          background: rgba(168, 85, 247, 0.16);
-          border: 1px solid rgba(168, 85, 247, 0.38);
-          color: #d8b4fe;
-        }
-
-        .hero-tier-badge.free {
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          color: #cbd5e1;
-        }
-
-        .hero-meta-row {
-          display: flex;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 0.5rem;
-          font-size: 0.82rem;
-          color: #94a3b8;
-        }
-
-        .hero-meta-item {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.35rem;
-          color: #cbd5e1;
-        }
-
-        .hero-meta-sep {
-          color: #475569;
-        }
-
-        .hero-right {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-end;
-          gap: 0.8rem;
-          flex: 1 1 360px;
-          min-width: 260px;
-        }
-
-        .readiness-box {
-          width: 100%;
-          max-width: 440px;
-          display: flex;
-          flex-direction: column;
-          gap: 0.45rem;
-          background: rgba(0, 0, 0, 0.28);
-          border: 1px solid rgba(255, 255, 255, 0.07);
-          border-radius: 0.85rem;
-          padding: 0.75rem 0.9rem;
-        }
-
-        .readiness-top {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .readiness-label {
-          font-size: 10px;
-          font-weight: 800;
-          color: #94a3b8;
-          letter-spacing: 0.07em;
-        }
-
-        .readiness-pct {
-          font-size: 11px;
-          font-weight: 900;
-          color: #34d399;
-        }
-
-        .readiness-track {
-          width: 100%;
-          height: 6px;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.07);
-          overflow: hidden;
-        }
-
-        .readiness-fill {
-          height: 100%;
-          border-radius: 999px;
-          background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
-          transition: width 0.4s ease;
-        }
-
-        .readiness-pills {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.35rem;
-        }
-
-        .readiness-chip {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.25rem;
-          font-size: 10.5px;
-          font-weight: 600;
-          padding: 2px 7px;
-          border-radius: 999px;
-        }
-
-        .readiness-chip.done {
-          background: rgba(16, 185, 129, 0.12);
-          color: #6ee7b7;
-          border: 1px solid rgba(16, 185, 129, 0.22);
-        }
-
-        .readiness-chip.todo {
-          background: rgba(255, 255, 255, 0.04);
-          color: #94a3b8;
-          border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .dot-pending {
-          width: 6px;
-          height: 6px;
-          border-radius: 50%;
-          background: #64748b;
-        }
-
-        .quick-shortcuts {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.5rem;
-          justify-content: flex-end;
-        }
-
-        :global(.shortcut-btn) {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.4rem;
-          min-height: 36px;
-          padding: 0 0.85rem;
-          border-radius: 0.65rem;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          color: #e2e8f0;
-          font-size: 0.78rem;
-          font-weight: 700;
-          text-decoration: none;
-          transition: all 0.2s ease;
-        }
-
-        :global(.shortcut-btn:hover) {
-          background: rgba(16, 185, 129, 0.14);
-          border-color: rgba(16, 185, 129, 0.35);
-          color: #ffffff;
-        }
-
-        /* 4-Card Account KPI Strip */
-        .account-kpi-grid {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 0.9rem;
-          margin-bottom: 1.35rem;
-        }
-
-        .kpi-tile {
-          padding: 1rem 1.15rem;
-          border-radius: 0.95rem;
-          background: rgba(13, 19, 31, 0.76);
-          border: 1px solid rgba(255, 255, 255, 0.07);
-          display: flex;
-          flex-direction: column;
-          gap: 0.35rem;
-          min-width: 0;
-        }
-
-        .kpi-head {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 0.5rem;
-        }
-
-        .kpi-label {
-          font-size: 10px;
-          font-weight: 800;
-          color: #94a3b8;
-          letter-spacing: 0.07em;
-        }
-
-        :global(.kpi-icon.emerald) {
-          color: #34d399;
-        }
-        :global(.kpi-icon.amber) {
-          color: #fbbf24;
-        }
-        :global(.kpi-icon.blue) {
-          color: #38bdf8;
-        }
-        :global(.kpi-icon.purple) {
-          color: #c084fc;
-        }
-
-        .kpi-value {
-          font-size: 1.32rem;
-          font-weight: 900;
-          color: #ffffff;
-          font-variant-numeric: tabular-nums;
-          line-height: 1.2;
-        }
-
-        .kpi-sub {
-          font-size: 0.76rem;
-          color: #94a3b8;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
         }
 
         /* Layout Grid */
@@ -1868,23 +1503,11 @@ export default function ProfilePage() {
         }
 
         @media (max-width: 1024px) {
-          .account-kpi-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
           .profile-grid {
             grid-template-columns: 1fr;
           }
           .premium-panel {
             position: static;
-          }
-          .hero-right {
-            align-items: flex-start;
-          }
-          .readiness-box {
-            max-width: none;
-          }
-          .quick-shortcuts {
-            justify-content: flex-start;
           }
         }
 

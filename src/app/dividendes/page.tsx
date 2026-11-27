@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { Trophy, RefreshCw, AlertCircle, Coins, Search, ArrowUpRight, X, Zap } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
+import RegulatoryDisclaimer from '@/components/RegulatoryDisclaimer';
 import { DividendYieldData } from '@/lib/scrapers/dividend-scraper';
 import { useDebounce } from '@/hooks/useDebounce';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 
 interface DividendApiResponse {
   success: boolean;
@@ -101,9 +103,13 @@ export default function DividendesPage() {
     router.push(`/console?q=${encodeURIComponent(symbol)}&agent=FUNDAMENTAL`);
   };
 
-  const handleRefresh = () => {
-    void mutate(() => fetcher('/api/dividendes?refresh=1'), { revalidate: false });
-  };
+  const handleRefresh = useCallback(() => {
+    return mutate(() => fetcher('/api/dividendes?refresh=1'), { revalidate: false });
+  }, [mutate]);
+
+  const { pullDistance, refreshing: pullRefreshing } = usePullToRefresh({
+    onRefresh: handleRefresh,
+  });
 
   return (
     <div className="app-container">
@@ -113,6 +119,12 @@ export default function DividendesPage() {
 
       <main className="main-content">
         <div className="max-container">
+          {(pullDistance > 18 || pullRefreshing) && (
+            <div className="pull-refresh-pill mono">
+              <RefreshCw size={12} className={pullRefreshing ? 'icon-spin' : ''} />
+              <span>{pullRefreshing ? 'SYNCHRONISATION DIVIDENDES...' : 'RELÂCHER POUR ACTUALISER'}</span>
+            </div>
+          )}
           {/* Header Section */}
           <header className="div-header animate-fade-in">
             <div className="header-identity">
@@ -342,7 +354,11 @@ export default function DividendesPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredDividends.map((item, idx) => (
+                      {filteredDividends.map((item, idx) => {
+                        const itemYieldNum = parseNumeric(item.yield);
+                        const maxYieldNum = Math.max(1, parseNumeric(dividendSummary.topYield?.yield));
+                        const yieldBarPct = Math.min(100, Math.max(6, Math.round((itemYieldNum / maxYieldNum) * 100)));
+                        return (
                         <tr key={item.symbol} className="inst-row">
                           <td>
                             <span className={`mono div-rank-text ${idx < 3 ? 'gold' : ''}`}>
@@ -362,10 +378,15 @@ export default function DividendesPage() {
                             </div>
                           </td>
                           <td className="num">
-                            <span className="div-yield-pill inline">
-                              <ArrowUpRight size={14} />
-                              <span className="mono">{item.yield}</span>
-                            </span>
+                            <div className="div-yield-cell">
+                              <span className="div-yield-pill inline">
+                                <ArrowUpRight size={14} />
+                                <span className="mono">{item.yield}</span>
+                              </span>
+                              <div className="div-yield-bar-track" aria-hidden="true">
+                                <div className="div-yield-bar-fill" style={{ width: `${yieldBarPct}%` }} />
+                              </div>
+                            </div>
                           </td>
                           <td className="num mono div-amount">{item.amountDH}</td>
                           <td className="num mono div-price">{item.price}</td>
@@ -380,13 +401,20 @@ export default function DividendesPage() {
                             </button>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               </>
             )}
           </div>
+
+          <RegulatoryDisclaimer
+            compact
+            sources={[sourceLabel || 'TradingView CSEMA', 'CasablancaBourse']}
+            updatedAt={data?.updatedAt || null}
+          />
         </div>
       </main>
 
@@ -685,7 +713,49 @@ export default function DividendesPage() {
         }
         .div-amount { color: #e2e8f0; font-weight: 700; }
         .div-price { color: #94a3b8; }
+        .div-yield-cell {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 5px;
+        }
+        .div-yield-bar-track {
+          width: 78px;
+          height: 4px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.08);
+          overflow: hidden;
+        }
+        .div-yield-bar-fill {
+          height: 100%;
+          border-radius: 999px;
+          background: linear-gradient(90deg, #059669, #34d399);
+        }
 
+        @media (max-width: 1024px) {
+          .div-controls {
+            position: sticky;
+            top: calc(var(--header-height, 60px) + var(--sat, 0px) + 4px);
+            z-index: 40;
+            background: rgba(9, 13, 22, 0.95);
+          }
+        }
+        .app-container {
+          min-height: 100dvh;
+        }
+        .pull-refresh-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.45rem;
+          margin: 0 auto 0.75rem;
+          padding: 0.4rem 0.9rem;
+          border-radius: 999px;
+          background: rgba(16, 185, 129, 0.14);
+          border: 1px solid rgba(16, 185, 129, 0.35);
+          color: #34d399;
+          font-size: 11px;
+          font-weight: 800;
+        }
         @media (max-width: 768px) {
           .max-container { padding: 0.5rem 0; }
           .title-h1 { font-size: 1.5rem; }

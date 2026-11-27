@@ -1,11 +1,32 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
+import { Inter, Outfit, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import StyledJsxRegistry from "@/lib/registry";
 import SessionGuard from "@/components/SessionGuard";
 import { DeviceProvider } from "@/hooks/useDevice";
+import { UserSessionProvider } from "@/hooks/useUserSession";
+import { ToastProvider } from "@/components/ToastProvider";
 import PwaRegistry from "@/components/PwaRegistry";
 import BottomNav from "@/components/BottomNav";
+
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
+
+const outfit = Outfit({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-outfit",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-jetbrains-mono",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://aetheris.vercel.app'),
@@ -59,7 +80,7 @@ export default async function RootLayout({
   const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   return (
-    <html lang="fr">
+    <html lang="fr" className={`${inter.variable} ${outfit.variable} ${jetbrainsMono.variable}`}>
       <head>
         {/* Capture beforeinstallprompt AVANT le chargement de React (sécurisé par nonce CSP) */}
         <script
@@ -81,9 +102,13 @@ export default async function RootLayout({
         <PwaRegistry />
         <StyledJsxRegistry>
           <DeviceProvider>
-            <SessionGuard />
-            {children}
-            <BottomNav />
+            <UserSessionProvider>
+              <ToastProvider>
+                <SessionGuard />
+                {children}
+                <BottomNav />
+              </ToastProvider>
+            </UserSessionProvider>
           </DeviceProvider>
         </StyledJsxRegistry>
       </body>
